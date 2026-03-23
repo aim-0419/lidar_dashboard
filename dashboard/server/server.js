@@ -197,7 +197,7 @@ app.post("/api/wrongway", (req, res) => {
       serial_no: body.serial_no,
     };
     
-    console.log("[broadcast alert", alert);
+    console.log("[broadcast alert]", alert);
 
     //kpi/로그반영
     applyAlertEffects(alert);
