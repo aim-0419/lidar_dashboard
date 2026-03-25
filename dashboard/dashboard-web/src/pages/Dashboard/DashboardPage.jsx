@@ -78,6 +78,7 @@ export default function DashboardPage({
   const videoRef = useRef(null);
   const DEMO_START_SEC = 17.496; // 시작 시점
   const DEMO_END_SEC = 62.226; // 종료 시점
+  const CAMERA_VIDEO_SRC = "/역주행영상.mp4";
   //
 
   //
@@ -493,15 +494,15 @@ export default function DashboardPage({
                 실시간 카메라
               </div>
 
-              <div className="flex flex-col items-center text-gray-500 space-y-2">
-                <div className="w-14 h-10 border-2 border-gray-400 rounded-lg flex items-center justify-center">
-                  <div className="w-5 h-5 rounded-full border-2 border-gray-400 relative">
-                    <div className="absolute top-[-2px] right-[-2px] w-2 h-2 bg-gray-400 rounded-full" />
-                  </div>
-                </div>
-
-                <span className="text-xs font-mono">NO SIGNAL</span>
-              </div>
+              <video
+                src={CAMERA_VIDEO_SRC}
+                className="w-full h-full object-cover"
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="auto"
+              />
 
               <div className="absolute bottom-2 left-2 text-[10px] text-gray-600 font-mono">
                 CAM_01_ENTRANCE
