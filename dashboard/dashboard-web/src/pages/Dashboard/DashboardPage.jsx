@@ -79,6 +79,26 @@ export default function DashboardPage({
   const DEMO_START_SEC = 17.496; // 시작 시점
   const DEMO_END_SEC = 62.226; // 종료 시점
   const CAMERA_VIDEO_SRC = "/wrongway_test.mp4";
+
+  // YOLO 감지 서버 상태
+  const DETECTOR_PORT = 8765;
+  const DETECTOR_BASE = `http://${window.location.hostname}:${DETECTOR_PORT}`;
+  const [detectorAlive, setDetectorAlive] = useState(false);
+
+  useEffect(() => {
+    let timer;
+    const pingDetector = async () => {
+      try {
+        const res = await fetch(`${DETECTOR_BASE}/health`, { cache: "no-store" });
+        setDetectorAlive(res.ok);
+      } catch {
+        setDetectorAlive(false);
+      }
+    };
+    pingDetector();
+    timer = setInterval(pingDetector, 3000);
+    return () => clearInterval(timer);
+  }, []);
   //
 
   //
@@ -494,15 +514,23 @@ export default function DashboardPage({
                 실시간 카메라
               </div>
 
-              <video
-                src={CAMERA_VIDEO_SRC}
-                className="w-full h-full object-contain"
-                autoPlay
-                loop
-                muted
-                playsInline
-                preload="auto"
-              />
+              {detectorAlive ? (
+                <img
+                  src={`${DETECTOR_BASE}/video_feed`}
+                  alt="YOLO Detection Feed"
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <video
+                  src={CAMERA_VIDEO_SRC}
+                  className="w-full h-full object-contain"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  preload="auto"
+                />
+              )}
 
               <div className="absolute bottom-2 left-2 text-[10px] text-gray-600 font-mono">
                 CAM_01_ENTRANCE
