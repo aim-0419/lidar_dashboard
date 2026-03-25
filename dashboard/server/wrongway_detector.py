@@ -38,10 +38,14 @@ else:
     # 기본값 (dashboard-web/public/wrongway_test.mp4)
     VIDEO_SOURCE = str((CONFIG_PATH.parent / ".." / "dashboard-web" / "public" / "wrongway_test.mp4").resolve())
 
-# 로터리 중심 (영상 픽셀 좌표) – config.json에서 조정 가능
-_rc = config.get("rotaryCenter", {})
-ROTARY_CX = _rc.get("x", 640)
-ROTARY_CY = _rc.get("y", 360)
+# 로터리 중심 (1280x720 기준 고정 좌표)
+_rc = config.get("rotaryCenter", {"x": 540, "y": 510})
+ORIGN_CX = _rc.get("x", 540)
+ORIGN_CY = _rc.get("y", 510)
+
+# 640x360 좌표계용 보정된 중심
+ROTARY_CX = ORIGN_CX * (640/1280)
+ROTARY_CY = ORIGN_CY * (360/720)
 
 # 대시보드 서버 (이벤트 전송용)
 SERVER_PORT = config.get("serverPort", 5000)
@@ -64,11 +68,14 @@ track_stage = defaultdict(int)
 # track_id → 각 단계별 전송 여부
 track_alerted_stages = defaultdict(set)
 
+# track_id → 마지막 보관된 박스 정보 (깜빡임 방지용)
+track_last_box = defaultdict(lambda: None)
+
 # 설정값
-HISTORY_MIN_FRAMES = 15      # 최소 이 정도는 움직여야 판정
-CROSS_LIMIT_STAGE1 = -1800   # Stage 1 (Warning) 임계치 (영상 크기에 비례)
-CROSS_LIMIT_STAGE2 = -4000   # Stage 2 (Danger) 임계치
-Correct_MOVEMENT_RESET = 800 # 이만큼 반대로 이동하면 리셋 (Self-correction)
+HISTORY_MIN_FRAMES = 10      # 최소 이 정도는 움직여야 판정
+CROSS_LIMIT_STAGE1 = -3000   # Stage 1 (Warning) 임계치 (더 둔감하게 조정)
+CROSS_LIMIT_STAGE2 = -7000   # Stage 2 (Danger) 임계치 
+Correct_MOVEMENT_RESET = 300 # 이만큼 반대로 이동하면 리셋 (Self-correction)
 STALE_FRAMES = 30            # 이 프레임 동안 안 보이면 삭제
 
 frame_counter = 0
@@ -154,12 +161,26 @@ def detection_loop():
         frame = cv2.resize(frame_raw, (640, 360))
         h, w = frame.shape[:2]
 
+        # ── 배경 이미지 준비 (감지 스킵 시에도 마지막 박스를 그리기 위함) ──
+        annotated = frame.copy()
+
         # 성능 최적화: 3프레임당 1번만 YOLO 실행
         if frame_counter % 3 != 0:
+            # YOLO 스킵 시에도 마지막으로 저장된 모든 박스를 그림 (깜빡임 방지)
+            for tid, box_data in track_last_box.items():
+                if frame_counter - track_last_frame[tid] < STALE_FRAMES:
+                    x1, y1, x2, y2, color, label = box_data
+                    cv2.rectangle(annotated, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+                    if label:
+                        cv2.putText(annotated, f"{label} ID:{tid}", (int(x1), int(y1) - 5), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+
+            # 스테이터스/중심은 매 프레임 표시
+            cv2.putText(annotated, f"YOLO v2.2 | F-Skip:3 | {frame_counter}", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+            cv2.circle(annotated, (int(ROTARY_CX), int(ROTARY_CY)), 5, (255, 0, 255), -1)
+
             with frame_lock:
-                if output_frame is not None:
-                    # 이전 감지 결과를 덮어쓴 현재 프레임 전송 (움직임 유지)
-                    output_frame = frame.copy()
+                output_frame = annotated
             continue
 
         # ── YOLO 트래킹 (imgsz=320으로 더욱 축소) ──
@@ -173,8 +194,6 @@ def detection_loop():
             verbose=False,
         )
 
-        annotated = frame.copy()
-
         if results and results[0].boxes is not None and results[0].boxes.id is not None:
             boxes = results[0].boxes
             ids = boxes.id.int().cpu().tolist()
@@ -186,17 +205,15 @@ def detection_loop():
 
                 last_pos = track_prev_center[track_id]
                 if last_pos is not None:
-                    # 외적 계산 (방향 판별)
-                    # 640x360 좌표계에서의 로터리 중심 보정
-                    cx_adj, cy_adj = ROTARY_CX * (640/1280), ROTARY_CY * (360/720) # 1280 기준 보정
+                    # 외적 계산 (방향 판별) - 이제 ROTARY_CX/Y가 640x360 스케일임
                     cross = calculate_cross_product(cx, cy, last_pos[0], last_pos[1])
                     
-                    # 노이즈 필터링 (너무 미세한 움직임 제외)
-                    if abs(cross) > 5.0:
+                    # 노이즈 필터링
+                    if abs(cross) > 2.0:
                         track_cross_sum[track_id] += cross
-                        # Self-correction: 반대 방향으로 많이 가면 누적값 리셋
-                        if track_cross_sum[track_id] < 0 and cross > 20: 
-                            track_cross_sum[track_id] += cross # 줄어듦
+                        # Self-correction: 반대 방향(CCW > 0)으로 주행 시 시계방향 누적값 상쇄
+                        if track_cross_sum[track_id] < 0 and cross > 5.0: 
+                            track_cross_sum[track_id] += (cross * 3) # 상쇄 속도 3배
                             if track_cross_sum[track_id] > 0: track_cross_sum[track_id] = 0
 
                 track_prev_center[track_id] = (cx, cy)
@@ -210,33 +227,38 @@ def detection_loop():
                 
                 track_stage[track_id] = current_stage
 
-                # 그리기
-                label = ""
-                color = (0, 255, 0) # Green
+                # 그리기 (경고/위험 단계일 때만 박스 표시)
+                label_text = ""
+                color = None
                 
                 if current_stage == 1:
                     color = (0, 255, 255) # Yellow
-                    label = "WARNING"
+                    label_text = "WARNING"
                 elif current_stage == 2:
                     color = (0, 0, 255)   # Red
-                    label = "DANGER"
+                    label_text = "DANGER"
 
-                cv2.rectangle(annotated, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
-                if label:
-                    cv2.putText(annotated, f"{label} ID:{track_id}", (int(x1), int(y1) - 5), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                if color:
+                    cv2.rectangle(annotated, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+                    cv2.putText(annotated, f"{label_text} ID:{track_id}", (int(x1), int(y1) - 5), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                    # 마지막 박스 정보 업데이트 (깜빡임 방지)
+                    track_last_box[track_id] = (x1, y1, x2, y2, color, label_text)
+                else:
+                    # 정상 차량은 박스 정보 삭제 (이전 프레임 잔상 제거)
+                    track_last_box.pop(track_id, None)
 
-                # 이벤트 전송 로직
+                # 이벤트 전송 로직 (이미 해당 단계 알렸으면 패스)
                 if current_stage > 0:
                     if current_stage not in track_alerted_stages[track_id]:
                         track_alerted_stages[track_id].add(current_stage)
                         threading.Thread(target=send_wrongway_alert, args=(track_id, current_stage), daemon=True).start()
 
-        # 스테이터스/중심 표시
-        cv2.putText(annotated, f"YOLO v2 | F-Skip:3 | {frame_counter}", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+        # 스테이터스 표시 (V4로 변경하여 확인)
+        cv2.putText(annotated, f"YOLO V4 | CLEAN UI | PORT 8888", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
         
         with frame_lock:
-            output_frame = annotated.copy()
+            output_frame = annotated
 
         time.sleep(0.01) # 루프 제어
 

@@ -81,7 +81,7 @@ export default function DashboardPage({
   const CAMERA_VIDEO_SRC = "/wrongway_test.mp4";
 
   // YOLO 감지 서버 상태
-  const DETECTOR_PORT = 8765;
+  const DETECTOR_PORT = 8888;
   const DETECTOR_BASE = `http://${window.location.hostname}:${DETECTOR_PORT}`;
   const [detectorAlive, setDetectorAlive] = useState(false);
 
