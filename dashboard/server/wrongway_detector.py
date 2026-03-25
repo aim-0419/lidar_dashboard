@@ -5,6 +5,7 @@
 # ──────────────────────────────────────────────
 import json
 import math
+import random
 import time
 import threading
 from pathlib import Path
@@ -67,14 +68,16 @@ track_last_frame = defaultdict(int)
 track_stage = defaultdict(int)
 # track_id → 각 단계별 전송 여부
 track_alerted_stages = defaultdict(set)
+# track_id → Stage 1 전송 시각 (Stage 2 지연용)
+track_stage1_time = defaultdict(float)
 
 # track_id → 마지막 보관된 박스 정보 (깜빡임 방지용)
 track_last_box = defaultdict(lambda: None)
 
 # 설정값
 HISTORY_MIN_FRAMES = 10      # 최소 이 정도는 움직여야 판정
-CROSS_LIMIT_STAGE1 = -3000   # Stage 1 (Warning) 임계치 (더 둔감하게 조정)
-CROSS_LIMIT_STAGE2 = -7000   # Stage 2 (Danger) 임계치 
+CROSS_LIMIT_STAGE1 = -3000   # Stage 1 (Warning) 임계치
+CROSS_LIMIT_STAGE2 = -15000  # Stage 2 (Danger) 임계치 (더 긴 지속 역주행 필요)
 Correct_MOVEMENT_RESET = 300 # 이만큼 반대로 이동하면 리셋 (Self-correction)
 STALE_FRAMES = 30            # 이 프레임 동안 안 보이면 삭제
 
@@ -87,6 +90,163 @@ CORS(app)
 # 스레드 안전한 프레임 공유
 output_frame = None
 frame_lock = threading.Lock()
+
+# 라이다 시각화 프레임 공유
+lidar_frame = None
+lidar_frame_lock = threading.Lock()
+prev_lidar_canvas = None  # 이전 프레임 (템포럴 블렌딩용)
+
+# 라이다 시각화용 스캔 각도
+scan_angle = 0.0
+
+
+def generate_lidar_view(frame, vehicle_boxes=None):
+    """카메라 프레임을 라이다 포인트 클라우드 스타일로 변환. 안정적 샘플링 + 템포럴 블렌딩.
+    
+    Args:
+        frame: BGR 입력 프레임 (640x360)
+        vehicle_boxes: [(x1, y1, x2, y2, stage, track_id), ...] 감지된 차량 목록
+    Returns:
+        라이다 시각화 프레임 (640x360)
+    """
+    global scan_angle, prev_lidar_canvas
+    h, w = frame.shape[:2]
+    
+    # 검은 배경
+    canvas = np.zeros((h, w, 3), dtype=np.uint8)
+    
+    # 1) 그레이스케일 → Canny 에지 검출
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edges = cv2.Canny(blurred, 40, 120)
+    
+    # 2) 에지 포인트에서 샘플링하여 포인트 클라우드 생성
+    edge_points = np.column_stack(np.where(edges > 0))  # (y, x) 형태
+    
+    # 차량 영역 마스크 생성
+    vehicle_mask = np.zeros((h, w), dtype=np.uint8)
+    if vehicle_boxes:
+        for (vx1, vy1, vx2, vy2, stage, tid) in vehicle_boxes:
+            cv2.rectangle(vehicle_mask, (int(vx1), int(vy1)), (int(vx2), int(vy2)), 255, -1)
+    
+    if len(edge_points) > 0:
+        # 포인트 수 제한 (성능 + 라이다 느낌)
+        n_points = min(len(edge_points), 8000)
+        # 고정 시드로 안정적 샘플링 (3프레임마다 갱신)
+        rng = np.random.RandomState(seed=(frame_counter // 6) * 42)
+        indices = rng.choice(len(edge_points), n_points, replace=False)
+        sampled = edge_points[indices]
+        
+        for pt in sampled:
+            y, x = pt
+            # 차량 영역인지 확인
+            is_vehicle = vehicle_mask[y, x] > 0
+            
+            if is_vehicle:
+                # 차량 포인트 — 밝은 색상
+                color = (0, 200, 255)   # 노란색 (BGR)
+            else:
+                # 배경 포인트 — 녹색 계열 (거리감 표현: 위쪽=먼곳은 어둡게)
+                intensity = int(80 + (y / h) * 175)
+                color = (0, intensity, int(intensity * 0.3))
+            
+            # 포인트 크기 (해시 기반 결정론적)
+            size = 1 if ((x * 7 + y * 13) % 20) > 2 else 2
+            cv2.circle(canvas, (x, y), size, color, -1)
+    
+    # 3) 비-에지 영역에도 희미한 포인트 (밀도감) — 고정 시드
+    n_noise = 1500
+    noise_rng = np.random.RandomState(seed=12345)
+    noise_x = noise_rng.randint(0, w, n_noise)
+    noise_y = noise_rng.randint(0, h, n_noise)
+    for nx, ny in zip(noise_x, noise_y):
+        brightness = gray[ny, nx]
+        if brightness > 30:  # 너무 어두운 곳은 스킵
+            intensity = int(brightness * 0.15)
+            cv2.circle(canvas, (int(nx), int(ny)), 1, (0, intensity, int(intensity * 0.2)), -1)
+    
+    # 4) 차량 바운딩 박스 + 라벨 (라이다 스타일)
+    vehicle_count = 0
+    if vehicle_boxes:
+        for (vx1, vy1, vx2, vy2, stage, tid) in vehicle_boxes:
+            vehicle_count += 1
+            if stage == 2:
+                box_color = (0, 0, 255)      # 빨간색 — 위험
+                label = f"DANGER #{tid}"
+            elif stage == 1:
+                box_color = (0, 200, 255)    # 노란색 — 경고
+                label = f"WARNING #{tid}"
+            else:
+                box_color = (0, 255, 100)    # 초록색 — 정상 차량
+                label = f"VEH #{tid}"
+            
+            # 점선 스타일 바운딩 박스
+            x1i, y1i, x2i, y2i = int(vx1), int(vy1), int(vx2), int(vy2)
+            # 상하 변
+            for sx in range(x1i, x2i, 8):
+                cv2.line(canvas, (sx, y1i), (min(sx + 4, x2i), y1i), box_color, 1)
+                cv2.line(canvas, (sx, y2i), (min(sx + 4, x2i), y2i), box_color, 1)
+            # 좌우 변
+            for sy in range(y1i, y2i, 8):
+                cv2.line(canvas, (x1i, sy), (x1i, min(sy + 4, y2i)), box_color, 1)
+                cv2.line(canvas, (x2i, sy), (x2i, min(sy + 4, y2i)), box_color, 1)
+            
+            # 라벨
+            cv2.putText(canvas, label, (x1i, y1i - 6),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, box_color, 1)
+    
+    # 5) 레이더 스위프 라인 (회전 효과)
+    center_x, center_y = w // 2, h // 2
+    scan_len = max(w, h)
+    end_x = int(center_x + scan_len * math.cos(math.radians(scan_angle)))
+    end_y = int(center_y + scan_len * math.sin(math.radians(scan_angle)))
+    
+    # 스위프 라인 (반투명 효과를 위한 밝기 조절)
+    overlay = canvas.copy()
+    cv2.line(overlay, (center_x, center_y), (end_x, end_y), (0, 80, 0), 1)
+    # 잔상 효과 (이전 각도들)
+    for i in range(1, 15):
+        prev_a = scan_angle - i * 2
+        px = int(center_x + scan_len * math.cos(math.radians(prev_a)))
+        py = int(center_y + scan_len * math.sin(math.radians(prev_a)))
+        alpha = max(0, 60 - i * 4)
+        cv2.line(overlay, (center_x, center_y), (px, py), (0, alpha, 0), 1)
+    
+    cv2.addWeighted(overlay, 0.4, canvas, 0.6, 0, canvas)
+    scan_angle = (scan_angle + 6) % 360
+    
+    # 6) 격자 오버레이 (라이다 디스플레이 느낌)
+    grid_color = (0, 30, 0)
+    for gx in range(0, w, 80):
+        cv2.line(canvas, (gx, 0), (gx, h), grid_color, 1)
+    for gy in range(0, h, 80):
+        cv2.line(canvas, (0, gy), (w, gy), grid_color, 1)
+    
+    # 7) HUD 오버레이
+    pts_count = len(edge_points) if len(edge_points) > 0 else 0
+    hud_texts = [
+        f"PTS: {pts_count:,}",
+        f"FREQ: 10Hz",
+        f"VEH: {vehicle_count}",
+    ]
+    # 하단 좌측 HUD
+    for i, txt in enumerate(hud_texts):
+        y_pos = h - 12 - i * 18
+        cv2.putText(canvas, txt, (8, y_pos),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 0), 1)
+    
+    # 상단 좌측 타이틀
+    cv2.putText(canvas, "LIDAR POINT CLOUD", (8, 20),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 180, 0), 1)
+    cv2.putText(canvas, f"SCAN {int(scan_angle)}deg", (8, 38),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 120, 0), 1)
+    
+    # 8) 이전 프레임과 블렌딩 (반짝임 억제)
+    if prev_lidar_canvas is not None and prev_lidar_canvas.shape == canvas.shape:
+        canvas = cv2.addWeighted(canvas, 0.65, prev_lidar_canvas, 0.35, 0)
+    prev_lidar_canvas = canvas.copy()
+    
+    return canvas
 
 
 def calculate_cross_product(cx, cy, prev_cx, prev_cy):
@@ -108,7 +268,7 @@ def send_wrongway_alert(track_id, stage):
             "track_id": f"yolo-{track_id}",
             "stage": stage,
             "confidence": 0.95,
-            "message": f"YOLO {msg} - 트랙 #{track_id}",
+            "message": f"{msg} - 트랙 #{track_id}",
             "device_id": "YOLO-CAM-01",
         }
         requests.post(f"{DASHBOARD_BASE}/api/wrongway", json=body, timeout=1.5)
@@ -134,7 +294,7 @@ def cleanup_stale_tracks():
 
 def detection_loop():
     """메인 감지 루프 – 별도 스레드에서 실행."""
-    global output_frame, frame_counter
+    global output_frame, lidar_frame, frame_counter
 
     # 비디오 소스 열기
     src = VIDEO_SOURCE
@@ -167,6 +327,7 @@ def detection_loop():
         # 성능 최적화: 3프레임당 1번만 YOLO 실행
         if frame_counter % 3 != 0:
             # YOLO 스킵 시에도 마지막으로 저장된 모든 박스를 그림 (깜빡임 방지)
+            lidar_boxes = []
             for tid, box_data in track_last_box.items():
                 if frame_counter - track_last_frame[tid] < STALE_FRAMES:
                     x1, y1, x2, y2, color, label = box_data
@@ -174,10 +335,17 @@ def detection_loop():
                     if label:
                         cv2.putText(annotated, f"{label} ID:{tid}", (int(x1), int(y1) - 5), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                    stage = track_stage.get(tid, 0)
+                    lidar_boxes.append((x1, y1, x2, y2, stage, tid))
 
             # 스테이터스/중심은 매 프레임 표시
             cv2.putText(annotated, f"YOLO v2.2 | F-Skip:3 | {frame_counter}", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
             cv2.circle(annotated, (int(ROTARY_CX), int(ROTARY_CY)), 5, (255, 0, 255), -1)
+
+            # 라이다 시각화 (스킵 프레임에서도 업데이트)
+            lv = generate_lidar_view(frame, lidar_boxes)
+            with lidar_frame_lock:
+                lidar_frame = lv
 
             with frame_lock:
                 output_frame = annotated
@@ -222,8 +390,24 @@ def detection_loop():
                 # 단계 판단
                 c_sum = track_cross_sum[track_id]
                 current_stage = 0
-                if c_sum <= CROSS_LIMIT_STAGE2: current_stage = 2
-                elif c_sum <= CROSS_LIMIT_STAGE1: current_stage = 1
+                
+                # Stage 1 임계치를 넘었는지 먼저 판단
+                if c_sum <= CROSS_LIMIT_STAGE1:
+                    current_stage = 1
+                    
+                    # Stage 1이 처음 감지된 시간을 기록
+                    if track_id not in track_stage1_time:
+                        track_stage1_time[track_id] = time.time()
+                    
+                    # Stage 2 임계치를 넘었는지 확인
+                    if c_sum <= CROSS_LIMIT_STAGE2:
+                        # Stage 1 발생 후 최소 3초가 지났을 때만 Stage 2로 승격 (사용자 피드백 반영)
+                        elapsed = time.time() - track_stage1_time[track_id]
+                        if elapsed >= 3.0:
+                            current_stage = 2
+                        else:
+                            # 3초 이전이면 여전히 Stage 1로 유지하여 사용자에게 "경고"를 충분히 보여줌
+                            current_stage = 1
                 
                 track_stage[track_id] = current_stage
 
@@ -257,6 +441,21 @@ def detection_loop():
         # 스테이터스 표시 (V4로 변경하여 확인)
         cv2.putText(annotated, f"YOLO V4 | CLEAN UI | PORT 8888", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
         
+        # 라이다 시각화 생성 (YOLO 실행 프레임)
+        lidar_boxes = []
+        if results and results[0].boxes is not None and results[0].boxes.id is not None:
+            boxes_data = results[0].boxes
+            ids_data = boxes_data.id.int().cpu().tolist()
+            xyxys_data = boxes_data.xyxy.cpu().numpy()
+            for i, tid in enumerate(ids_data):
+                bx1, by1, bx2, by2 = xyxys_data[i]
+                stage = track_stage.get(tid, 0)
+                lidar_boxes.append((bx1, by1, bx2, by2, stage, tid))
+        
+        lv = generate_lidar_view(frame, lidar_boxes)
+        with lidar_frame_lock:
+            lidar_frame = lv
+        
         with frame_lock:
             output_frame = annotated
 
@@ -285,11 +484,38 @@ def generate_mjpeg():
         time.sleep(0.04)
 
 
+def generate_lidar_mjpeg():
+    """라이다 시각화 MJPEG 프레임 제너레이터."""
+    while True:
+        with lidar_frame_lock:
+            if lidar_frame is None:
+                time.sleep(0.05)
+                continue
+            _, jpeg = cv2.imencode(
+                ".jpg", lidar_frame, [cv2.IMWRITE_JPEG_QUALITY, 60]
+            )
+
+        yield (
+            b"--frame\r\n"
+            b"Content-Type: image/jpeg\r\n\r\n" + jpeg.tobytes() + b"\r\n"
+        )
+        time.sleep(0.04)
+
+
 @app.route("/video_feed")
 def video_feed():
     """MJPEG 스트림 엔드포인트."""
     return Response(
         generate_mjpeg(),
+        mimetype="multipart/x-mixed-replace; boundary=frame",
+    )
+
+
+@app.route("/lidar_feed")
+def lidar_feed():
+    """라이다 시각화 MJPEG 스트림 엔드포인트."""
+    return Response(
+        generate_lidar_mjpeg(),
         mimetype="multipart/x-mixed-replace; boundary=frame",
     )
 

@@ -76,6 +76,7 @@ export default function DashboardPage({
 
   // demo start-end 지점
   const videoRef = useRef(null);
+  const camVideoRef = useRef(null); 
   const DEMO_START_SEC = 17.496; // 시작 시점
   const DEMO_END_SEC = 62.226; // 종료 시점
   const CAMERA_VIDEO_SRC = "/wrongway_test.mp4";
@@ -101,17 +102,27 @@ export default function DashboardPage({
   }, []);
   //
 
+  const handleVideoLoad = (e) => {
+    e.target.currentTime = DEMO_START_SEC;
+  };
+
   //
   const handleDemoTimeUpdate = () => {
-  const v = videoRef.current;
-  if (!v) return;
-
-  if (v.currentTime >= DEMO_END_SEC) {
-    v.pause();
-    v.currentTime = DEMO_START_SEC;
-    pushLog("Demo 영상 종료");
-  }
-};
+    const v = videoRef.current;
+    const v2 = camVideoRef.current;
+    
+    // 메인 리플레이 영상(라이다) 기준 종료 처리
+    if (v && v.currentTime >= DEMO_END_SEC) {
+      v.pause();
+      v.currentTime = DEMO_START_SEC;
+      
+      if (v2) {
+        v2.pause();
+        v2.currentTime = DEMO_START_SEC;
+      }
+      pushLog("Demo 영상 종료");
+    }
+  };
   //
 
   // ------------------------------
@@ -123,12 +134,19 @@ export default function DashboardPage({
     try {
       pushLog("Demo START 요청");
 
-      // demo 영상 
+      // demo 영상 (라이다 & 카메라 동기화)
       const v = videoRef.current;
+      const v2 = camVideoRef.current;
+
       if(v) {
         v.pause();
         v.currentTime = DEMO_START_SEC;
-        await v.play();
+        v.play().catch(()=>{});
+      }
+      if(v2) {
+        v2.pause();
+        v2.currentTime = DEMO_START_SEC;
+        v2.play().catch(()=>{});
       }
 
       //
@@ -280,7 +298,7 @@ export default function DashboardPage({
     <div className="p-6 space-y-6 bg-white min-h-screen relative">
       {/* 실시간 알림 오버레이 */}
       {activeAlert && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-in fade-in duration-200">
+      <div key={activeAlert.id} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-in fade-in duration-200">
         <div className={`bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300 relative border-2 ${alertTheme.frame}`}>
           {/* 헤더 */}
           <div className={`${alertTheme.header} p-6 flex items-center justify-between relative overflow-hidden`}>
@@ -522,6 +540,7 @@ export default function DashboardPage({
                 />
               ) : (
                 <video
+                  ref={camVideoRef}
                   src={CAMERA_VIDEO_SRC}
                   className="w-full h-full object-contain"
                   autoPlay
@@ -529,6 +548,7 @@ export default function DashboardPage({
                   muted
                   playsInline
                   preload="auto"
+                  onLoadedMetadata={handleVideoLoad}
                 />
               )}
 
@@ -545,19 +565,25 @@ export default function DashboardPage({
                   라이다 센서
                 </div>
 
-                <video
-                  ref={videoRef}
-                  src="/demo.mp4"
-                  className="w-full h-full object-cover -rotate-12 scale-[1.42] -translate-y-3"
-                  muted
-                  playsInline
-                  preload="auto"
-                  onTimeUpdate={handleDemoTimeUpdate}
-                />
+                {detectorAlive ? (
+                  <img
+                    src={`${DETECTOR_BASE}/lidar_feed`}
+                    alt="Lidar Point Cloud Feed"
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <video
+                    ref={videoRef}
+                    src="/demo.mp4"
+                    className="w-full h-full object-cover -rotate-12 scale-[1.42] -translate-y-3"
+                    muted
+                    playsInline
+                    preload="auto"
+                    onLoadedMetadata={handleVideoLoad}
+                    onTimeUpdate={handleDemoTimeUpdate}
+                  />
+                )}
 
-                <div className="absolute bottom-2 right-2 text-[10px] font-mono text-green-500">
-                  포인트: 2,405 | 주기: 10Hz
-                </div>
 
               </div>
 
