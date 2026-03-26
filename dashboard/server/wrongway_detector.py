@@ -22,6 +22,46 @@ from ultralytics import YOLO
 CONFIG_PATH = Path(__file__).parent / "config.json"
 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     config = json.load(f)
+    
+# ------------------------------
+# Serial Port
+#------------------------------
+import serial
+
+try:
+    ser = serial.Serial(
+        port=config.get("serialPort"),
+        baudrate=config.get("baudRate", 9600),
+        timeout=1
+    )
+    print(f"[serial] opened: {ser.port} / {ser.baudrate} / open={ser.is_open}") # 시리얼 포트 정보 출력
+except Exception as e:
+    ser = None
+    print(f"[serial] init failed: {e}") # 시리얼 포트 초기화 실패 시 오류 메시지 출력
+
+# ------------------------------
+# RS485 Protocol Packets
+# ------------------------------
+
+# 시나리오1 1차경고 (LED + 스피커)
+cmdScenario1 = bytes([0x02,0xA1,0x10,0x01,0x01,0x02,0x00,0xD2,0x03,0x0D])
+# 시나리오2 : 2차 경고 (전체 설비)
+cmdScenario2 = bytes([0x02,0xA1,0x10,0x02,0x01,0x01,0x00,0x10,0x03,0x0D])
+# 시나리오3 : 2차 경고 종료 및 차단기 복귀
+cmdScenario3 = bytes([0x02,0xA1,0x10,0x02,0x02,0x12,0x00,0x6F,0x03,0x0D])
+# 시나리오4 : 전체 리셋
+cmdScenario4 = bytes([0x02,0xA1,0x10,0x00,0x00,0x01,0x00,0x2E,0x03,0x0D])
+
+# 시리얼 전송 함수
+def send_serial(cmd, label):
+    try:
+        if ser and ser.is_open:
+            ser.write(cmd)
+            print(f"[serial] {label}")
+        else:
+            print(f"[serial] skip ({label})")
+    except Exception as e:
+        print(f"[serial] 시리얼 전송 오류: {e}")   
 
 # 감지 서버 포트
 DETECTOR_PORT = config.get("detectorPort", 8765)
@@ -50,7 +90,8 @@ ROTARY_CY = ORIGN_CY * (360/720)
 
 # 대시보드 서버 (이벤트 전송용)
 SERVER_PORT = config.get("serverPort", 5000)
-DASHBOARD_BASE = f"http://127.0.0.1:{SERVER_PORT}"
+DASHBOARD_IP = config.get("dashboardIP", "127.0.0.1")
+DASHBOARD_BASE = f"http://{DASHBOARD_IP}:{SERVER_PORT}"
 
 # ── YOLO 모델 로드 ─────────────────────────────
 model = YOLO("yolov8n.pt")
@@ -82,6 +123,15 @@ Correct_MOVEMENT_RESET = 300 # 이만큼 반대로 이동하면 리셋 (Self-cor
 STALE_FRAMES = 30            # 이 프레임 동안 안 보이면 삭제
 
 frame_counter = 0
+
+# 데모 모드 플래그 (테스트용, 실제 운영 시 False로)
+demo_active = False
+demo_reset_requested = False
+
+DEMO_START_SEC = 0.0
+DEMO_END_SEC = 36.5
+
+standby_frame_raw = None
 
 # ── Flask 앱 ───────────────────────────────────
 app = Flask(__name__)
@@ -291,10 +341,19 @@ def cleanup_stale_tracks():
         track_stage.pop(tid, None)
         track_alerted_stages.pop(tid, None)
 
-
+# 트래킹 상태 초기화 (데모 모드 시작/종료 시 사용)
+def reset_tracking_state():
+    track_prev_center.clear()
+    track_cross_sum.clear()
+    track_last_frame.clear()
+    track_stage.clear()
+    track_alerted_stages.clear()
+    track_stage1_time.clear()
+    track_last_box.clear()
+    
 def detection_loop():
     """메인 감지 루프 – 별도 스레드에서 실행."""
-    global output_frame, lidar_frame, frame_counter
+    global output_frame, lidar_frame, frame_counter, demo_active, demo_reset_requested
 
     # 비디오 소스 열기
     src = VIDEO_SOURCE
@@ -308,11 +367,70 @@ def detection_loop():
 
     print(f"[detector] 비디오 소스 열림: {VIDEO_SOURCE}")
     print(f"[detector] 로터리 중심: ({ROTARY_CX}, {ROTARY_CY})")
+    
+    # 시작 위치 맞춤
+    global standby_frame_raw
+
+    cap.set(cv2.CAP_PROP_POS_MSEC, DEMO_START_SEC * 1000)
+    ok, first_frame = cap.read()
+    if ok:
+        standby_frame_raw = first_frame.copy()
+    else:
+        print("[ERROR] 시작 프레임을 읽을 수 없습니다.")
+        return
+
+    cap.set(cv2.CAP_PROP_POS_MSEC, DEMO_START_SEC * 1000)
+
 
     while True:
+                # START 눌렀을 때 시작 위치로 이동
+        if demo_reset_requested:
+            cap.set(cv2.CAP_PROP_POS_MSEC, DEMO_START_SEC * 1000)
+            demo_reset_requested = False
+
+        # 시작 전 / 종료 후: 멈춘 화면만 보여줌
+        if not demo_active:
+            if standby_frame_raw is None:
+                time.sleep(0.05)
+                continue
+
+            frame = cv2.resize(standby_frame_raw, (640, 360))
+            annotated = frame.copy()
+
+            cv2.putText(
+                annotated,
+                "DEMO READY",
+                (10, 25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 255),
+                2,
+            )
+
+            lv = generate_lidar_view(frame, [])
+
+            with lidar_frame_lock:
+                lidar_frame = lv
+
+            with frame_lock:
+                output_frame = annotated
+
+            time.sleep(0.03)
+            continue
+              
         ret, frame_raw = cap.read()
         if not ret:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            demo_active = False
+            reset_tracking_state()
+            cap.set(cv2.CAP_PROP_POS_MSEC, DEMO_START_SEC * 1000)
+            continue
+
+        current_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+        if current_sec >= DEMO_END_SEC:
+            demo_active = False
+            reset_tracking_state()
+            cap.set(cv2.CAP_PROP_POS_MSEC, DEMO_START_SEC * 1000)
+            print("[demo] finished")
             continue
 
         frame_counter += 1
@@ -436,7 +554,16 @@ def detection_loop():
                 if current_stage > 0:
                     if current_stage not in track_alerted_stages[track_id]:
                         track_alerted_stages[track_id].add(current_stage)
+                        # 팝업
                         threading.Thread(target=send_wrongway_alert, args=(track_id, current_stage), daemon=True).start()
+                        # 하드웨어 제어
+                        if current_stage == 1:
+                            send_serial(cmdScenario1, "시나리오1")
+                            threading.Timer(3, lambda: send_serial(cmdScenario4, "리셋")).start()
+                        elif current_stage == 2:
+                            send_serial(cmdScenario2, "시나리오2")
+                            threading.Timer(3, lambda: send_serial(cmdScenario3, "복귀")).start()
+                            threading.Timer(3, lambda: send_serial(cmdScenario4, "리셋")).start()
 
         # 스테이터스 표시 (V4로 변경하여 확인)
         cv2.putText(annotated, f"YOLO V4 | CLEAN UI | PORT 8888", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
@@ -519,16 +646,44 @@ def lidar_feed():
         mimetype="multipart/x-mixed-replace; boundary=frame",
     )
 
+# 데모 모드 엔드포인트 (테스트용) - 실제 운영 시 제거 또는 비활성화 권장
+@app.route("/demo/start", methods=["POST"])
+def demo_start():
+    global demo_active, demo_reset_requested
+    demo_active = True
+    demo_reset_requested = True
+    reset_tracking_state()
+    print("[demo] start", flush=True)
+    return {"ok": True, "demo_active": demo_active}
 
+
+@app.route("/demo/stop", methods=["POST"])
+def demo_stop():
+    global demo_active
+    demo_active = False
+    reset_tracking_state()
+    print("[demo] stop", flush=True)
+    return {"ok": True, "demo_active": demo_active}
+
+@app.route("/demo/reset", methods=["POST"])
+def demo_reset():
+    global demo_active, demo_reset_requested
+    demo_active = False
+    demo_reset_requested = True
+    reset_tracking_state()
+    print("[demo] reset", flush=True)
+    return {"ok": True, "demo_active": demo_active, "reset": True}
+# ------------------------------
+
+# 헬스체크 엔드포인트 (프레임 카운터 포함)
 @app.route("/health")
 def health():
     return {"ok": True, "frame": frame_counter}
 
-
 # ── 메인 ───────────────────────────────────────
 if __name__ == "__main__":
     print(f"[detector] 역주행 감지 서버 시작 (port {DETECTOR_PORT})")
-    print(f"[detector] MJPEG 스트림: http://localhost:{DETECTOR_PORT}/video_feed")
+    print(f"[detector] MJPEG 스트림: http://{DASHBOARD_IP}:{DETECTOR_PORT}/video_feed")
 
     # 감지 루프를 백그라운드 스레드로 시작
     det_thread = threading.Thread(target=detection_loop, daemon=True)
