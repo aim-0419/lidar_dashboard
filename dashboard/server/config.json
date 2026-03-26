@@ -2,5 +2,11 @@
   "serverPort": 5000,
   "dashboardIP": "192.168.0.3",
   "serialPort": "COM14",
-  "baudRate": 9600
+  "baudRate": 9600,
+  "detectorPort": 8888,
+  "videoSource": "../dashboard-web/public/wrongway_test.mp4",
+  "rotaryCenter": {
+    "x": 600,
+    "y": 510
+  }
 }
