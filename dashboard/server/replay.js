@@ -1,6 +1,3 @@
-// ------------------------------
-// 삭제 예정
-// ------------------------------
 const fs = require("fs");
 const path = require("path");
 const { SerialPort } = require("serialport");

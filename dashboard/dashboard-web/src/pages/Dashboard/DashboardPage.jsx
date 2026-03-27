@@ -76,53 +76,21 @@ export default function DashboardPage({
 
   // demo start-end 지점
   const videoRef = useRef(null);
-  const camVideoRef = useRef(null); 
-  const DEMO_START_SEC = 0; // 시작 시점
-  const DEMO_END_SEC = 36.5; // 종료 시점
-  const CAMERA_VIDEO_SRC = "/wrongway_test.mp4";
-
-  // YOLO 감지 서버 상태
-  const DETECTOR_PORT = 8888;
-  const DETECTOR_BASE = `http://${window.location.hostname}:${DETECTOR_PORT}`;
-  const [detectorAlive, setDetectorAlive] = useState(false);
-
-  useEffect(() => {
-    let timer;
-    const pingDetector = async () => {
-      try {
-        const res = await fetch(`${DETECTOR_BASE}/health`, { cache: "no-store" });
-        setDetectorAlive(res.ok);
-      } catch {
-        setDetectorAlive(false);
-      }
-    };
-    pingDetector();
-    timer = setInterval(pingDetector, 3000);
-    return () => clearInterval(timer);
-  }, []);
+  const DEMO_START_SEC = 17.496; // 시작 시점
+  const DEMO_END_SEC = 62.226; // 종료 시점
   //
-
-  const handleVideoLoad = (e) => {
-    e.target.currentTime = DEMO_START_SEC;
-  };
 
   //
   const handleDemoTimeUpdate = () => {
-    const v = videoRef.current;
-    const v2 = camVideoRef.current;
-    
-    // 메인 리플레이 영상(라이다) 기준 종료 처리
-    if (v && v.currentTime >= DEMO_END_SEC) {
-      v.pause();
-      v.currentTime = DEMO_START_SEC;
-      
-      if (v2) {
-        v2.pause();
-        v2.currentTime = DEMO_START_SEC;
-      }
-      pushLog("Demo 영상 종료");
-    }
-  };
+  const v = videoRef.current;
+  if (!v) return;
+
+  if (v.currentTime >= DEMO_END_SEC) {
+    v.pause();
+    v.currentTime = DEMO_START_SEC;
+    pushLog("Demo 영상 종료");
+  }
+};
   //
 
   // ------------------------------
@@ -134,20 +102,15 @@ export default function DashboardPage({
     try {
       pushLog("Demo START 요청");
 
-      // demo 영상 (라이다 & 카메라 동기화)
+      // demo 영상 
       const v = videoRef.current;
-      const v2 = camVideoRef.current;
-
       if(v) {
         v.pause();
         v.currentTime = DEMO_START_SEC;
-        v.play().catch(()=>{});
+        await v.play();
       }
-      if(v2) {
-        v2.pause();
-        v2.currentTime = DEMO_START_SEC;
-        v2.play().catch(()=>{});
-      }
+
+      //
 
       const r = await fetch(`${API_BASE}/api/demo/start`, {
         method: "POST",
@@ -161,26 +124,6 @@ export default function DashboardPage({
       pushLog(`Demo START 실패: ${String(e.message || e)}`);
     }
   };
-
-  const resetDemo = async () => {
-  try {
-    pushLog("Demo RESET 요청");
-
-    const r = await fetch(`${API_BASE}/api/demo/reset`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok || !data.ok) throw new Error(data.error || "reset failed");
-
-    setActiveAlert(null); // 떠 있던 팝업 닫기
-    pushLog("Demo RESET 성공");
-  } catch (e) {
-    pushLog(`Demo RESET 실패: ${String(e.message || e)}`);
-  }
-};
   
   // ------------------------------
   // 전광판 차단기 ui용 함수
@@ -316,7 +259,7 @@ export default function DashboardPage({
     <div className="p-6 space-y-6 bg-white min-h-screen relative">
       {/* 실시간 알림 오버레이 */}
       {activeAlert && (
-      <div key={activeAlert.id} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-in fade-in duration-200">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-in fade-in duration-200">
         <div className={`bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300 relative border-2 ${alertTheme.frame}`}>
           {/* 헤더 */}
           <div className={`${alertTheme.header} p-6 flex items-center justify-between relative overflow-hidden`}>
@@ -421,12 +364,6 @@ export default function DashboardPage({
             className="h-10 px-4 rounded bg-gray-900 text-white text-xs font-bold hover:bg-gray-700"
           >
             DEMO START
-          </button>
-          <button
-            onClick={resetDemo}
-            className="h-10 px-4 rounded bg-gray-200 text-gray-800 text-xs font-bold hover:bg-gray-300"
-          >
-            RESET
           </button>
         </div>
 
@@ -547,20 +484,24 @@ export default function DashboardPage({
         <Card className="lg:col-span-2 h-[28rem]" title="실시간 모니터링">
           {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full pb-8"> 맨처음*/}
           {/* <div className="bg-black rounded border border-gray-700 relative overflow-hidden h-[23rem]"> 라이다만 */}
-          <div className="grid grid-cols-5 gap-4 h-[23rem]">
+          <div className="grid grid-cols-3 gap-4 h-[23rem]">
             {/* 카메라 영역 (1칸) */}
-            <div className="col-span-2 bg-gray-200 rounded border border-gray-300 relative overflow-hidden flex items-center justify-center">
+            <div className="bg-gray-200 rounded border border-gray-300 relative overflow-hidden flex items-center justify-center">
 
               <div className="absolute top-3 left-3 px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded flex items-center z-10">
                 <span className="w-1.5 h-1.5 bg-white rounded-full mr-1.5 animate-pulse" />
                 실시간 카메라
               </div>
 
-              <img
-                src={`${DETECTOR_BASE}/video_feed`}
-                alt="YOLO Detection Feed"
-                className="w-full h-full object-contain"
-              />
+              <div className="flex flex-col items-center text-gray-500 space-y-2">
+                <div className="w-14 h-10 border-2 border-gray-400 rounded-lg flex items-center justify-center">
+                  <div className="w-5 h-5 rounded-full border-2 border-gray-400 relative">
+                    <div className="absolute top-[-2px] right-[-2px] w-2 h-2 bg-gray-400 rounded-full" />
+                  </div>
+                </div>
+
+                <span className="text-xs font-mono">NO SIGNAL</span>
+              </div>
 
               <div className="absolute bottom-2 left-2 text-[10px] text-gray-600 font-mono">
                 CAM_01_ENTRANCE
@@ -569,18 +510,25 @@ export default function DashboardPage({
 
 
              {/* 라이다 영역 (2칸) */}
-              <div className="col-span-3 bg-black rounded border border-gray-700 relative overflow-hidden flex">
+              <div className="col-span-2 bg-black rounded border border-gray-700 relative overflow-hidden flex">
 
                 <div className="absolute top-3 left-3 px-2 py-0.5 bg-blue-900/80 border border-blue-500/50 text-blue-200 text-[10px] font-bold rounded font-mono z-10">
                   라이다 센서
                 </div>
 
-                <img
-                  src={`${DETECTOR_BASE}/lidar_feed`}
-                  alt="Lidar Point Cloud Feed"
-                  className="w-full h-full object-contain"
+                <video
+                  ref={videoRef}
+                  src="/demo.mp4"
+                  className="w-full h-full object-cover -rotate-12 scale-[1.42] -translate-y-3"
+                  muted
+                  playsInline
+                  preload="auto"
+                  onTimeUpdate={handleDemoTimeUpdate}
                 />
 
+                <div className="absolute bottom-2 right-2 text-[10px] font-mono text-green-500">
+                  포인트: 2,405 | 주기: 10Hz
+                </div>
 
               </div>
 
