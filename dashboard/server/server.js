@@ -8,9 +8,7 @@ const { WebSocketServer } = require("ws");
 const { spawn} = require("child_process");
 const path = require("path");
 //
-
 const fs = require("fs");
-const { start } = require("repl");
 
 const app = express();
 app.use(cors());
@@ -19,87 +17,80 @@ app.use(express.json());
 const config = JSON.parse(
   fs.readFileSync(path.join(__dirname, "config.json"), "utf-8")
 );
-
 //demo
 const PORT = config.serverPort || 5000;
-let detectorProc = null;
-//
+let replayProc = null;
 
 const DIST_PATH = path.join(__dirname, "../dashboard-web/dist");
 app.use(express.static(DIST_PATH));
+//
 
-// ---detector 실행---------------------------
-function startDetector() {
-  if (detectorProc) {
-    console.log("[detector] already running");
-    return;
-  }
 
-  const detectorPath = path.join(__dirname, "wrongway_detector.py");
 
-  detectorProc = spawn("py", [detectorPath], {
-    cwd: __dirname,
-    stdio: "pipe",
-    shell: true,
-  });
+// ------------------------------
+// (demo) 라이다PC로 시작 요청 보낼 프록시
+// ------------------------------
+// const LIDAR_BASE = process.env.LIDAR_BASE || "http://LIDARIP"; // 라이다PC 실제로 바꾸기
 
-  detectorProc.stdout.on("data", (data) => {
-    const msg = data.toString().trim();
-    if (msg) console.log(`[detector] ${msg}`);
-  });
+// app.post("/api/demo/start", async (req, res) => {
+//   try {
+//     const r = await fetch(`${LIDAR_BASE}/api/demo/start`, {
+//       method: "POST",
+//       headers: { "Content-Type": "application/json"},
+//       body: JSON.stringify(req.body ?? {}),
+//     });
 
-  detectorProc.stderr.on("data", (data) => {
-    const msg = data.toString().trim();
-    if (msg) console.error(`[detector err] ${msg}`);
-  });
+//     const data = await r.json().catch(() => ({}));
+//     if (!r.ok) throw new Error(data?.message || "lidar demo start failed");
 
-  detectorProc.on("close", (code) => {
-    console.log(`[detector] exited with code ${code}`);
-    detectorProc = null;
-  });
-}
+//     pushLog("Demo START forwarded to Lidar PC");
+//     res.json({ok:true, lidar:data});
+
+//   } catch(err) {
+//     console.error("[demo/start]", err);
+//     pushLog(`Demo START failed: ${String(err.message || err)}`);
+//     res.status(502).json({ok:false, error:String(err.message || err)});
+//   }
+// });
 
 //demo
-app.post("/api/demo/start", async (req, res) => {
+app.post("/api/demo/start", (req, res) => {
   try {
-    const detectorBase = `http://127.0.0.1:${config.detectorPort || 8888}`;
+    if (replayProc) {
+      return res.json({ ok: true, message: "Replay already running" });
+    }
 
-    const r = await fetch(`${detectorBase}/demo/start`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req.body ?? {}),
+    const replayPath = path.join(__dirname, "replay.js");
+
+    replayProc = spawn(process.execPath, [replayPath], {
+      cwd: __dirname,
+      env: {
+        ...process.env,
+        DASHBOARD_BASE: `http://127.0.0.1:${PORT}`,
+      },
+      stdio: "pipe",
     });
 
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data?.error || "detector demo start failed");
+    replayProc.stdout.on("data", (data) => {
+      const msg = data.toString().trim();
+      if (msg) console.log(msg);
+    });
 
-    pushLog("Detector demo started");
-    res.json({ ok: true, detector: data });
+    replayProc.stderr.on("data", (data) => {
+      const msg = data.toString().trim();
+      if (msg) console.error("[replay stderr]", msg);
+    });
+
+    replayProc.on("close", (code) => {
+      console.log(`[replay] exited with code ${code}`);
+      replayProc = null;
+    });
+
+    pushLog("Demo replay started");
+    res.json({ ok: true, message: "Replay started" });
   } catch (err) {
     console.error("[demo/start]", err);
     pushLog(`Demo START failed: ${String(err.message || err)}`);
-    res.status(500).json({ ok: false, error: String(err.message || err) });
-  }
-});
-
-app.post("/api/demo/reset", async (req, res) => {
-  try {
-    const detectorBase = `http://127.0.0.1:${config.detectorPort || 8888}`;
-
-    const r = await fetch(`${detectorBase}/demo/reset`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req.body ?? {}),
-    });
-
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data?.error || "detector demo reset failed");
-
-    pushLog("Detector demo reset");
-    res.json({ ok: true, detector: data });
-  } catch (err) {
-    console.error("[demo/reset]", err);
-    pushLog(`Demo RESET failed: ${String(err.message || err)}`);
     res.status(500).json({ ok: false, error: String(err.message || err) });
   }
 });
@@ -295,26 +286,4 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server started and listening on port ${PORT}`);
   console.log(`REST  http://${config.dashboardIP}:${PORT}/api/state`);
   console.log(`WS    ws://${config.dashboardIP}:${PORT}`);
-
-  startDetector();
-});
-
-// ------------------------------
-// 서버 종료 시 detector도 같이 종료 
-// ------------------------------
-function stopDetector() {
-  if (detectorProc) {
-    detectorProc.kill();
-    detectorProc = null;
-  }
-}
-
-process.on("SIGINT", () => {
-  stopDetector();
-  process.exit(0);
-});
-
-process.on("SIGTERM", () => {
-  stopDetector();
-  process.exit(0);
 });
