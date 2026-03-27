@@ -77,8 +77,8 @@ export default function DashboardPage({
   // demo start-end 지점
   const videoRef = useRef(null);
   const camVideoRef = useRef(null); 
-  const DEMO_START_SEC = 17.496; // 시작 시점
-  const DEMO_END_SEC = 62.226; // 종료 시점
+  const DEMO_START_SEC = 0; // 시작 시점
+  const DEMO_END_SEC = 36.5; // 종료 시점
   const CAMERA_VIDEO_SRC = "/wrongway_test.mp4";
 
   // YOLO 감지 서버 상태
@@ -149,8 +149,6 @@ export default function DashboardPage({
         v2.play().catch(()=>{});
       }
 
-      //
-
       const r = await fetch(`${API_BASE}/api/demo/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -163,6 +161,26 @@ export default function DashboardPage({
       pushLog(`Demo START 실패: ${String(e.message || e)}`);
     }
   };
+
+  const resetDemo = async () => {
+  try {
+    pushLog("Demo RESET 요청");
+
+    const r = await fetch(`${API_BASE}/api/demo/reset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data.ok) throw new Error(data.error || "reset failed");
+
+    setActiveAlert(null); // 떠 있던 팝업 닫기
+    pushLog("Demo RESET 성공");
+  } catch (e) {
+    pushLog(`Demo RESET 실패: ${String(e.message || e)}`);
+  }
+};
   
   // ------------------------------
   // 전광판 차단기 ui용 함수
@@ -404,6 +422,12 @@ export default function DashboardPage({
           >
             DEMO START
           </button>
+          <button
+            onClick={resetDemo}
+            className="h-10 px-4 rounded bg-gray-200 text-gray-800 text-xs font-bold hover:bg-gray-300"
+          >
+            RESET
+          </button>
         </div>
 
 
@@ -532,25 +556,11 @@ export default function DashboardPage({
                 실시간 카메라
               </div>
 
-              {detectorAlive ? (
-                <img
-                  src={`${DETECTOR_BASE}/video_feed`}
-                  alt="YOLO Detection Feed"
-                  className="w-full h-full object-contain"
-                />
-              ) : (
-                <video
-                  ref={camVideoRef}
-                  src={CAMERA_VIDEO_SRC}
-                  className="w-full h-full object-contain"
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  preload="auto"
-                  onLoadedMetadata={handleVideoLoad}
-                />
-              )}
+              <img
+                src={`${DETECTOR_BASE}/video_feed`}
+                alt="YOLO Detection Feed"
+                className="w-full h-full object-contain"
+              />
 
               <div className="absolute bottom-2 left-2 text-[10px] text-gray-600 font-mono">
                 CAM_01_ENTRANCE
@@ -565,24 +575,11 @@ export default function DashboardPage({
                   라이다 센서
                 </div>
 
-                {detectorAlive ? (
-                  <img
-                    src={`${DETECTOR_BASE}/lidar_feed`}
-                    alt="Lidar Point Cloud Feed"
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <video
-                    ref={videoRef}
-                    src="/demo.mp4"
-                    className="w-full h-full object-cover -rotate-12 scale-[1.42] -translate-y-3"
-                    muted
-                    playsInline
-                    preload="auto"
-                    onLoadedMetadata={handleVideoLoad}
-                    onTimeUpdate={handleDemoTimeUpdate}
-                  />
-                )}
+                <img
+                  src={`${DETECTOR_BASE}/lidar_feed`}
+                  alt="Lidar Point Cloud Feed"
+                  className="w-full h-full object-contain"
+                />
 
 
               </div>
