@@ -542,14 +542,12 @@ export default function DashboardPage({
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
         {/* 메인 모니터링 */}
         <Card className="lg:col-span-2 h-[28rem]" title="실시간 모니터링">
-          {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full pb-8"> 맨처음*/}
-          {/* <div className="bg-black rounded border border-gray-700 relative overflow-hidden h-[23rem]"> 라이다만 */}
-          <div className="grid grid-cols-5 gap-4 h-[23rem]">
+          <div className="grid grid-cols-2 gap-4 h-[23rem]">
             {/* 카메라 영역 (1칸) */}
-            <div className="col-span-2 bg-gray-200 rounded border border-gray-300 relative overflow-hidden flex items-center justify-center">
+            <div className=" bg-gray-200 rounded border border-gray-300 relative overflow-hidden flex items-center justify-center">
 
               <div className="absolute top-3 left-3 px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded flex items-center z-10">
                 <span className="w-1.5 h-1.5 bg-white rounded-full mr-1.5 animate-pulse" />
@@ -569,7 +567,7 @@ export default function DashboardPage({
 
 
              {/* 라이다 영역 (2칸) */}
-              <div className="col-span-3 bg-black rounded border border-gray-700 relative overflow-hidden flex">
+              <div className=" bg-black rounded border border-gray-700 relative overflow-hidden flex">
 
                 <div className="absolute top-3 left-3 px-2 py-0.5 bg-blue-900/80 border border-blue-500/50 text-blue-200 text-[10px] font-bold rounded font-mono z-10">
                   라이다 센서

@@ -1,4 +1,5 @@
 {
+  "pythonCmd": "py",
   "serverPort": 5000,
   "dashboardIP": "192.168.0.3",
   "serialPort": "COM4",
