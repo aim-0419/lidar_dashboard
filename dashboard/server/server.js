@@ -36,8 +36,9 @@ function startDetector() {
   }
 
   const detectorPath = path.join(__dirname, "wrongway_detector.py");
+  const pythonCmd = config.pythonCmd || "py";
 
-  detectorProc = spawn("py", [detectorPath], {
+  detectorProc = spawn(pythonCmd, ["-u", detectorPath], {
     cwd: __dirname,
     stdio: "pipe",
     shell: true,
