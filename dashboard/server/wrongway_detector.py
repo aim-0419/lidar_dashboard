@@ -444,15 +444,12 @@ def detection_loop():
 
         # 성능 최적화: 3프레임당 1번만 YOLO 실행
         if frame_counter % 3 != 0:
-            # YOLO 스킵 시에도 마지막으로 저장된 모든 박스를 그림 (깜빡임 방지)
+            # YOLO 스킵 시에도 마지막으로 저장된 모든 박스 정보를 lidar_boxes에 추가 (라이다용)
             lidar_boxes = []
             for tid, box_data in track_last_box.items():
                 if frame_counter - track_last_frame[tid] < STALE_FRAMES:
                     x1, y1, x2, y2, color, label = box_data
-                    cv2.rectangle(annotated, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
-                    if label:
-                        cv2.putText(annotated, f"{label} ID:{tid}", (int(x1), int(y1) - 5), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                    # (카메라 뷰 박스 그리기 제거)
                     stage = track_stage.get(tid, 0)
                     lidar_boxes.append((x1, y1, x2, y2, stage, tid))
 
@@ -541,10 +538,8 @@ def detection_loop():
                     label_text = "DANGER"
 
                 if color:
-                    cv2.rectangle(annotated, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
-                    cv2.putText(annotated, f"{label_text} ID:{track_id}", (int(x1), int(y1) - 5), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-                    # 마지막 박스 정보 업데이트 (깜빡임 방지)
+                    # (카메라 뷰 박스 그리기 제거)
+                    # 마지막 박스 정보 업데이트 (깜빡임 방지 및 라이다용)
                     track_last_box[track_id] = (x1, y1, x2, y2, color, label_text)
                 else:
                     # 정상 차량은 박스 정보 삭제 (이전 프레임 잔상 제거)
