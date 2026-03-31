@@ -2,3 +2,6 @@ node_modules/
 .env
 *.log
 venv
+
+# 환경설정 파일 제외
+config.json

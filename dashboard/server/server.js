@@ -41,7 +41,6 @@ function startDetector() {
   detectorProc = spawn(pythonCmd, ["-u", detectorPath], {
     cwd: __dirname,
     stdio: "pipe",
-    shell: true,
   });
 
   detectorProc.stdout.on("data", (data) => {
