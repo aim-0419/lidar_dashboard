@@ -36,7 +36,13 @@ export default function DashboardPage({
   ]);
   
   const [serverAlive, setServerAlive] = useState(false); // 서버 alive 표시 => /api/health
-  
+  const [kpi, setKpi] = useState({ 
+    todaysEvents: 0, 
+    vehiclesPassed: 0, 
+    wrongWayEvents: 0, 
+    unidentified: 0 
+  }); 
+
   // kpi 페이지 이동 함수
   const navigate = useNavigate();
   const goEvents = (tab) => navigate(`/events?tab=${tab}`);
@@ -223,6 +229,10 @@ export default function DashboardPage({
         }
         if (msg.type === "logs" && Array.isArray(msg.payload)) {
         setRecentLogs(msg.payload.slice(0, 10));
+      }
+
+      if (msg.type === "state" && msg.payload) {
+        setKpi(msg.payload);
       }
 
       // 팝업은 wrong-way만, 토글 on일 때만
@@ -478,7 +488,7 @@ export default function DashboardPage({
           <div onClick={() => goEvents("analytics")}>
             <div className="font-mono text-sm font-bold text-gray-700 mb-1">오늘 이벤트</div>
             <div className="flex items-center space-x-2">
-              <span className="text-2xl font-bold text-gray-900">3</span>
+              <span className="text-2xl font-bold text-gray-900">{kpi.todaysEvents}</span>
               <span className="text-xs text-green-600 bg-green-100 px-1 rounded">+1 신규</span>
             </div>
           </div>
@@ -494,7 +504,7 @@ export default function DashboardPage({
           <div onClick={() => goEvents("vehicles")}>
             <div className="font-mono text-sm font-bold text-gray-700 mb-1">통과 차량 수</div>
             <div className="flex items-center space-x-2">
-              <span className="text-2xl font-bold text-gray-900">12,842</span>
+              <span className="text-2xl font-bold text-gray-900">{kpi.vehiclesPassed.toLocaleString()}</span>
               <div className="flex items-center text-xs text-green-600 bg-green-100 px-1 rounded">
                 <ArrowUpRight className="w-3 h-3 mr-1" />
                 <span>12%</span>
@@ -513,7 +523,7 @@ export default function DashboardPage({
           <div onClick={() => navigate("/dashboard/wrongway")}>
             <div className="font-mono text-sm font-bold text-gray-700 mb-1">역주행 이벤트</div>
             <div className="flex items-center space-x-2">
-              <span className="text-2xl font-bold text-gray-900">2</span>
+              <span className="text-2xl font-bold text-gray-900">{kpi.wrongWayEvents}</span>
               <div className="flex items-center text-xs text-red-600 bg-red-100 px-1 rounded">
                 <span className="animate-pulse mr-1">●</span>
                 <span>조치 필요</span>
@@ -532,7 +542,7 @@ export default function DashboardPage({
           <div onClick={() => goEvents("unidentified")}>
             <div className="font-mono text-sm font-bold text-gray-700 mb-1">미식별</div>
             <div className="flex items-center space-x-2">
-              <span className="text-2xl font-bold text-gray-900">24</span>
+              <span className="text-2xl font-bold text-gray-900">{kpi.unidentified}</span>
               <div className="flex items-center text-xs text-red-600 bg-red-100 px-1 rounded">
                 <ArrowDownRight className="w-3 h-3 mr-1" />
                 <span>2%</span>
