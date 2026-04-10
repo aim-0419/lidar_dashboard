@@ -79,14 +79,55 @@ const statusText = (s) => (s==="new"?"신규":s==="reviewed"?"검토됨":"보고
 export default function WrongwayLogPage() {
     const navigate = useNavigate();
 
-    const [selectedId, setSelectedId] = useState(MOCK_VIOLATIONS[0]?.id);
+    const [violations, setViolations] = useState([]);
+    const [selectedId, setSelectedId] = useState(null);
     const [query, setQuery] = useState("");
     const [isAnimating, setIsAnimating] = useState(false);
 
+    // 실제 데이터 가져오기
+    useEffect(() => {
+        const fetchHistory = async () => {
+            try {
+                const res = await fetch(`http://${window.location.hostname}:5000/api/wrongway/history`);
+                const data = await res.json();
+                
+                // 데이터 정규화 (필요한 필드가 없으면 기본값 채움)
+                const mapped = data.map(item => ({
+                    id: item.id,
+                    plate: item.track_id || "Unknown",
+                    timestamp: item.timestamp,
+                    location: item.subMessage || "YOLO-ZONE",
+                    snapshotUrl: item.snapshot ? `data:image/jpeg;base64,${item.snapshot}` : "",
+                    status: "new", // 실제로는 서버에서 상태를 관리할 수 있지만 여기서는 기본값
+                    confidence: (item.confidence * 100).toFixed(1),
+                    vehicleInfo: {
+                        owner: "인식 전",
+                        model: "인식 전",
+                        color: "인식 전",
+                        type: "인식 전",
+                        registered: false,
+                        phone: "-",
+                    }
+                }));
+                
+                setViolations(mapped);
+                if (mapped.length > 0 && !selectedId) {
+                    setSelectedId(mapped[0].id);
+                }
+            } catch (err) {
+                console.error("Failed to fetch history:", err);
+            }
+        };
+
+        fetchHistory();
+        const timer = setInterval(fetchHistory, 3000); // 3초마다 갱신
+        return () => clearInterval(timer);
+    }, [selectedId]);
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
-        if(!q) return MOCK_VIOLATIONS;
-        return MOCK_VIOLATIONS.filter((e)=>{
+        if(!q) return violations;
+        return violations.filter((e)=>{
             return (
                 e.id.toLowerCase().includes(q) ||
                 e.plate.toLowerCase().includes(q) ||
@@ -95,10 +136,10 @@ export default function WrongwayLogPage() {
                 e.status.toLowerCase().includes(q)   
             );
         });
-    }, [query]);
+    }, [query, violations]);
 
     const selectedEvent = useMemo(()=>{
-        return filtered.find((e) => e.id === selectedId) || filtered[0] || MOCK_VIOLATIONS[0];
+        return filtered.find((e) => e.id === selectedId) || filtered[0];
     }, [filtered, selectedId]);
 
     //선택 변경 애니메이션 
@@ -285,21 +326,17 @@ export default function WrongwayLogPage() {
                 </h3>
 
                 <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden relative">
-                  <div className="w-full h-full opacity-60 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-gray-700 via-gray-900 to-black flex items-center justify-center">
-                    <Car className="w-16 h-16 text-gray-600" />
-                  </div>
-
-                  <div className="absolute top-4 left-4">
-                    <div className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded inline-flex items-center">
-                      역주행
+                  {selectedEvent?.snapshotUrl ? (
+                    <img 
+                      src={selectedEvent.snapshotUrl} 
+                      alt="Violation Snapshot" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full opacity-60 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-gray-700 via-gray-900 to-black flex items-center justify-center">
+                      <Car className="w-16 h-16 text-gray-600" />
                     </div>
-                  </div>
-
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-24 border-2 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]">
-                    <div className="absolute -top-6 left-0 bg-red-500 text-white text-[10px] font-bold px-1">
-                      {selectedEvent?.plate || "-"}
-                    </div>
-                  </div>
+                  )}
 
                   <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent flex justify-between items-end">
                     <div className="text-white font-mono text-xs">CAM_02_EXIT_RAMP</div>

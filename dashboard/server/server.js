@@ -139,6 +139,10 @@ const state = {
   vmsLast: "",
 };
 
+// 역주행 이벤트 히스토리 저장소
+let wrongWayHistory = [];
+const MAX_HISTORY = 30;
+
 let logs = [
   { msg: "System boot completed", time: nowTime() },
   { msg: "Mock pipeline ready", time: nowTime() },
@@ -224,18 +228,31 @@ app.post("/api/wrongway", (req, res) => {
       video_ts_ms: body.video_ts_ms, 
       device_id: body.device_id,
       serial_no: body.serial_no,
+      snapshot: body.snapshot, // 스냅샷 필드 추가
     };
     
     console.log("[broadcast alert]", alert);
 
     //kpi/로그반영
     applyAlertEffects(alert);
+
+    // 히스토리 추가 (스냅샷 포함)
+    wrongWayHistory.unshift(alert);
+    if (wrongWayHistory.length > MAX_HISTORY) {
+      wrongWayHistory = wrongWayHistory.slice(0, MAX_HISTORY);
+    }
+
     broadcast("alert", alert);
     broadcast("state", state);
     pushLog(`[WRONGWAY] ${alert.subMessage}`);
 
     res.json({ ok: true });
   });
+
+// 역주행 히스토리 조회 API
+app.get("/api/wrongway/history", (req, res) => {
+  res.json(wrongWayHistory);
+});
 
 // ------------------------------ 
 // WebSocket (실시간 수신 구조 확인)
