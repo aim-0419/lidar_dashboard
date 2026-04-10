@@ -101,6 +101,7 @@ app.post("/api/demo/reset", async (req, res) => {
     state.todaysEvents = 0;
     state.newEvents = 0;
     state.wrongWayEvents = 0;
+    state.hourlyEvents.forEach((h) => (h.events = 0));
     broadcast("state", state);
 
     res.json({ ok: true, detector: data });
@@ -125,6 +126,10 @@ const state = {
   vehiclesPassed: 12842,
   wrongWayEvents: 0,
   unidentified: 24,
+  hourlyEvents: Array.from({ length: 24 }, (_, i) => ({
+    hour: `${String(i).padStart(2, "0")}:00`,
+    events: 0,
+  })),
 
   // Lidar-like stats
   lidar: { pts: 2405, hz: 10 },
@@ -284,7 +289,12 @@ function makeAlert(type) {
 function applyAlertEffects(alert) {
   state.todaysEvents += 1;
   state.newEvents += 1;
-  // state.vehiclesPassed += Math.floor(Math.random() * 9 + 1); // 기존의 중복 증가 제거
+
+  // 시간대별 통계 업데이트
+  const currentHour = new Date().getHours();
+  if (state.hourlyEvents[currentHour]) {
+    state.hourlyEvents[currentHour].events += 1;
+  }
 
   if (alert.type === "wrong-way") {
     // 사용자가 요청한 대로 역주행 발생 시 1 증가 (경고 단계 포함)

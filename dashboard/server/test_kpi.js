@@ -5,7 +5,8 @@ async function test() {
     console.log("--- Initial State ---");
     let res = await fetch(`${API_BASE}/api/state`);
     let state = await res.json();
-    console.log(`todaysEvents: ${state.todaysEvents}, newEvents: ${state.newEvents}`);
+    const currentHour = new Date().getHours();
+    console.log(`todaysEvents: ${state.todaysEvents}, newEvents: ${state.newEvents}, hour ${currentHour}: ${state.hourlyEvents[currentHour].events}`);
 
     console.log("\n--- Triggering Wrongway Event ---");
     await fetch(`${API_BASE}/api/wrongway`, {
@@ -16,7 +17,7 @@ async function test() {
 
     res = await fetch(`${API_BASE}/api/state`);
     state = await res.json();
-    console.log(`todaysEvents: ${state.todaysEvents}, newEvents: ${state.newEvents}`);
+    console.log(`todaysEvents: ${state.todaysEvents}, newEvents: ${state.newEvents}, hour ${currentHour}: ${state.hourlyEvents[currentHour].events}`);
 
     console.log("\n--- Resetting Demo ---");
     await fetch(`${API_BASE}/api/demo/reset`, {
