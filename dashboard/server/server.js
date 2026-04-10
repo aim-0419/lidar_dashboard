@@ -99,6 +99,7 @@ app.post("/api/demo/reset", async (req, res) => {
 
     // KPI 리셋
     state.todaysEvents = 0;
+    state.newEvents = 0;
     state.wrongWayEvents = 0;
     broadcast("state", state);
 
@@ -120,6 +121,7 @@ const state = {
 
   // KPI
   todaysEvents: 0,
+  newEvents: 0,
   vehiclesPassed: 12842,
   wrongWayEvents: 0,
   unidentified: 24,
@@ -281,6 +283,7 @@ function makeAlert(type) {
 
 function applyAlertEffects(alert) {
   state.todaysEvents += 1;
+  state.newEvents += 1;
   // state.vehiclesPassed += Math.floor(Math.random() * 9 + 1); // 기존의 중복 증가 제거
 
   if (alert.type === "wrong-way") {
