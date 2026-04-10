@@ -29,6 +29,11 @@ export default function DashboardPage({
   const [activeAlert, setActiveAlert] = useState(null); // 긴급 팝업 데이터
   const [alertsEnabled, setAlertsEnabled] = useState(true); // 팝업 허용 토글(ON/OFF)
   const [vmsText, setVmsText] = useState(""); // 전광판 입력
+
+  // 오디오 참조 객체
+  const warningAudioRef = useRef(new Audio("/wrong_way_warning.mp3"));
+  const dangerAudioRef = useRef(new Audio("/wrong_way_danger.mp3"));
+
   const [recentLogs, setRecentLogs] = useState([ // 최근 로그 목록
     { msg: "차량 진출로 B 통과", time: "10:42" },
     { msg: "LIDAR_01 동기화 정상", time: "10:41" },
@@ -57,6 +62,52 @@ export default function DashboardPage({
   const handleDismissAlert = () => {
     setActiveAlert(null);
   }; 
+
+  // 알림 오디오 제어 로직
+  useEffect(() => {
+    if (activeAlert) {
+      const isCritical = Number(activeAlert.stage) === 2;
+
+      if (isCritical) {
+        // 위험 단계: danger.mp3 무한 반복
+        warningAudioRef.current.pause();
+        warningAudioRef.current.currentTime = 0;
+        warningAudioRef.current.onended = null;
+
+        dangerAudioRef.current.loop = true;
+        dangerAudioRef.current.play().catch((err) => console.log("Audio play error:", err));
+      } else {
+        // 경고 단계: warning.mp3 2회 재생
+        dangerAudioRef.current.pause();
+        dangerAudioRef.current.currentTime = 0;
+
+        let playCount = 0;
+        const playWarning = () => {
+          if (playCount < 2) {
+            warningAudioRef.current.currentTime = 0;
+            warningAudioRef.current.play().catch((err) => console.log("Audio play error:", err));
+            playCount++;
+          }
+        };
+
+        warningAudioRef.current.onended = playWarning;
+        playWarning();
+      }
+    } else {
+      // 알림 해제: 모든 소리 중지
+      warningAudioRef.current.pause();
+      warningAudioRef.current.currentTime = 0;
+      warningAudioRef.current.onended = null;
+
+      dangerAudioRef.current.pause();
+      dangerAudioRef.current.currentTime = 0;
+    }
+
+    return () => {
+      warningAudioRef.current.pause();
+      dangerAudioRef.current.pause();
+    };
+  }, [activeAlert]);
 
 
   const handleViewAlert = () => { // 즉시 조치화면 보기 -> 추후 구현
