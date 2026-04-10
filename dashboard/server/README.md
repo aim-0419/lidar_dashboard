@@ -16,7 +16,7 @@ python -m venv venv
 .\venv\Scripts\activate
 
 # 필수 패키지 설치
-pip install ultralytics opencv-python flask flask-cors lapx
+pip install ultralytics opencv-python flask flask-cors lapx pyserial
 ```
 
 - `ultralytics`: YOLOv8 모델 엔진 및 트래킹
