@@ -96,6 +96,12 @@ app.post("/api/demo/reset", async (req, res) => {
     if (!r.ok) throw new Error(data?.error || "detector demo reset failed");
 
     pushLog("Detector demo reset");
+
+    // KPI 리셋
+    state.todaysEvents = 0;
+    state.wrongWayEvents = 0;
+    broadcast("state", state);
+
     res.json({ ok: true, detector: data });
   } catch (err) {
     console.error("[demo/reset]", err);
@@ -113,9 +119,9 @@ const state = {
   deviceId: "LIDAR-01",
 
   // KPI
-  todaysEvents: 3,
+  todaysEvents: 0,
   vehiclesPassed: 12842,
-  wrongWayEvents: 2,
+  wrongWayEvents: 0,
   unidentified: 24,
 
   // Lidar-like stats
@@ -183,6 +189,13 @@ app.post("/api/vms", (req, res) => {
   pushLog(`VMS requested: ${text || "(empty)"}`);
   broadcast("state", state);
   res.json({ ok: true, vmsLast: state.vmsLast });
+});
+
+// 차량 통과 카운트 (디텍터에서 호출)
+app.post("/api/vehicle/pass", (req, res) => {
+  state.vehiclesPassed += 1;
+  broadcast("state", state);
+  res.json({ ok: true, vehiclesPassed: state.vehiclesPassed });
 });
 
 // 실장비/리플레이 라이다px-> 대시보드pc 이벤트 전송 수신
@@ -268,15 +281,18 @@ function makeAlert(type) {
 
 function applyAlertEffects(alert) {
   state.todaysEvents += 1;
-  state.vehiclesPassed += Math.floor(Math.random() * 9 + 1); // 1~9
+  // state.vehiclesPassed += Math.floor(Math.random() * 9 + 1); // 기존의 중복 증가 제거
 
-  if (alert.type === "wrong-way") state.wrongWayEvents += 1;
+  if (alert.type === "wrong-way") {
+    // 사용자가 요청한 대로 역주행 발생 시 1 증가 (경고 단계 포함)
+    state.wrongWayEvents += 1;
+  }
   if (alert.type === "unidentified") state.unidentified += 1;
 }
 
 setInterval(() => {
   // 1) KPI 주기 변동(캡처용)
-  state.vehiclesPassed += Math.floor(Math.random() * 5); // 0~4
+  // state.vehiclesPassed += Math.floor(Math.random() * 5); // 실제 차량 인식 기반으로 변경하여 시뮬레이션 제거
   state.lidar.pts += Math.floor(Math.random() * 11) - 5; // -5~+5
   state.lidar.pts = clamp(state.lidar.pts, 0, 999999);
 
