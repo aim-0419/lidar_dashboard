@@ -540,7 +540,7 @@ export default function DashboardPage({
             <div className="font-mono text-sm font-bold text-gray-700 mb-1">오늘 이벤트</div>
             <div className="flex items-center space-x-2">
               <span className="text-2xl font-bold text-gray-900">{kpi.todaysEvents}</span>
-              <span className="text-xs text-green-600 bg-green-100 px-1 rounded">+1 신규</span>
+              <span className="text-xs text-green-600 bg-green-100 px-1 rounded">+{kpi.newEvents} 신규</span>
             </div>
           </div>
         </Card>
