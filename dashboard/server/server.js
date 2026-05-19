@@ -2,6 +2,8 @@
 const express = require("express");
 const cors = require("cors");
 const http = require("http");
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./src/swagger");
 const { WebSocketServer } = require("ws");
 
 // demo
@@ -27,6 +29,8 @@ let detectorProc = null;
 
 const DIST_PATH = path.join(__dirname, "../dashboard-web/dist");
 app.use(express.static(DIST_PATH));
+app.get("/api-docs.json", (req, res) => res.json(swaggerSpec));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // ---detector 실행---------------------------
 function startDetector() {
