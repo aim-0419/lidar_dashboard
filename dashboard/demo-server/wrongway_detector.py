@@ -1,4 +1,4 @@
-# dashboard/server/wrongway_detector.py
+# dashboard/demo-server/wrongway_detector.py
 # ──────────────────────────────────────────────
 # 실시간 카메라 역주행(로터리 시계방향) 차량 YOLO 감지
 # YOLOv8n + BoT-SORT 트래커 → MJPEG 스트리밍
@@ -20,6 +20,8 @@ from ultralytics import YOLO
 
 # ── 설정 로드 ──────────────────────────────────
 CONFIG_PATH = Path(__file__).parent / "config.json"
+if not CONFIG_PATH.exists():
+    CONFIG_PATH = Path(__file__).parent.parent / "server" / "config.json"
 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     config = json.load(f)
     
@@ -94,7 +96,7 @@ DASHBOARD_IP = config.get("dashboardIP", "127.0.0.1")
 DASHBOARD_BASE = f"http://{DASHBOARD_IP}:{SERVER_PORT}"
 
 # ── YOLO 모델 로드 ─────────────────────────────
-model = YOLO("yolov8n.pt")
+model = YOLO(str(Path(__file__).parent / "yolov8n.pt"))
 
 # 차량 관련 COCO 클래스 ID
 VEHICLE_CLASSES = {2, 3, 5, 7}  # car, motorcycle, bus, truck
