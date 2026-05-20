@@ -16,18 +16,17 @@ dashboard/
 프로젝트 루트에서 실행합니다.
 
 ```bash
-npm run install:web
-npm run install:server
+npm install
 npm run setup:demo
 ```
 
-각 명령은 아래 원래 명령을 감싼 것입니다.
+`npm install`은 npm workspaces 설정을 통해 프론트엔드와 백엔드 Node.js 패키지를 함께 설치합니다. 따라서 `dashboard/dashboard-web`, `dashboard/server`에서 각각 `npm install`을 따로 실행하지 않아도 됩니다.
 
-- `npm run install:web`: `cd dashboard/dashboard-web && npm install`
-- `npm run install:server`: `cd dashboard/server && npm install`
 - `npm run setup:demo`: `dashboard/demo-server/venv` 생성 후 Python 패키지 설치
 
 가상환경(`dashboard/demo-server/venv`)은 각 로컬 PC에서 따로 생성합니다.
+
+`npm run dev:demo`는 별도 activate 없이 `dashboard/demo-server/venv/Scripts/python.exe`를 직접 실행합니다. 즉, 가상환경을 활성화하지 않아도 venv에 설치된 Flask/YOLO 관련 패키지를 사용합니다.
 
 ## 환경 설정
 

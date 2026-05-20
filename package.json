@@ -1,12 +1,14 @@
 {
   "private": true,
+  "workspaces": [
+    "dashboard/dashboard-web",
+    "dashboard/server"
+  ],
   "scripts": {
     "dev:web": "npm --prefix dashboard/dashboard-web run dev",
     "dev:server": "npm --prefix dashboard/server start",
     "dev:demo": "node -e \"const r=require('child_process').spawnSync('dashboard/demo-server/venv/Scripts/python.exe',['dashboard/demo-server/wrongway_detector.py'],{stdio:'inherit'}); process.exit(r.status ?? 1);\"",
     "build:web": "npm --prefix dashboard/dashboard-web run build",
-    "install:web": "npm --prefix dashboard/dashboard-web install",
-    "install:server": "npm --prefix dashboard/server install",
     "setup:demo": "python -m venv dashboard/demo-server/venv && \"dashboard\\demo-server\\venv\\Scripts\\python.exe\" -m pip install -r dashboard/demo-server/requirements.txt"
   }
 }
