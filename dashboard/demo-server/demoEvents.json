@@ -1,0 +1,32 @@
+[
+  {
+    "video_ts_ms": 5547,
+    "zone_id": "Z01",
+    "track_id": "replay-001",
+    "stage": 1,
+    "confidence": 0.92,
+    "message": "역주행 차량 감지 - 경고 방송 송출(1)",
+    "device_id": "LIDAR-01",
+    "serial_no": "SN-0001"
+  },
+  {
+    "video_ts_ms": 14620,
+    "zone_id": "Z01",
+    "track_id": "replay-002",
+    "stage": 1,
+    "confidence": 0.91,
+    "message": "역주행 차량 감지 - 경고 방송 송출(2)",
+    "device_id": "LIDAR-01",
+    "serial_no": "SN-0001"
+  },
+  {
+    "video_ts_ms": 21605,
+    "zone_id": "Z02",
+    "track_id": "replay-004",
+    "stage": 2,
+    "confidence": 0.95,
+    "message": "역주행 차량 진입 지속 - 차단기 경고 단계",
+    "device_id": "LIDAR-01",
+    "serial_no": "SN-0001"
+  }
+]

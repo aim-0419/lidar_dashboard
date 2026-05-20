@@ -3,16 +3,21 @@
 // ------------------------------
 const fs = require("fs");
 const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
+require("dotenv").config({ path: path.resolve(__dirname, ".env"), override: true });
 const { SerialPort } = require("serialport");
 
 const config = JSON.parse(
   fs.readFileSync(path.join(__dirname, "config.json"), "utf-8")
 );
 
-const PORT = config.serverPort || 5000;
-const DASHBOARD_BASE = process.env.DASHBOARD_BASE || `http://${config.dashboardIP}:${PORT}`;
+const DASHBOARD_HOST = process.env.DASHBOARD_HOST || config.dashboardIP || "localhost";
+const PORT = Number(process.env.DASHBOARD_PORT || config.serverPort || 5000);
+const DASHBOARD_BASE = (
+  process.env.DASHBOARD_BASE_URL || process.env.DASHBOARD_BASE || `http://${DASHBOARD_HOST}:${PORT}`
+).replace(/\/+$/, "");
 
-const eventsPath = path.join(__dirname, "demoEvents.json");
+const eventsPath = path.join(__dirname, "../demo-server/demoEvents.json");
 
 const events = JSON.parse(fs.readFileSync(eventsPath, "utf-8"));
 const timers = [];
