@@ -1,4 +1,5 @@
 node_modules/
+dashboard/dashboard-web/dist/
 .env
 **/.env
 !.env.example
