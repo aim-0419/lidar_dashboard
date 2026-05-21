@@ -14,6 +14,7 @@ from collections import defaultdict
 import cv2
 import numpy as np
 import requests
+import base64
 from flask import Flask, Response
 from flask_cors import CORS
 from ultralytics import YOLO
@@ -116,6 +117,9 @@ track_stage1_time = defaultdict(float)
 
 # track_id → 마지막 보관된 박스 정보 (깜빡임 방지용)
 track_last_box = defaultdict(lambda: None)
+
+# 이번 주기에서 카운트된 트랙 ID 세트 (중복 통과 방지)
+counted_ids = set()
 
 # 설정값
 HISTORY_MIN_FRAMES = 10      # 최소 이 정도는 움직여야 판정
@@ -309,10 +313,18 @@ def calculate_cross_product(cx, cy, prev_cx, prev_cy):
     return v_move[0] * v_rel[1] - v_move[1] * v_rel[0]
 
 
-def send_wrongway_alert(track_id, stage):
-    """대시보드 서버로 역주행 이벤트 전송 (Stage 포함)."""
+def send_wrongway_alert(track_id, stage, frame=None):
+    """대시보드 서버로 역주행 이벤트 전송 (Stage 포함 + 스냅샷)."""
     try:
         msg = "역주행 경고 (Stage 1)" if stage == 1 else "역주행 위험 (Stage 2)"
+        
+        snapshot_b64 = None
+        if frame is not None:
+            # JPEG 인코딩
+            _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
+            # Base64 변환
+            snapshot_b64 = base64.b64encode(buffer).decode('utf-8')
+
         body = {
             "type": "wrong-way",
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -322,12 +334,19 @@ def send_wrongway_alert(track_id, stage):
             "confidence": 0.95,
             "message": f"{msg} - 트랙 #{track_id}",
             "device_id": "YOLO-CAM-01",
+            "snapshot": snapshot_b64  # Base64 이미지 추가
         }
         requests.post(f"{DASHBOARD_BASE}/api/wrongway", json=body, timeout=1.5)
-        print(f"[alert] Sent id:{track_id} stage:{stage}")
+        print(f"[alert] Sent id:{track_id} stage:{stage} (with snapshot)")
     except Exception as e:
         print(f"[alert] Failed to send alert: {e}")
-
+def send_vehicle_pass():
+    """대시보드 서버로 차량 통과 신호 전송."""
+    try:
+        requests.post(f"{DASHBOARD_BASE}/api/vehicle/pass", json={}, timeout=1.0)
+        # print(f"[pass] Vehicle counted")
+    except Exception as e:
+        print(f"[pass] Failed to send vehicle pass: {e}")
 
 def cleanup_stale_tracks():
     """오래된 트랙 정리."""
@@ -352,6 +371,7 @@ def reset_tracking_state():
     track_alerted_stages.clear()
     track_stage1_time.clear()
     track_last_box.clear()
+    counted_ids.clear()
     
 def detection_loop():
     """메인 감지 루프 – 별도 스레드에서 실행."""
@@ -488,6 +508,11 @@ def detection_loop():
                 x1, y1, x2, y2 = xyxys[i]
                 cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
 
+                # 차량 통과 카운팅 (신규 트랙 ID인 경우 서버에 알림)
+                if track_id not in counted_ids:
+                    counted_ids.add(track_id)
+                    threading.Thread(target=send_vehicle_pass, daemon=True).start()
+
                 last_pos = track_prev_center[track_id]
                 if last_pos is not None:
                     # 외적 계산 (방향 판별) - 이제 ROTARY_CX/Y가 640x360 스케일임
@@ -552,7 +577,7 @@ def detection_loop():
                     if current_stage not in track_alerted_stages[track_id]:
                         track_alerted_stages[track_id].add(current_stage)
                         # 팝업
-                        threading.Thread(target=send_wrongway_alert, args=(track_id, current_stage), daemon=True).start()
+                        threading.Thread(target=send_wrongway_alert, args=(track_id, current_stage, frame), daemon=True).start()
                         # 하드웨어 제어
                         if current_stage == 1:
                             send_serial(cmdScenario1, "시나리오1")

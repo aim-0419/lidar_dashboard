@@ -108,6 +108,14 @@ app.post("/api/demo/reset", async (req, res) => {
     if (!r.ok) throw new Error(data?.error || "detector demo reset failed");
 
     pushLog("Detector demo reset");
+
+    // KPI 리셋
+    state.todaysEvents = 0;
+    state.newEvents = 0;
+    state.wrongWayEvents = 0;
+    state.hourlyEvents.forEach((h) => (h.events = 0));
+    broadcast("state", state);
+
     res.json({ ok: true, detector: data });
   } catch (err) {
     console.error("[demo/reset]", err);
@@ -125,10 +133,15 @@ const state = {
   deviceId: "LIDAR-01",
 
   // KPI
-  todaysEvents: 3,
+  todaysEvents: 0,
+  newEvents: 0,
   vehiclesPassed: 12842,
-  wrongWayEvents: 2,
+  wrongWayEvents: 0,
   unidentified: 24,
+  hourlyEvents: Array.from({ length: 24 }, (_, i) => ({
+    hour: `${String(i).padStart(2, "0")}:00`,
+    events: 0,
+  })),
 
   // Lidar-like stats
   lidar: { pts: 2405, hz: 10 },
@@ -137,6 +150,10 @@ const state = {
   gate: "CLOSED", // OPENED | CLOSED
   vmsLast: "",
 };
+
+// 역주행 이벤트 히스토리 저장소
+let wrongWayHistory = [];
+const MAX_HISTORY = 30;
 
 let logs = [
   { msg: "System boot completed", time: nowTime() },
@@ -197,6 +214,13 @@ app.post("/api/vms", (req, res) => {
   res.json({ ok: true, vmsLast: state.vmsLast });
 });
 
+// 차량 통과 카운트 (디텍터에서 호출)
+app.post("/api/vehicle/pass", (req, res) => {
+  state.vehiclesPassed += 1;
+  broadcast("state", state);
+  res.json({ ok: true, vehiclesPassed: state.vehiclesPassed });
+});
+
 // 실장비/리플레이 라이다px-> 대시보드pc 이벤트 전송 수신
 app.post("/api/wrongway", (req, res) => {
   const body = req.body || {};
@@ -216,18 +240,31 @@ app.post("/api/wrongway", (req, res) => {
       video_ts_ms: body.video_ts_ms, 
       device_id: body.device_id,
       serial_no: body.serial_no,
+      snapshot: body.snapshot, // 스냅샷 필드 추가
     };
     
     console.log("[broadcast alert]", alert);
 
     //kpi/로그반영
     applyAlertEffects(alert);
+
+    // 히스토리 추가 (스냅샷 포함)
+    wrongWayHistory.unshift(alert);
+    if (wrongWayHistory.length > MAX_HISTORY) {
+      wrongWayHistory = wrongWayHistory.slice(0, MAX_HISTORY);
+    }
+
     broadcast("alert", alert);
     broadcast("state", state);
     pushLog(`[WRONGWAY] ${alert.subMessage}`);
 
     res.json({ ok: true });
   });
+
+// 역주행 히스토리 조회 API
+app.get("/api/wrongway/history", (req, res) => {
+  res.json(wrongWayHistory);
+});
 
 // ------------------------------ 
 // WebSocket (실시간 수신 구조 확인)
@@ -280,15 +317,24 @@ function makeAlert(type) {
 
 function applyAlertEffects(alert) {
   state.todaysEvents += 1;
-  state.vehiclesPassed += Math.floor(Math.random() * 9 + 1); // 1~9
+  state.newEvents += 1;
 
-  if (alert.type === "wrong-way") state.wrongWayEvents += 1;
+  // 시간대별 통계 업데이트
+  const currentHour = new Date().getHours();
+  if (state.hourlyEvents[currentHour]) {
+    state.hourlyEvents[currentHour].events += 1;
+  }
+
+  if (alert.type === "wrong-way") {
+    // 사용자가 요청한 대로 역주행 발생 시 1 증가 (경고 단계 포함)
+    state.wrongWayEvents += 1;
+  }
   if (alert.type === "unidentified") state.unidentified += 1;
 }
 
 setInterval(() => {
   // 1) KPI 주기 변동(캡처용)
-  state.vehiclesPassed += Math.floor(Math.random() * 5); // 0~4
+  // state.vehiclesPassed += Math.floor(Math.random() * 5); // 실제 차량 인식 기반으로 변경하여 시뮬레이션 제거
   state.lidar.pts += Math.floor(Math.random() * 11) - 5; // -5~+5
   state.lidar.pts = clamp(state.lidar.pts, 0, 999999);
 

@@ -98,15 +98,10 @@ const MOCK_LOGS = [
   },
 ];
 
-const HOURLY_DATA = [
-  { hour: "00:00", events: 2 },
-  { hour: "04:00", events: 1 },
-  { hour: "08:00", events: 86 },
-  { hour: "12:00", events: 55 },
-  { hour: "16:00", events: 90 },
-  { hour: "20:00", events: 15 },
-  { hour: "23:00", events: 3 },
-];
+const INITIAL_HOURLY_DATA = Array.from({ length: 24 }, (_, i) => ({
+  hour: `${String(i).padStart(2, "0")}:00`,
+  events: 0,
+}));
 
 const MOCK_UNCONFIRMED = [
   {
@@ -136,19 +131,28 @@ const MOCK_UNCONFIRMED = [
    내부 뷰 컴포넌트
 ------------------------------ */
 
-function AnalyticsView() {
+function AnalyticsView({ kpi }) {
+  const hourlyData =
+    kpi?.hourlyEvents && kpi.hourlyEvents.length > 0
+      ? kpi.hourlyEvents
+      : INITIAL_HOURLY_DATA;
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="p-4 bg-blue-50 border-blue-100">
           <div className="text-sm font-bold text-blue-800 mb-1">오늘 이벤트</div>
-          <div className="text-3xl font-bold text-gray-900">3</div>
-          <div className="text-xs text-blue-600 mt-1">어제 대비 +1</div>
+          <div className="text-3xl font-bold text-gray-900">
+            {kpi?.todaysEvents ?? 0}
+          </div>
+          <div className="text-xs text-blue-600 mt-1">어제 대비 +0</div>
         </Card>
 
         <Card className="p-4 bg-red-50 border-red-100">
           <div className="text-sm font-bold text-red-800 mb-1">활성 경보</div>
-          <div className="text-3xl font-bold text-red-600">3</div>
+          <div className="text-3xl font-bold text-red-600">
+            {kpi?.wrongWayEvents ?? 0}
+          </div>
           <div className="text-xs text-red-400 mt-1">조치 필요</div>
         </Card>
 
@@ -161,9 +165,14 @@ function AnalyticsView() {
 
       <Card title="시간대별 이벤트 분포" className="h-96">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={HOURLY_DATA}>
+          <AreaChart data={hourlyData}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="hour" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+            <XAxis
+              dataKey="hour"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 11 }}
+            />
             <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
             <Tooltip />
             <Area type="monotone" dataKey="events" />
@@ -354,6 +363,31 @@ export default function EventLogPage() {
   const [selectedLog, setSelectedLog] = useState(null);
   const [query, setQuery] = useState("");
 
+  const [kpi, setKpi] = useState({
+    todaysEvents: 0,
+    wrongWayEvents: 0,
+    hourlyEvents: INITIAL_HOURLY_DATA,
+  });
+
+  // WebSocket 연결
+  useEffect(() => {
+    const WS_URL = `ws://${window.location.hostname}:5000`;
+    const ws = new WebSocket(WS_URL);
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "state" && msg.payload) {
+          setKpi(msg.payload);
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+
+    return () => ws.close();
+  }, []);
+
   // URL tab 변경 시 탭 동기화
   useEffect(() => {
     setActiveTab(safeTab);
@@ -471,7 +505,7 @@ export default function EventLogPage() {
 
       {/* 콘텐츠 */}
       <div className="min-h-[500px]">
-        {activeTab === "analytics" && <AnalyticsView />}
+        {activeTab === "analytics" && <AnalyticsView kpi={kpi} />}
         {activeTab === "vehicles" && <VehiclesView />}
         {activeTab === "unidentified" && <UnidentifiedView />}
 
