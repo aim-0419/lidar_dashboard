@@ -6,12 +6,9 @@ const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./src/swagger");
 const { WebSocketServer } = require("ws");
 
-// demo
-const { spawn} = require("child_process");
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 require("dotenv").config({ path: path.resolve(__dirname, ".env"), override: true });
-//
 
 const fs = require("fs");
 const { start } = require("repl");
@@ -20,9 +17,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const config = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "config.json"), "utf-8")
-);
+const configPath = fs.existsSync(path.join(__dirname, "config.json"))
+  ? path.join(__dirname, "config.json")
+  : path.join(__dirname, "config.example.json");
+const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 
 //demo
 const DASHBOARD_HOST = process.env.DASHBOARD_HOST || config.dashboardIP || "localhost";
@@ -35,45 +33,11 @@ const DETECTOR_BASE_URL = (
 const DASHBOARD_BASE_URL = (
   process.env.DASHBOARD_BASE_URL || `http://${DASHBOARD_HOST}:${PORT}`
 ).replace(/\/+$/, "");
-let detectorProc = null;
-//
 
 const DIST_PATH = path.join(__dirname, "../dashboard-web/dist");
 app.use(express.static(DIST_PATH));
 app.get("/api-docs.json", (req, res) => res.json(swaggerSpec));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-
-// ---detector 실행---------------------------
-function startDetector() {
-  if (detectorProc) {
-    console.log("[detector] already running");
-    return;
-  }
-
-  const detectorPath = path.join(__dirname, "../demo-server/wrongway_detector.py");
-  const detectorCwd = path.dirname(detectorPath);
-  const pythonCmd = config.pythonCmd || "py";
-
-  detectorProc = spawn(pythonCmd, ["-u", detectorPath], {
-    cwd: detectorCwd,
-    stdio: "pipe",
-  });
-
-  detectorProc.stdout.on("data", (data) => {
-    const msg = data.toString().trim();
-    if (msg) console.log(`[detector] ${msg}`);
-  });
-
-  detectorProc.stderr.on("data", (data) => {
-    const msg = data.toString().trim();
-    if (msg) console.error(`[detector err] ${msg}`);
-  });
-
-  detectorProc.on("close", (code) => {
-    console.log(`[detector] exited with code ${code}`);
-    detectorProc = null;
-  });
-}
 
 //demo
 app.post("/api/demo/start", async (req, res) => {
@@ -353,26 +317,5 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server started and listening on port ${PORT}`);
   console.log(`REST  ${DASHBOARD_BASE_URL}/api/state`);
   console.log(`WS    ${DASHBOARD_BASE_URL.replace(/^http/, "ws")}`);
-
-  startDetector();
-});
-
-// ------------------------------
-// 서버 종료 시 detector도 같이 종료 
-// ------------------------------
-function stopDetector() {
-  if (detectorProc) {
-    detectorProc.kill();
-    detectorProc = null;
-  }
-}
-
-process.on("SIGINT", () => {
-  stopDetector();
-  process.exit(0);
-});
-
-process.on("SIGTERM", () => {
-  stopDetector();
-  process.exit(0);
+  console.log(`Detector proxy ${DETECTOR_BASE_URL}`);
 });

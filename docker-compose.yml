@@ -1,0 +1,52 @@
+services:
+  backend:
+    build:
+      context: ./dashboard/server
+    env_file:
+      - .env
+    environment:
+      DASHBOARD_HOST: ${PUBLIC_HOST:-localhost}
+      DASHBOARD_PORT: ${DASHBOARD_PORT:-5000}
+      DETECTOR_HOST: ${COMPOSE_DETECTOR_HOST:-demo-server}
+      DETECTOR_PORT: ${DETECTOR_PORT:-8888}
+      DASHBOARD_BASE_URL: http://${PUBLIC_HOST:-localhost}:${DASHBOARD_PORT:-5000}
+      DETECTOR_BASE_URL: http://${COMPOSE_DETECTOR_HOST:-demo-server}:${DETECTOR_PORT:-8888}
+    ports:
+      - "${DASHBOARD_PORT:-5000}:${DASHBOARD_PORT:-5000}"
+    depends_on:
+      - demo-server
+
+  frontend:
+    build:
+      context: ./dashboard/dashboard-web
+    env_file:
+      - .env
+    environment:
+      VITE_API_HOST: ${PUBLIC_HOST:-localhost}
+      VITE_API_PORT: ${DASHBOARD_PORT:-5000}
+      VITE_DETECTOR_HOST: ${PUBLIC_HOST:-localhost}
+      VITE_DETECTOR_PORT: ${DETECTOR_PORT:-8888}
+      VITE_API_BASE_URL: http://${PUBLIC_HOST:-localhost}:${DASHBOARD_PORT:-5000}
+      VITE_WS_BASE_URL: ws://${PUBLIC_HOST:-localhost}:${DASHBOARD_PORT:-5000}
+      VITE_DETECTOR_BASE_URL: http://${PUBLIC_HOST:-localhost}:${DETECTOR_PORT:-8888}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      - backend
+      - demo-server
+
+  demo-server:
+    build:
+      context: .
+      dockerfile: dashboard/demo-server/Dockerfile
+    env_file:
+      - .env
+    environment:
+      DASHBOARD_HOST: ${COMPOSE_BACKEND_HOST:-backend}
+      DASHBOARD_PORT: ${DASHBOARD_PORT:-5000}
+      DETECTOR_PORT: ${DETECTOR_PORT:-8888}
+      SERIAL_PORT: ${SERIAL_PORT:-}
+      BAUD_RATE: ${BAUD_RATE:-9600}
+      VIDEO_SOURCE: ${VIDEO_SOURCE:-../dashboard-web/public/wrongway_test.mp4}
+    ports:
+      - "${DETECTOR_PORT:-8888}:${DETECTOR_PORT:-8888}"
