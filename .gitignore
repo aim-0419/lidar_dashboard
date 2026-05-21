@@ -1,7 +1,29 @@
-node_modules/
-.env
-*.log
-venv
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
 
-# 환경설정 파일 제외
+# Virtual env
+venv/
+.venv/
+dashboard/demo-server/venv/
+
+# Node
+node_modules/
+
+# Frontend build
+dashboard/dashboard-web/dist/
+
+# Env
+.env
+**/.env
+!.env.example
+!**/.env.example
+
+# Logs
+*.log
+
+# Local config
 config.json
+dashboard/server/config.json
+dashboard/demo-server/config.json

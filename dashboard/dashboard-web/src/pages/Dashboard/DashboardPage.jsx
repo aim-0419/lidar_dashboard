@@ -139,8 +139,13 @@ export default function DashboardPage({
   const CAMERA_VIDEO_SRC = "/wrongway_test.mp4";
 
   // YOLO 감지 서버 상태
-  const DETECTOR_PORT = 8888;
-  const DETECTOR_BASE = `http://${window.location.hostname}:${DETECTOR_PORT}`;
+  const API_HOST = import.meta.env.VITE_API_HOST || "localhost";
+  const API_PORT = import.meta.env.VITE_API_PORT || "5000";
+  const DETECTOR_HOST = import.meta.env.VITE_DETECTOR_HOST || API_HOST;
+  const DETECTOR_PORT = import.meta.env.VITE_DETECTOR_PORT || "8888";
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${API_HOST}:${API_PORT}`;
+  const WS_URL = import.meta.env.VITE_WS_BASE_URL || `ws://${API_HOST}:${API_PORT}`;
+  const DETECTOR_BASE = import.meta.env.VITE_DETECTOR_BASE_URL || `http://${DETECTOR_HOST}:${DETECTOR_PORT}`;
   const [detectorAlive, setDetectorAlive] = useState(false);
 
   useEffect(() => {
@@ -185,8 +190,6 @@ export default function DashboardPage({
   // ------------------------------
   // /api/demo/start
   // ------------------------------
-  const API_BASE = `http://${window.location.hostname}:5000`;
-
   const startDemo = async () => {
     try {
       pushLog("Demo START 요청");
@@ -260,8 +263,6 @@ export default function DashboardPage({
   // ------------------------------
   // websocket 수신 로직
   // ------------------------------
-  const WS_URL = `ws://${window.location.hostname}:5000`;
-
   useEffect(() => {
     const ws = new WebSocket(WS_URL);
 
@@ -359,7 +360,6 @@ export default function DashboardPage({
 
     const ping = async ()=>{
       try {
-        const API_BASE = `http://${window.location.hostname}:5000`
         const res = await fetch(`${API_BASE}/api/health`, { cache: "no-store"}); 
         setServerAlive(res.ok);
       }catch {

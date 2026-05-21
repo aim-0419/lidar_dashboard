@@ -2,11 +2,15 @@
 const express = require("express");
 const cors = require("cors");
 const http = require("http");
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./src/swagger");
 const { WebSocketServer } = require("ws");
 
 // demo
 const { spawn} = require("child_process");
 const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
+require("dotenv").config({ path: path.resolve(__dirname, ".env"), override: true });
 //
 
 const fs = require("fs");
@@ -21,12 +25,23 @@ const config = JSON.parse(
 );
 
 //demo
-const PORT = config.serverPort || 5000;
+const DASHBOARD_HOST = process.env.DASHBOARD_HOST || config.dashboardIP || "localhost";
+const PORT = Number(process.env.DASHBOARD_PORT || config.serverPort || 5000);
+const DETECTOR_HOST = process.env.DETECTOR_HOST || DASHBOARD_HOST;
+const DETECTOR_PORT = Number(process.env.DETECTOR_PORT || config.detectorPort || 8888);
+const DETECTOR_BASE_URL = (
+  process.env.DETECTOR_BASE_URL || `http://${DETECTOR_HOST}:${DETECTOR_PORT}`
+).replace(/\/+$/, "");
+const DASHBOARD_BASE_URL = (
+  process.env.DASHBOARD_BASE_URL || `http://${DASHBOARD_HOST}:${PORT}`
+).replace(/\/+$/, "");
 let detectorProc = null;
 //
 
 const DIST_PATH = path.join(__dirname, "../dashboard-web/dist");
 app.use(express.static(DIST_PATH));
+app.get("/api-docs.json", (req, res) => res.json(swaggerSpec));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // ---detector 실행---------------------------
 function startDetector() {
@@ -35,11 +50,12 @@ function startDetector() {
     return;
   }
 
-  const detectorPath = path.join(__dirname, "wrongway_detector.py");
+  const detectorPath = path.join(__dirname, "../demo-server/wrongway_detector.py");
+  const detectorCwd = path.dirname(detectorPath);
   const pythonCmd = config.pythonCmd || "py";
 
   detectorProc = spawn(pythonCmd, ["-u", detectorPath], {
-    cwd: __dirname,
+    cwd: detectorCwd,
     stdio: "pipe",
   });
 
@@ -62,9 +78,7 @@ function startDetector() {
 //demo
 app.post("/api/demo/start", async (req, res) => {
   try {
-    const detectorBase = `http://127.0.0.1:${config.detectorPort || 8888}`;
-
-    const r = await fetch(`${detectorBase}/demo/start`, {
+    const r = await fetch(`${DETECTOR_BASE_URL}/demo/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req.body ?? {}),
@@ -84,9 +98,7 @@ app.post("/api/demo/start", async (req, res) => {
 
 app.post("/api/demo/reset", async (req, res) => {
   try {
-    const detectorBase = `http://127.0.0.1:${config.detectorPort || 8888}`;
-
-    const r = await fetch(`${detectorBase}/demo/reset`, {
+    const r = await fetch(`${DETECTOR_BASE_URL}/demo/reset`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req.body ?? {}),
@@ -339,8 +351,8 @@ app.get(/^\/(?!api).*/, (req, res) => {
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server started and listening on port ${PORT}`);
-  console.log(`REST  http://${config.dashboardIP}:${PORT}/api/state`);
-  console.log(`WS    ws://${config.dashboardIP}:${PORT}`);
+  console.log(`REST  ${DASHBOARD_BASE_URL}/api/state`);
+  console.log(`WS    ${DASHBOARD_BASE_URL.replace(/^http/, "ws")}`);
 
   startDetector();
 });
