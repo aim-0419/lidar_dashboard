@@ -52,7 +52,7 @@ BAUD_RATE=
 VIDEO_SOURCE=
 ```
 
-Docker Compose 내부 통신에서는 `COMPOSE_BACKEND_HOST`, `COMPOSE_DETECTOR_HOST` 같은 서비스명 값을 사용합니다. 브라우저에서 접속하는 host는 `PUBLIC_HOST`로 관리합니다.
+Docker Compose 내부 통신에서는 `COMPOSE_BACKEND_HOST` 같은 서비스명 값을 사용합니다. `COMPOSE_DETECTOR_HOST`는 기본적으로 호스트 PC에서 실행 중인 데모 서버를 바라보도록 `host.docker.internal`을 사용합니다. 브라우저에서 접속하는 host는 `PUBLIC_HOST`로 관리합니다.
 
 라이다 PC나 내부망 IP를 사용하는 경우에도 Dockerfile을 수정하지 말고 `.env`의 원자값만 변경합니다.
 
@@ -96,7 +96,19 @@ docker compose logs -f
 docker compose down
 ```
 
-Docker Compose에서는 백엔드, 프론트엔드, 데모 서버가 각각 별도 컨테이너로 실행됩니다. 백엔드는 데모 서버를 직접 실행하지 않고, 이미 떠 있는 데모 서버에 HTTP 요청만 전달합니다.
+기본 Docker Compose 실행에서는 빌드 시간을 줄이기 위해 백엔드와 프론트엔드만 실행합니다. 데모 서버는 보통 로컬 가상환경에서 직접 실행합니다.
+
+```bash
+npm run dev:demo
+```
+
+Docker로 데모 서버까지 함께 실행해야 할 때만 `demo-docker` profile을 지정합니다.
+
+```bash
+docker compose --profile demo-docker up --build
+```
+
+이 방식에서는 루트 `.env`의 `COMPOSE_DETECTOR_HOST`를 `demo-server`로 설정합니다.
 
 포트나 내부망 IP를 바꿔야 하면 Dockerfile을 수정하지 말고 루트 `.env`만 수정합니다. `docker-compose.yml`은 `.env` 값을 읽어 포트 매핑과 각 컨테이너 환경변수에 반영합니다.
 
