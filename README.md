@@ -30,40 +30,75 @@ npm run setup:demo
 
 ## 환경 설정
 
-실제 접속 URL은 각 로컬 PC의 `.env`에 작성합니다.
+실제 접속 host, 포트, 장비별 값은 각 로컬 PC의 `.env`에 작성합니다.
 
-- 루트 `.env`: 루트 실행 스크립트나 공통 기본값
-- `dashboard/dashboard-web/.env`: 프론트엔드에서 사용하는 URL
-- `dashboard/server/.env`: Node.js 백엔드에서 사용하는 URL
+- 루트 `.env`: Docker Compose와 루트 실행 스크립트에서 사용하는 기본값
+- `dashboard/dashboard-web/.env`: 프론트엔드를 단독 실행할 때 사용하는 값
+- `dashboard/server/.env`: 백엔드를 단독 실행할 때 사용하는 값
 
 공개 저장소에는 실제 `.env`를 올리지 않고, 각 위치의 `.env.example` 파일만 올립니다.
 
-기본 로컬 개발값은 `localhost`입니다.
+루트 `.env`에는 사람이 읽기 쉬운 원자값만 둡니다. URL은 직접 적지 않고 `docker-compose.yml`에서 host와 port를 조합합니다.
 
 ```env
-DASHBOARD_HOST=localhost
-DASHBOARD_PORT=5000
-DETECTOR_HOST=localhost
-DETECTOR_PORT=8888
+FRONTEND_PORT=
+DASHBOARD_PORT=
+DETECTOR_PORT=
+PUBLIC_HOST=
+COMPOSE_BACKEND_HOST=
+COMPOSE_DETECTOR_HOST=
+SERIAL_PORT=
+BAUD_RATE=
+VIDEO_SOURCE=
 ```
 
-프론트엔드는 Vite 규칙에 따라 `VITE_` prefix를 사용합니다.
+Docker Compose 내부 통신에서는 `COMPOSE_BACKEND_HOST`, `COMPOSE_DETECTOR_HOST` 같은 서비스명 값을 사용합니다. 브라우저에서 접속하는 host는 `PUBLIC_HOST`로 관리합니다.
 
-```env
-VITE_API_HOST=localhost
-VITE_API_PORT=5000
-VITE_DETECTOR_HOST=localhost
-VITE_DETECTOR_PORT=8888
+라이다 PC나 내부망 IP를 사용하는 경우에도 Dockerfile을 수정하지 말고 `.env`의 원자값만 변경합니다.
+
+## Docker로 개발 서버 실행
+
+팀 공통 개발 환경은 Docker Desktop과 Docker Compose를 기준으로 실행할 수 있습니다.
+
+프로젝트 루트에서 실행합니다.
+
+```bash
+docker compose up --build
 ```
 
-모든 서버를 같은 PC에서 실행하면 `localhost` 그대로 사용하면 됩니다. 라이다 PC에서 백엔드/Flask를 실행하고 다른 PC에서 브라우저로 접속하는 경우에는 `localhost` 대신 라이다 PC의 내부망 IP를 사용합니다.
+백그라운드로 실행하려면 `-d` 옵션을 붙입니다.
 
-```env
-VITE_API_HOST=192.168.0.24
-VITE_DETECTOR_HOST=192.168.0.24
-DASHBOARD_HOST=192.168.0.24
-DETECTOR_HOST=192.168.0.24
+```bash
+docker compose up --build -d
 ```
+
+실행 후 접속 주소는 루트 `.env`의 `PUBLIC_HOST`, `FRONTEND_PORT`, `DASHBOARD_PORT`, `DETECTOR_PORT` 값을 기준으로 확인합니다.
+
+컨테이너 상태를 확인합니다.
+
+```bash
+docker compose ps
+```
+
+전체 로그를 확인합니다.
+
+```bash
+docker compose logs -f
+```
+
+종료 방법은 실행 방식에 따라 다릅니다.
+
+- `docker compose up --build`처럼 터미널에 붙여 실행한 경우: `Ctrl+C`로 중지할 수 있습니다.
+- `docker compose up --build -d`처럼 백그라운드로 실행한 경우: `docker compose down`으로 종료합니다.
+- 네트워크와 컨테이너까지 정리하려면 실행 방식과 관계없이 `docker compose down`을 사용합니다.
+
+```bash
+docker compose down
+```
+
+Docker Compose에서는 백엔드, 프론트엔드, 데모 서버가 각각 별도 컨테이너로 실행됩니다. 백엔드는 데모 서버를 직접 실행하지 않고, 이미 떠 있는 데모 서버에 HTTP 요청만 전달합니다.
+
+포트나 내부망 IP를 바꿔야 하면 Dockerfile을 수정하지 말고 루트 `.env`만 수정합니다. `docker-compose.yml`은 `.env` 값을 읽어 포트 매핑과 각 컨테이너 환경변수에 반영합니다.
 
 ## 개발 서버 실행
 
