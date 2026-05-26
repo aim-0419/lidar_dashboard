@@ -5,6 +5,7 @@
 # ──────────────────────────────────────────────
 import json
 import math
+import os
 import random
 import time
 import threading
@@ -25,6 +26,16 @@ if not CONFIG_PATH.exists():
     CONFIG_PATH = Path(__file__).parent.parent / "server" / "config.json"
 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     config = json.load(f)
+
+
+def env_value(name, fallback=None):
+    value = os.getenv(name)
+    return fallback if value is None or value == "" else value
+
+
+def env_int(name, fallback):
+    value = env_value(name)
+    return int(value) if value is not None else fallback
     
 # ------------------------------
 # Serial Port
@@ -32,12 +43,17 @@ with open(CONFIG_PATH, "r", encoding="utf-8") as f:
 import serial
 
 try:
-    ser = serial.Serial(
-        port=config.get("serialPort"),
-        baudrate=config.get("baudRate", 9600),
-        timeout=1
-    )
-    print(f"[serial] opened: {ser.port} / {ser.baudrate} / open={ser.is_open}") # 시리얼 포트 정보 출력
+    serial_port = env_value("SERIAL_PORT", config.get("serialPort"))
+    if serial_port:
+        ser = serial.Serial(
+            port=serial_port,
+            baudrate=env_int("BAUD_RATE", config.get("baudRate", 9600)),
+            timeout=1
+        )
+        print(f"[serial] opened: {ser.port} / {ser.baudrate} / open={ser.is_open}") # 시리얼 포트 정보 출력
+    else:
+        ser = None
+        print("[serial] skip: serialPort is not configured")
 except Exception as e:
     ser = None
     print(f"[serial] init failed: {e}") # 시리얼 포트 초기화 실패 시 오류 메시지 출력
@@ -67,10 +83,10 @@ def send_serial(cmd, label):
         print(f"[serial] 시리얼 전송 오류: {e}")   
 
 # 감지 서버 포트
-DETECTOR_PORT = config.get("detectorPort", 8765)
+DETECTOR_PORT = env_int("DETECTOR_PORT", config.get("detectorPort", 8765))
 
 # 피드 소스: 카메라 인덱스(int) 또는 파일 경로(str)
-_vs = config.get("videoSource")
+_vs = env_value("VIDEO_SOURCE", config.get("videoSource"))
 if _vs and isinstance(_vs, str) and not _vs.isdigit():
     # 상대 경로일 경우 config.json 위치 기준으로 절대 경로 변환
     _vs_path = Path(_vs)
@@ -92,8 +108,8 @@ ROTARY_CX = ORIGN_CX * (640/1280)
 ROTARY_CY = ORIGN_CY * (360/720)
 
 # 대시보드 서버 (이벤트 전송용)
-SERVER_PORT = config.get("serverPort", 5000)
-DASHBOARD_IP = config.get("dashboardIP", "127.0.0.1")
+SERVER_PORT = env_int("DASHBOARD_PORT", config.get("serverPort", 5000))
+DASHBOARD_IP = env_value("DASHBOARD_HOST", config.get("dashboardIP", "127.0.0.1"))
 DASHBOARD_BASE = f"http://{DASHBOARD_IP}:{SERVER_PORT}"
 
 # ── YOLO 모델 로드 ─────────────────────────────
