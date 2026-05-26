@@ -1,4 +1,4 @@
-# dashboard/server/wrongway_detector.py
+# dashboard/demo-server/wrongway_detector.py
 # ──────────────────────────────────────────────
 # 실시간 카메라 역주행(로터리 시계방향) 차량 YOLO 감지
 # YOLOv8n + BoT-SORT 트래커 → MJPEG 스트리밍
@@ -14,12 +14,15 @@ from collections import defaultdict
 import cv2
 import numpy as np
 import requests
+import base64
 from flask import Flask, Response
 from flask_cors import CORS
 from ultralytics import YOLO
 
 # ── 설정 로드 ──────────────────────────────────
 CONFIG_PATH = Path(__file__).parent / "config.json"
+if not CONFIG_PATH.exists():
+    CONFIG_PATH = Path(__file__).parent.parent / "server" / "config.json"
 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     config = json.load(f)
     
@@ -94,7 +97,7 @@ DASHBOARD_IP = config.get("dashboardIP", "127.0.0.1")
 DASHBOARD_BASE = f"http://{DASHBOARD_IP}:{SERVER_PORT}"
 
 # ── YOLO 모델 로드 ─────────────────────────────
-model = YOLO("yolov8n.pt")
+model = YOLO(str(Path(__file__).parent / "yolov8n.pt"))
 
 # 차량 관련 COCO 클래스 ID
 VEHICLE_CLASSES = {2, 3, 5, 7}  # car, motorcycle, bus, truck
@@ -310,10 +313,18 @@ def calculate_cross_product(cx, cy, prev_cx, prev_cy):
     return v_move[0] * v_rel[1] - v_move[1] * v_rel[0]
 
 
-def send_wrongway_alert(track_id, stage):
-    """대시보드 서버로 역주행 이벤트 전송 (Stage 포함)."""
+def send_wrongway_alert(track_id, stage, frame=None):
+    """대시보드 서버로 역주행 이벤트 전송 (Stage 포함 + 스냅샷)."""
     try:
         msg = "역주행 경고 (Stage 1)" if stage == 1 else "역주행 위험 (Stage 2)"
+        
+        snapshot_b64 = None
+        if frame is not None:
+            # JPEG 인코딩
+            _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
+            # Base64 변환
+            snapshot_b64 = base64.b64encode(buffer).decode('utf-8')
+
         body = {
             "type": "wrong-way",
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -323,9 +334,10 @@ def send_wrongway_alert(track_id, stage):
             "confidence": 0.95,
             "message": f"{msg} - 트랙 #{track_id}",
             "device_id": "YOLO-CAM-01",
+            "snapshot": snapshot_b64  # Base64 이미지 추가
         }
         requests.post(f"{DASHBOARD_BASE}/api/wrongway", json=body, timeout=1.5)
-        print(f"[alert] Sent id:{track_id} stage:{stage}")
+        print(f"[alert] Sent id:{track_id} stage:{stage} (with snapshot)")
     except Exception as e:
         print(f"[alert] Failed to send alert: {e}")
 def send_vehicle_pass():
@@ -565,7 +577,7 @@ def detection_loop():
                     if current_stage not in track_alerted_stages[track_id]:
                         track_alerted_stages[track_id].add(current_stage)
                         # 팝업
-                        threading.Thread(target=send_wrongway_alert, args=(track_id, current_stage), daemon=True).start()
+                        threading.Thread(target=send_wrongway_alert, args=(track_id, current_stage, frame), daemon=True).start()
                         # 하드웨어 제어
                         if current_stage == 1:
                             send_serial(cmdScenario1, "시나리오1")

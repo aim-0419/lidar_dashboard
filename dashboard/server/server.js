@@ -2,11 +2,15 @@
 const express = require("express");
 const cors = require("cors");
 const http = require("http");
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./src/swagger");
 const { WebSocketServer } = require("ws");
 
 // demo
 const { spawn} = require("child_process");
 const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
+require("dotenv").config({ path: path.resolve(__dirname, ".env"), override: true });
 //
 
 const fs = require("fs");
@@ -21,12 +25,23 @@ const config = JSON.parse(
 );
 
 //demo
-const PORT = config.serverPort || 5000;
+const DASHBOARD_HOST = process.env.DASHBOARD_HOST || config.dashboardIP || "localhost";
+const PORT = Number(process.env.DASHBOARD_PORT || config.serverPort || 5000);
+const DETECTOR_HOST = process.env.DETECTOR_HOST || DASHBOARD_HOST;
+const DETECTOR_PORT = Number(process.env.DETECTOR_PORT || config.detectorPort || 8888);
+const DETECTOR_BASE_URL = (
+  process.env.DETECTOR_BASE_URL || `http://${DETECTOR_HOST}:${DETECTOR_PORT}`
+).replace(/\/+$/, "");
+const DASHBOARD_BASE_URL = (
+  process.env.DASHBOARD_BASE_URL || `http://${DASHBOARD_HOST}:${PORT}`
+).replace(/\/+$/, "");
 let detectorProc = null;
 //
 
 const DIST_PATH = path.join(__dirname, "../dashboard-web/dist");
 app.use(express.static(DIST_PATH));
+app.get("/api-docs.json", (req, res) => res.json(swaggerSpec));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // ---detector 실행---------------------------
 function startDetector() {
@@ -35,11 +50,12 @@ function startDetector() {
     return;
   }
 
-  const detectorPath = path.join(__dirname, "wrongway_detector.py");
+  const detectorPath = path.join(__dirname, "../demo-server/wrongway_detector.py");
+  const detectorCwd = path.dirname(detectorPath);
   const pythonCmd = config.pythonCmd || "py";
 
   detectorProc = spawn(pythonCmd, ["-u", detectorPath], {
-    cwd: __dirname,
+    cwd: detectorCwd,
     stdio: "pipe",
   });
 
@@ -62,9 +78,7 @@ function startDetector() {
 //demo
 app.post("/api/demo/start", async (req, res) => {
   try {
-    const detectorBase = `http://127.0.0.1:${config.detectorPort || 8888}`;
-
-    const r = await fetch(`${detectorBase}/demo/start`, {
+    const r = await fetch(`${DETECTOR_BASE_URL}/demo/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req.body ?? {}),
@@ -84,9 +98,7 @@ app.post("/api/demo/start", async (req, res) => {
 
 app.post("/api/demo/reset", async (req, res) => {
   try {
-    const detectorBase = `http://127.0.0.1:${config.detectorPort || 8888}`;
-
-    const r = await fetch(`${detectorBase}/demo/reset`, {
+    const r = await fetch(`${DETECTOR_BASE_URL}/demo/reset`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req.body ?? {}),
@@ -99,7 +111,9 @@ app.post("/api/demo/reset", async (req, res) => {
 
     // KPI 리셋
     state.todaysEvents = 0;
+    state.newEvents = 0;
     state.wrongWayEvents = 0;
+    state.hourlyEvents.forEach((h) => (h.events = 0));
     broadcast("state", state);
 
     res.json({ ok: true, detector: data });
@@ -120,9 +134,14 @@ const state = {
 
   // KPI
   todaysEvents: 0,
+  newEvents: 0,
   vehiclesPassed: 12842,
   wrongWayEvents: 0,
   unidentified: 24,
+  hourlyEvents: Array.from({ length: 24 }, (_, i) => ({
+    hour: `${String(i).padStart(2, "0")}:00`,
+    events: 0,
+  })),
 
   // Lidar-like stats
   lidar: { pts: 2405, hz: 10 },
@@ -131,6 +150,10 @@ const state = {
   gate: "CLOSED", // OPENED | CLOSED
   vmsLast: "",
 };
+
+// 역주행 이벤트 히스토리 저장소
+let wrongWayHistory = [];
+const MAX_HISTORY = 30;
 
 let logs = [
   { msg: "System boot completed", time: nowTime() },
@@ -217,18 +240,31 @@ app.post("/api/wrongway", (req, res) => {
       video_ts_ms: body.video_ts_ms, 
       device_id: body.device_id,
       serial_no: body.serial_no,
+      snapshot: body.snapshot, // 스냅샷 필드 추가
     };
     
     console.log("[broadcast alert]", alert);
 
     //kpi/로그반영
     applyAlertEffects(alert);
+
+    // 히스토리 추가 (스냅샷 포함)
+    wrongWayHistory.unshift(alert);
+    if (wrongWayHistory.length > MAX_HISTORY) {
+      wrongWayHistory = wrongWayHistory.slice(0, MAX_HISTORY);
+    }
+
     broadcast("alert", alert);
     broadcast("state", state);
     pushLog(`[WRONGWAY] ${alert.subMessage}`);
 
     res.json({ ok: true });
   });
+
+// 역주행 히스토리 조회 API
+app.get("/api/wrongway/history", (req, res) => {
+  res.json(wrongWayHistory);
+});
 
 // ------------------------------ 
 // WebSocket (실시간 수신 구조 확인)
@@ -281,7 +317,13 @@ function makeAlert(type) {
 
 function applyAlertEffects(alert) {
   state.todaysEvents += 1;
-  // state.vehiclesPassed += Math.floor(Math.random() * 9 + 1); // 기존의 중복 증가 제거
+  state.newEvents += 1;
+
+  // 시간대별 통계 업데이트
+  const currentHour = new Date().getHours();
+  if (state.hourlyEvents[currentHour]) {
+    state.hourlyEvents[currentHour].events += 1;
+  }
 
   if (alert.type === "wrong-way") {
     // 사용자가 요청한 대로 역주행 발생 시 1 증가 (경고 단계 포함)
@@ -309,8 +351,8 @@ app.get(/^\/(?!api).*/, (req, res) => {
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server started and listening on port ${PORT}`);
-  console.log(`REST  http://${config.dashboardIP}:${PORT}/api/state`);
-  console.log(`WS    ws://${config.dashboardIP}:${PORT}`);
+  console.log(`REST  ${DASHBOARD_BASE_URL}/api/state`);
+  console.log(`WS    ${DASHBOARD_BASE_URL.replace(/^http/, "ws")}`);
 
   startDetector();
 });
