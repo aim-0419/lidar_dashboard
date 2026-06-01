@@ -1,4 +1,20 @@
 services:
+  lidar-dashboard-db-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - lidar_dashboard_db_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?POSTGRES_USER is required} -d ${POSTGRES_DB:?POSTGRES_DB is required}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./dashboard/server
@@ -49,3 +65,6 @@ services:
       VIDEO_SOURCE: ${VIDEO_SOURCE:-../dashboard-web/public/wrongway_test.mp4}
     ports:
       - "${DETECTOR_PORT:-8888}:${DETECTOR_PORT:-8888}"
+
+volumes:
+  lidar_dashboard_db_postgres_data:

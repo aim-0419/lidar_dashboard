@@ -66,6 +66,17 @@ Docker Compose 내부 통신에서는 `COMPOSE_BACKEND_HOST` 같은 서비스명
 docker compose up --build
 ```
 
+기본 Compose 실행에는 PostgreSQL 개발 DB도 함께 포함됩니다. 실제 DB 접속값은 루트 `.env`에 작성합니다. `.env.example`은 필요한 변수 이름만 안내하는 양식입니다.
+
+```env
+POSTGRES_DB=
+POSTGRES_USER=
+POSTGRES_PASSWORD=
+POSTGRES_PORT=
+```
+
+로컬 PC에서 DB에 직접 접속할 때는 host를 `localhost`, port를 `POSTGRES_PORT` 값으로 사용합니다. 로컬 PostgreSQL과 충돌을 피하려면 `POSTGRES_PORT=5433`을 권장합니다. Compose 내부 컨테이너에서 접속할 때는 host를 `lidar-dashboard-db-postgres`, port를 `5432`로 사용합니다.
+
 백그라운드로 실행하려면 `-d` 옵션을 붙입니다.
 
 ```bash
@@ -96,7 +107,13 @@ docker compose logs -f
 docker compose down
 ```
 
-기본 Docker Compose 실행에서는 빌드 시간을 줄이기 위해 백엔드와 프론트엔드만 실행합니다. 데모 서버는 보통 로컬 가상환경에서 직접 실행합니다.
+PostgreSQL 데이터는 `lidar_dashboard_db_postgres_data` Docker volume에 유지됩니다. 개발 DB 데이터를 완전히 초기화해야 할 때만 아래 명령을 사용합니다.
+
+```bash
+docker compose down -v
+```
+
+기본 Docker Compose 실행에서는 백엔드, 프론트엔드, PostgreSQL 개발 DB를 실행합니다. 데모 서버는 보통 로컬 가상환경에서 직접 실행합니다.
 
 ```bash
 npm run dev:demo
