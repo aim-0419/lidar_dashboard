@@ -82,7 +82,52 @@ dashboard/server
 - prisma
   - schema.prisma
   - seed.js
+
+현재 적용된 백엔드 구조
+2026-06-17 기준 1차 리팩토링으로 적용된 구조입니다.
+
+dashboard/server
+├─ server.js
+└─ src
+   ├─ app.js
+   ├─ swagger.js
+   ├─ config
+   │  └─ index.js
+   ├─ routes
+   │  └─ index.js
+   ├─ domains
+   │  ├─ demo
+   │  │  ├─ demo.routes.js
+   │  │  └─ demo.controller.js
+   │  ├─ mock-lidar
+   │  │  ├─ mockLidar.routes.js
+   │  │  ├─ mockLidar.controller.js
+   │  │  └─ mockLidar.service.js
+   │  └─ wrongway
+   │     ├─ wrongway.routes.js
+   │     ├─ wrongway.controller.js
+   │     └─ wrongway.service.js
+   ├─ realtime
+   │  └─ websocket.js
+   ├─ simulator
+   │  └─ lidarSimulator.js
+   └─ utils
+      └─ time.js
 ```
+
+역할 : 
+
+- server.js: HTTP 서버 생성, WebSocket 초기화, 시뮬레이터 실행, 서버 listen을 담당합니다.
+- src/app.js: Express 설정, Swagger 연결, /api 라우트 등록, React 정적 파일 서빙을 담당합니다.
+- src/config/index.js: .env, config.json을 읽고 포트, host, base URL, dist 경로를 계산합니다.
+- src/routes/index.js: 전체 API 진입점입니다. /api/health와 도메인별 라우트를 연결합니다.
+- src/domains/demo: Python demo-server 시작/초기화 요청을 처리합니다.
+- src/domains/mock-lidar: mock 상태, 로그, KPI, gate, VMS, 차량 통과 수를 관리합니다.
+- src/domains/wrongway: 역주행 이벤트 수신, alert 생성, 히스토리 저장, 로그 추가를 처리합니다.
+- src/realtime/websocket.js: WebSocket 연결과 state, logs, alert 실시간 전송을 담당합니다.
+- src/simulator/lidarSimulator.js: 실제 장비가 없을 때 mock 라이다 수치(pts, hz)를 주기적으로 갱신합니다.
+- src/utils/time.js: 시간 포맷 등 공통 유틸 함수를 제공합니다.
+
 
 기준:
 
