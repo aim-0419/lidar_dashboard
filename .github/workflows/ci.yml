@@ -31,10 +31,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Frontend build
-        run: npm --prefix dashboard/dashboard-web run build
-
-      - name: Backend syntax check
-        run: |
-          node --check dashboard/server/server.js
-          node --check dashboard/server/src/swagger.js
+      - name: Run CI checks
+        run: npm run ci
