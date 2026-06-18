@@ -5,7 +5,7 @@
 ## 기본 원칙
 
 - 하나의 브랜치는 하나의 목적을 가집니다.
-- 관련 없는 수정은 같은 커밋에 섞지 않습니다.
+- 관련 없는 수정은 같은 커밋에 넣지 않습니다.
 - 자동 포맷, 대규모 리팩토링, 기능 변경은 가능하면 분리합니다.
 - 민감정보가 포함된 `.env`, token, password, key 파일은 커밋하지 않습니다.
 - 생성물, 빌드 결과물, `node_modules`는 커밋하지 않습니다.
@@ -84,26 +84,50 @@ PR에는 아래 내용을 포함합니다.
 - 
 ```
 
-검증 예:
+## 검증 예시
+
+CI 검증:
 
 ```text
-npm --prefix dashboard/dashboard-web run lint
-npm --prefix dashboard/dashboard-web run build
-npm --prefix dashboard/server start
-docker compose up --build
+npm run ci
+```
+
+실제 실행:
+
+```text
+npm run build:web && npm run check:server
+```
+
+의미:
+
+- 프론트 서버를 켜는 명령이 아니라 production build를 확인합니다.
+- 백엔드 서버를 켜는 명령이 아니라 JS 문법 검사를 수행합니다.
+
+서버 실행 확인:
+
+```text
+프론트: npm --prefix dashboard/dashboard-web run dev
+백엔드: npm --prefix dashboard/server start
+```
+
+기타 검증:
+
+```text
+프론트 lint: npm --prefix dashboard/dashboard-web run lint
+Docker 변경: docker compose up --build
 ```
 
 실행하지 못한 검증은 이유를 적습니다.
 
 ## 리뷰 기준
 
-리뷰 시 우선 확인할 것:
+리뷰 때 우선 확인할 것:
 
 - 기존 기능을 깨뜨리는 변경인지
 - API 응답 구조가 프론트와 맞는지
 - Swagger 문서가 변경과 일치하는지
 - Prisma schema와 migration 영향이 명확한지
-- mock 데이터가 실제 데이터처럼 오해될 여지가 없는지
+- mock 데이터가 실제 데이터처럼 오해될 소지가 없는지
 - 민감정보가 코드나 로그에 남지 않았는지
 
 ## 충돌 처리
@@ -111,7 +135,7 @@ docker compose up --build
 - 충돌 파일을 무리하게 덮어쓰지 않습니다.
 - 본인이 만든 변경과 다른 사람 변경을 구분합니다.
 - 원인 파악 없이 `git reset --hard`를 사용하지 않습니다.
-- lock 파일 변경은 의존성 변경 여부와 함께 확인합니다.
+- lock 파일 변경은 의존성 변경 여부를 함께 확인합니다.
 
 ## 금지 사항
 
