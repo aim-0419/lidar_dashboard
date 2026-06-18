@@ -1,9 +1,12 @@
 // 라이다 장비 목록
 // 연결 상태, 위치, 마지막 통신 시간 등
 import React from "react"
-import { Card } from "../../components/dashboard/Card";
+import { Card } from "../../shared/components/Card";
 import { Server, Wifi, WifiOff, Activity, HardDrive } from "lucide-react";
 
+// 센서, 카메라, 엣지 장비 등 장비 상태를 보여주는 페이지이다.
+// 현재는 화면 확인용 mock 장비 목록을 사용한다.
+// 장비 상태 카드와 목록 카드에는 공통 Card 컴포넌트를 사용한다.
 export default function DevicesPage() {
     const devices = [
         { name: "LIDAR_MAIN_01", type: "센서", status: "online", ip: "192.168.1.101", temp: "42°C" },

@@ -1,7 +1,7 @@
 // /src/pages/Dashboard/WrongwayLogPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card } from "../../components/dashboard/Card";
+import { Card } from "../../shared/components/Card";
 import {
   ArrowLeft,
   Search,
@@ -20,6 +20,9 @@ import {
 /* -----------------------------
    목업 데이터
 ------------------------------ */
+// 역주행 이벤트 목록과 상세 정보를 보여주는 페이지이다.
+// 현재는 mock 데이터를 사용하며, 실제 라이다 이벤트 API가 확정되면 데이터 조회 로직을 교체한다.
+// 공통 카드 UI는 shared/components/Card를 사용해 다른 페이지와 같은 스타일을 유지한다.
 const MOCK_VIOLATIONS = [
   {
     id: "evt-001",

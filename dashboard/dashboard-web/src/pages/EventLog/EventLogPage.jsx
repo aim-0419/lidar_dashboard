@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card } from "../../components/dashboard/Card";
+import { Card } from "../../shared/components/Card";
 import { useSearchParams } from "react-router-dom";
 import {
   Search,
@@ -29,6 +29,9 @@ import {
    목업 데이터
 ------------------------------ */
 
+// 이벤트/시스템 로그를 조회하고 필터링하는 페이지이다.
+// 지금은 mock 로그를 기준으로 화면을 구성하며, 실제 API 연결 시 데이터 소스만 교체한다.
+// URL query parameter를 사용해 특정 탭이나 상태로 진입할 수 있게 한다.
 const MOCK_LOGS = [
   {
     id: "EVT-001",
