@@ -1,0 +1,148 @@
+const { nowTime } = require("../../utils/time");
+
+let broadcast = () => {};
+
+function setBroadcaster(fn) {
+  broadcast = typeof fn === "function" ? fn : () => {};
+}
+
+const state = {
+  siteId: "Site-01",
+  deviceId: "LIDAR-01",
+
+  todaysEvents: 0,
+  newEvents: 0,
+  vehiclesPassed: 12842,
+  wrongWayEvents: 0,
+  unidentified: 24,
+  hourlyEvents: Array.from({ length: 24 }, (_, i) => ({
+    hour: `${String(i).padStart(2, "0")}:00`,
+    events: 0,
+  })),
+
+  lidar: { pts: 2405, hz: 10 },
+
+  gate: "CLOSED",
+  vmsLast: "",
+};
+
+let wrongWayHistory = [];
+const MAX_HISTORY = 30;
+
+let logs = [
+  { msg: "System boot completed", time: nowTime() },
+  { msg: "Mock pipeline ready", time: nowTime() },
+];
+
+function getState() {
+  return state;
+}
+
+function getLogs(limit = 10) {
+  return logs.slice(0, limit);
+}
+
+function getWrongWayHistory() {
+  return wrongWayHistory;
+}
+
+function pushLog(msg) {
+  const item = { msg, time: nowTime() };
+  logs.unshift(item);
+  if (logs.length > 30) logs = logs.slice(0, 30);
+  broadcast("log", item);
+}
+
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function openGate() {
+  state.gate = "OPENED";
+  console.log("[MOCK] BARRIER: OPEN");
+  pushLog("Barrier OPEN requested");
+  broadcast("state", state);
+  return state.gate;
+}
+
+function closeGate() {
+  state.gate = "CLOSED";
+  console.log("[MOCK] BARRIER: CLOSE");
+  pushLog("Barrier CLOSE requested");
+  broadcast("state", state);
+  return state.gate;
+}
+
+function setVmsText(text) {
+  const safeText = String(text ?? "").slice(0, 80);
+  state.vmsLast = safeText;
+  console.log(`[MOCK] VMS TEXT: ${safeText}`);
+  pushLog(`VMS requested: ${safeText || "(empty)"}`);
+  broadcast("state", state);
+  return state.vmsLast;
+}
+
+function increaseVehiclePassed() {
+  state.vehiclesPassed += 1;
+  broadcast("state", state);
+  return state.vehiclesPassed;
+}
+
+function applyAlertEffects(alert) {
+  state.todaysEvents += 1;
+  state.newEvents += 1;
+
+  const currentHour = new Date().getHours();
+  if (state.hourlyEvents[currentHour]) {
+    state.hourlyEvents[currentHour].events += 1;
+  }
+
+  if (alert.type === "wrong-way") state.wrongWayEvents += 1;
+  if (alert.type === "unidentified") state.unidentified += 1;
+}
+
+function addWrongWayHistory(alert) {
+  wrongWayHistory.unshift(alert);
+  if (wrongWayHistory.length > MAX_HISTORY) {
+    wrongWayHistory = wrongWayHistory.slice(0, MAX_HISTORY);
+  }
+}
+
+function resetKpi() {
+  state.todaysEvents = 0;
+  state.newEvents = 0;
+  state.wrongWayEvents = 0;
+  state.hourlyEvents.forEach((h) => {
+    h.events = 0;
+  });
+  broadcast("state", state);
+}
+
+function updateLidarStats() {
+  state.lidar.pts += Math.floor(Math.random() * 11) - 5;
+  state.lidar.pts = clamp(state.lidar.pts, 0, 999999);
+  state.lidar.hz = 10 + (Math.random() < 0.5 ? 0 : 1);
+  broadcast("state", state);
+}
+
+function broadcastAlert(alert) {
+  broadcast("alert", alert);
+  broadcast("state", state);
+}
+
+module.exports = {
+  setBroadcaster,
+  getState,
+  getLogs,
+  getWrongWayHistory,
+  pushLog,
+  openGate,
+  closeGate,
+  setVmsText,
+  increaseVehiclePassed,
+  applyAlertEffects,
+  addWrongWayHistory,
+  resetKpi,
+  updateLidarStats,
+  broadcastAlert,
+};

@@ -5,8 +5,8 @@
 ## 기본 원칙
 
 - 기존 Express 서버 동작을 우선 보존합니다.
-- 새 API는 route, controller, service, repository 책임을 분리합니다.
-- Prisma ORM을 사용하는 방향을 기본 전제로 합니다.
+- 새 API는 route, controller, service 책임을 분리합니다.
+- Prisma ORM 사용 방향을 기본 전제로 하되, DB 스키마는 데이터 규격 확정 후 구체화합니다.
 - Swagger UI에 노출되는 API 문서를 함께 관리합니다.
 - 라이다 PC 실제 데이터 규격이 확정되기 전까지 실제 규격처럼 단정한 모델을 만들지 않습니다.
 
@@ -29,34 +29,36 @@ route
 - `repository`: Prisma 기반 DB 접근
 - `middleware`: 인증, IP 제한, 에러 처리
 
-## 권장 디렉터리
+현재 DB 접근이 없는 도메인은 `repository`를 만들지 않습니다.
+
+## 현재 디렉터리
 
 ```text
-dashboard/server/src
-- app.js
-- routes
-- middlewares
-- domains
-  - auth
-  - users
-  - events
-  - dashboard
-  - devices
-  - mock-lidar
-- prisma
-- swagger
-- utils
+dashboard/server
+- server.js
+- scripts
+  - check-syntax.js
+- src
+  - app.js
+  - swagger.js
+  - config
+  - routes
+  - domains
+    - demo
+    - mock-lidar
+    - wrongway
+  - realtime
+  - simulator
+  - utils
 ```
 
-도메인 내부 예시:
+도메인 예시:
 
 ```text
-domains/events
-- events.routes.js
-- events.controller.js
-- events.service.js
-- events.repository.js
-- events.schemas.js
+domains/wrongway
+- wrongway.routes.js
+- wrongway.controller.js
+- wrongway.service.js
 ```
 
 ## Prisma 기준
@@ -73,9 +75,9 @@ dashboard/server/src/prisma/client.js
 
 - DB 테이블과 컬럼은 `snake_case`를 사용합니다.
 - Prisma 모델 필드는 `camelCase`를 사용하고 `@map`, `@@map`으로 DB 명과 연결합니다.
-- migration은 스키마 변경 목적과 영향을 확인한 뒤 진행합니다.
+- migration은 스키마 변경 목적과 영향 확인 후 진행합니다.
 - seed 데이터는 데모/개발용임을 명확히 구분합니다.
-- 실제 라이다 규격이 없는 필드는 `rawPayload` 같은 JSON 필드로 유연하게 받습니다.
+- 실제 라이다 규격에 없는 필드는 `rawPayload` 같은 JSON 필드로 유연하게 받습니다.
 
 예:
 
@@ -128,7 +130,7 @@ model WrongWayEvent {
 
 - REST 성격의 API는 명사형 복수 경로를 우선합니다.
 - mock API는 `/api/mock/*` 또는 tag로 명확히 구분합니다.
-- 실제 라이다 수신 API와 mock API를 섞지 않습니다.
+- 실제 라이다 수신 API는 mock API와 섞지 않습니다.
 - 기존 URL을 변경할 경우 프론트, Swagger, README, Docker 데모 흐름을 함께 확인합니다.
 
 예:
@@ -157,18 +159,18 @@ POST /api/mock/lidar/events
 
 ## IP 제한
 
-내부망 외 접속 차단은 운영 환경에서는 방화벽, VPN, nginx 등 인프라 레벨 적용이 더 적절할 수 있습니다.
+외부망 접속 차단은 운영 환경에서는 방화벽, VPN, nginx 등 인프라 레벨 적용이 더 적절할 수 있습니다.
 
 앱 레벨에서 먼저 구현할 경우:
 
 - 허용 IP 목록은 환경 변수 또는 DB에서 관리합니다.
 - proxy 환경에서는 `x-forwarded-for` 처리 여부를 확인합니다.
-- 허용되지 않은 요청은 `403 Forbidden`으로 응답합니다.
+- 허용하지 않은 요청은 `403 Forbidden`으로 응답합니다.
 - 개발 환경에서는 로컬 접속이 막히지 않도록 예외 설정을 둡니다.
 
-## 라이다/mock 데이터 기준
+## 라이다 mock 데이터 기준
 
-- mock 데이터는 실제 조대측 라이다 PC 규격으로 단정하지 않습니다.
+- mock 데이터는 실제 조선대 측 라이다 PC 규격으로 가정하지 않습니다.
 - 실제 규격 수신 전까지는 adapter 계층을 통해 변환 가능하게 만듭니다.
 - 원본 payload가 필요하면 `rawPayload`에 저장합니다.
 - 데이터 필드 의미가 불확실하면 주석이나 문서에 `확인 필요`라고 남깁니다.
@@ -177,15 +179,19 @@ POST /api/mock/lidar/events
 
 - 에러 로그는 원인 추적에 필요한 범위만 남깁니다.
 - 비밀번호, 토큰, API key, 개인정보를 로그에 남기지 않습니다.
-- 라이다 원본 payload 전체 로그는 크기와 민감도를 확인한 뒤 제한적으로 사용합니다.
+- 라이다 원본 payload 전체 로그는 크기와 민감도를 확인한 후 제한적으로 사용합니다.
 
 ## 검증
 
 백엔드 변경 후 가능한 검증:
 
 ```text
+npm run check:server
+npm run ci
 npm --prefix dashboard/server start
 ```
+
+`npm run check:server`는 `dashboard/server/scripts/check-syntax.js`를 통해 백엔드 JS 파일을 `node --check`로 검사합니다.
 
 Swagger 확인:
 

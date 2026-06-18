@@ -1,6 +1,6 @@
 # 프로젝트 구조 컨벤션
 
-이 문서는 라이다 역주행 대시보드 프로젝트의 디렉터리 구조와 레이어 분리 기준을 정의합니다.
+이 문서는 프로젝트의 주요 디렉터리 역할과 구조 변경 기준을 정리합니다.
 
 ## 현재 주요 디렉터리
 
@@ -21,93 +21,109 @@
 
 - 기존 동작을 깨뜨릴 수 있는 대규모 이동은 별도 승인 후 진행합니다.
 - 새 기능은 가능한 도메인 단위로 묶습니다.
-- 라이다 PC 데이터 규격이 확정되기 전까지 실제 연동 로직은 mock 로직과 분리합니다.
-- 공통 유틸, API 클라이언트, 상수는 기능 폴더 안에 중복 생성하지 않고 shared 영역으로 모읍니다.
+- 라이다 PC 데이터 규격이 확정되기 전까지 실제 연동 로직은 mock/adapter와 분리합니다.
+- 공통 유틸, API 클라이언트, 상수는 기능 폴더 안에 중복 생성하지 않고 `shared` 영역으로 모읍니다.
 
-## 프론트엔드 권장 구조
+## 프론트엔드 구조
 
-현재 구조를 존중하되, 신규 기능부터 아래 방향으로 정리합니다.
+현재 적용 기준:
 
 ```text
 dashboard/dashboard-web/src
 - App.jsx
 - main.jsx
+- app
+  - providers.jsx
+  - router.jsx
 - layouts
+  - MainLayout.jsx
 - pages
 - components
 - context
+  - AuthContext.jsx
+  - LanguageContext.jsx
 - features
   - auth
+    - RequireAuth.jsx
   - dashboard
-  - events
   - devices
+  - events
   - settings
+  - wrongway
 - shared
   - api
   - components
+    - Card.jsx
   - constants
   - hooks
   - utils
 ```
 
-기준:
+역할:
 
+- `app`: 앱 전역 Provider와 라우터를 관리합니다.
 - `pages`: 라우트에 직접 연결되는 화면입니다.
-- `layouts`: 사이드바, 상단바 등 화면 뼈대입니다.
-- `components`: 여러 화면에서 재사용 가능한 UI입니다.
-- `features`: 특정 업무 도메인에 묶인 컴포넌트, 훅, API 호출입니다.
-- `shared`: 도메인과 무관하게 재사용되는 코드입니다.
+- `layouts`: 사이드바, 상단바 같은 공통 화면 뼈대입니다.
+- `components`: 여러 화면에서 재사용하는 기존 UI입니다.
+- `context`: 전역 상태 Provider를 관리합니다.
+- `features`: 인증, 대시보드, 이벤트처럼 기능 도메인별 코드를 둡니다.
+- `shared`: 도메인과 무관하게 재사용되는 공통 코드입니다.
 
-## 백엔드 권장 구조
+## 백엔드 구조
 
-현재 `server.js`에 모여 있는 로직은 신규 개발부터 점진적으로 분리합니다.
+현재 적용 기준:
 
 ```text
 dashboard/server
 - server.js
+- scripts
+  - check-syntax.js
 - src
   - app.js
+  - swagger.js
+  - config
+    - index.js
   - routes
-  - middlewares
+    - index.js
   - domains
-    - auth
-    - users
-    - dashboard
-    - events
-    - devices
+    - demo
     - mock-lidar
-  - prisma
-  - swagger
+    - wrongway
+  - realtime
+    - websocket.js
+  - simulator
+    - lidarSimulator.js
   - utils
-- prisma
-  - schema.prisma
-  - seed.js
+    - time.js
 ```
 
-기준:
+역할:
 
-- `routes`: URL과 middleware 연결만 담당합니다.
-- `controller`: 요청/응답 처리만 담당합니다.
-- `service`: 비즈니스 규칙을 담당합니다.
-- `repository`: Prisma 등 DB 접근을 담당합니다.
-- `middlewares`: 인증, 에러 처리, IP 제한 등 공통 요청 처리를 담당합니다.
-- `swagger`: API 문서 정의를 담당합니다.
+- `server.js`: HTTP 서버 생성, WebSocket 초기화, 시뮬레이터 실행, 서버 `listen`을 담당합니다.
+- `scripts/check-syntax.js`: 백엔드 JS 파일 전체를 `node --check`로 검사합니다.
+- `src/app.js`: Express 설정, Swagger 연결, `/api` 라우트 등록, React 정적 파일 서빙을 담당합니다.
+- `src/config/index.js`: `.env`, `config.json` 기반 포트, host, base URL, dist 경로를 계산합니다.
+- `src/routes/index.js`: 전체 API 진입점입니다. `/api/health`와 도메인별 라우트를 연결합니다.
+- `src/domains/*`: 도메인별 route, controller, service를 묶습니다.
+- `src/realtime/websocket.js`: WebSocket 연결과 실시간 전송을 담당합니다.
+- `src/simulator/lidarSimulator.js`: 실제 장비가 없을 때 mock 라이다 수치를 갱신합니다.
+- `src/utils/time.js`: 시간 포맷 등 공통 유틸 함수를 제공합니다.
+
+향후 DB, 인증, 사용자 관리가 확정되면 `prisma`, `auth`, `users` 같은 도메인을 추가합니다.
 
 ## 데모/AI 서버 기준
 
-`dashboard/demo-server`는 실제 라이다 PC가 아닌 데모 감지 서버입니다.
+`dashboard/demo-server`는 실제 라이다 PC가 아닌 영상 기반 데모 감지 서버입니다.
 
-- 영상 기반 데모나 AI 감지 테스트 코드는 이 영역에 둡니다.
+- 영상 기반 데모와 AI 감지 테스트 코드는 이 영역에 둡니다.
 - 백엔드 API 서버와 직접 섞지 않습니다.
-- 데모 서버 응답이 실제 라이다 PC 규격이라고 단정하지 않습니다.
+- 데모 서버 응답을 실제 라이다 PC 규격이라고 가정하지 않습니다.
 
 ## 라이다 연동 전제
 
-현재 조대측 라이다 PC 데이터 규격은 확정되지 않았습니다.
-
-따라서 다음 원칙을 지킵니다.
+현재 조선대 측 라이다 PC 데이터 규격은 확정되지 않았습니다.
 
 - 실제 수신부는 adapter 계층으로 분리합니다.
 - 프론트 개발은 mock API 또는 기존 demo API를 사용합니다.
-- mock payload는 실제 규격이 아니라 개발용 임시 데이터임을 문서에 명시합니다.
+- mock payload는 실제 규격이 아닌 개발용 임시 데이터임을 문서에 명시합니다.
 - 실제 규격 수신 후 DB/API/adapter 설계를 재검토합니다.
