@@ -20,6 +20,9 @@ import {
 // ------------------------------
 // DachboardPage Component
 // ------------------------------
+// 메인 대시보드 화면을 담당한다.
+// 서버 상태, KPI, WebSocket 알림, 차단기/VMS 제어 UI를 한 화면에서 보여준다.
+// 현재는 화면 로직이 큰 파일에 모여 있으므로 이후 dashboard/wrongway feature로 점진 분리한다.
 export default function DashboardPage({
   onNavigateToEvent,
   onNavigateToVehiclesPassed,

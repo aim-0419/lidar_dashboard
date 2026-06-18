@@ -3,6 +3,9 @@ import React, { useState } from "react"
 import { Card } from "../../shared/components/Card";
 import { Save, Bell, Shield, Globe, Monitor } from "lucide-react";
 
+// 시스템 설정 화면을 담당한다.
+// 왼쪽 메뉴에서 설정 섹션을 선택하고, 오른쪽 영역에 해당 설정 패널을 보여준다.
+// 실제 저장 API가 붙기 전까지는 화면 상태 중심으로 동작한다.
 export default function SettingsPage() {
     const [activeSection, setActiveSection] = useState("general");
     const [autoBackup, setAutoBackup] = useState(true);
