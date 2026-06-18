@@ -1,7 +1,7 @@
 // 라이다 장비 목록
 // 연결 상태, 위치, 마지막 통신 시간 등
 import React from "react"
-import { Card } from "../../components/dashboard/Card";
+import { Card } from "../../shared/components/Card";
 import { Server, Wifi, WifiOff, Activity, HardDrive } from "lucide-react";
 
 export default function DevicesPage() {

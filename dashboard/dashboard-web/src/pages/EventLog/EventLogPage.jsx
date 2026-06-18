@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card } from "../../components/dashboard/Card";
+import { Card } from "../../shared/components/Card";
 import { useSearchParams } from "react-router-dom";
 import {
   Search,

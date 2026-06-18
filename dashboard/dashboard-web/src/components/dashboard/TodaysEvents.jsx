@@ -1,6 +1,6 @@
 // src/components/dashboard/TodaysEvents.jsx
 import React, { useMemo } from "react";
-import { Card } from "./Card";
+import { Card } from "../../shared/components/Card";
 import {
   ArrowLeft,
   Calendar,

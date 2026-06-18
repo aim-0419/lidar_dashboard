@@ -1,6 +1,6 @@
 // 알람 기준값, 시스템 설정
 import React, { useState } from "react"
-import { Card } from "../../components/dashboard/Card";
+import { Card } from "../../shared/components/Card";
 import { Save, Bell, Shield, Globe, Monitor } from "lucide-react";
 
 export default function SettingsPage() {

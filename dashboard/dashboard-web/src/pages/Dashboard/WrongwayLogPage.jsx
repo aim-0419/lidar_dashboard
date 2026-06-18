@@ -1,7 +1,7 @@
 // /src/pages/Dashboard/WrongwayLogPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card } from "../../components/dashboard/Card";
+import { Card } from "../../shared/components/Card";
 import {
   ArrowLeft,
   Search,

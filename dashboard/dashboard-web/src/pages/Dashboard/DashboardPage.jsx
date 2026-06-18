@@ -1,6 +1,6 @@
 // /src/pages/Dashboard/Dashboard.jsx
 import { useState, useEffect, useRef } from "react";
-import { Card } from "../../components/dashboard/Card";
+import { Card } from "../../shared/components/Card";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowUpRight,
