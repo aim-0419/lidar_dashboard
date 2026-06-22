@@ -1,9 +1,19 @@
 const { nowTime } = require("../../utils/time");
+const { logger } = require("../../utils/logger");
 const mockLidarService = require("../mock-lidar/mockLidar.service");
 
 function receiveWrongWay(req, res) {
   const body = req.body || {};
-  console.log("[wrongway hit]", new Date().toISOString(), body);
+  logger.info("wrongway payload received", {
+    id: body.id,
+    stage: body.stage,
+    zoneId: body.zone_id,
+    trackId: body.track_id,
+  });
+  logger.debug("wrongway payload shape received", {
+    payloadKeys: Object.keys(body),
+    payloadSize: JSON.stringify(body).length,
+  });
 
   const alert = {
     id: body.id || `evt-${Date.now()}`,
@@ -27,7 +37,11 @@ function receiveWrongWay(req, res) {
     snapshot: body.snapshot,
   };
 
-  console.log("[broadcast alert]", alert);
+  logger.info("wrongway alert broadcast", {
+    id: alert.id,
+    stage: alert.stage,
+    subMessage: alert.subMessage,
+  });
 
   mockLidarService.applyAlertEffects(alert);
   mockLidarService.addWrongWayHistory(alert);
