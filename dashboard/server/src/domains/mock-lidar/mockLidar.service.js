@@ -1,4 +1,5 @@
 const { nowTime } = require("../../utils/time");
+const { logger } = require("../../utils/logger");
 
 let broadcast = () => {};
 
@@ -59,7 +60,7 @@ function clamp(n, min, max) {
 
 function openGate() {
   state.gate = "OPENED";
-  console.log("[MOCK] BARRIER: OPEN");
+  logger.info("mock barrier opened");
   pushLog("Barrier OPEN requested");
   broadcast("state", state);
   return state.gate;
@@ -67,7 +68,7 @@ function openGate() {
 
 function closeGate() {
   state.gate = "CLOSED";
-  console.log("[MOCK] BARRIER: CLOSE");
+  logger.info("mock barrier closed");
   pushLog("Barrier CLOSE requested");
   broadcast("state", state);
   return state.gate;
@@ -76,7 +77,7 @@ function closeGate() {
 function setVmsText(text) {
   const safeText = String(text ?? "").slice(0, 80);
   state.vmsLast = safeText;
-  console.log(`[MOCK] VMS TEXT: ${safeText}`);
+  logger.info("mock vms text requested", { text: safeText });
   pushLog(`VMS requested: ${safeText || "(empty)"}`);
   broadcast("state", state);
   return state.vmsLast;

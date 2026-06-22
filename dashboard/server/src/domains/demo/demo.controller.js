@@ -1,4 +1,5 @@
 const { config } = require("../../config");
+const { logger } = require("../../utils/logger");
 const mockLidarService = require("../mock-lidar/mockLidar.service");
 
 async function startDemo(req, res) {
@@ -15,7 +16,7 @@ async function startDemo(req, res) {
     mockLidarService.pushLog("Detector demo started");
     res.json({ ok: true, detector: data });
   } catch (err) {
-    console.error("[demo/start]", err);
+    logger.error("detector demo start failed", { err });
     mockLidarService.pushLog(`Demo START failed: ${String(err.message || err)}`);
     res.status(500).json({ ok: false, error: String(err.message || err) });
   }
@@ -37,7 +38,7 @@ async function resetDemo(req, res) {
 
     res.json({ ok: true, detector: data });
   } catch (err) {
-    console.error("[demo/reset]", err);
+    logger.error("detector demo reset failed", { err });
     mockLidarService.pushLog(`Demo RESET failed: ${String(err.message || err)}`);
     res.status(500).json({ ok: false, error: String(err.message || err) });
   }
