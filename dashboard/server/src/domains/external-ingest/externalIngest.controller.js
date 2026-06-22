@@ -1,5 +1,11 @@
 const externalIngestService = require("./externalIngest.service");
 
+// 실제 라이다 PC HTTP 요청을 받아 service로 넘기고 수신 결과를 응답한다.
+function receiveLidar(req, res) {
+  const event = externalIngestService.ingestLidarLive(req.body || {});
+  res.json({ ok: true, eventId: event.id, receivedAt: event.receivedAt, event });
+}
+
 // 라이다 mock HTTP 요청을 받아 service로 넘기고 수신 결과를 응답한다.
 function receiveLidarMock(req, res) {
   // controller는 HTTP 요청/응답만 담당하고, 실제 변환과 화면 반영은 service에 맡긴다.
@@ -29,6 +35,7 @@ function getRecentEvents(req, res) {
 }
 
 module.exports = {
+  receiveLidar,
   receiveLidarMock,
   receiveControlBoardMock,
   testControlBoardSerial,

@@ -151,11 +151,36 @@ const swaggerSpec = {
         },
       },
     },
+    "/api/ingest/lidar": {
+      post: {
+        tags: ["External Ingest"],
+        summary: "라이다 PC 실제 HTTP 이벤트 수신",
+        description: "현장 라이다 PC가 실제 역주행 감지 JSON을 전송할 때 사용하는 API입니다. 수신된 원본 데이터는 현장 연동 확인을 위해 rawPayload로 함께 반환됩니다.",
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/LidarIngestRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "라이다 실제 이벤트 수신 완료",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ExternalIngestResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/ingest/lidar/mock": {
       post: {
         tags: ["External Ingest"],
         summary: "라이다 PC mock HTTP 이벤트 수신",
-        description: "실제 라이다 PC 데이터 규격 확정 전, JSON 수신 흐름을 테스트하기 위한 임시 ingest API입니다.",
+        description: "개발자 또는 Swagger/curl 테스트에서 라이다 수신 흐름을 확인하기 위한 mock API입니다. 실제 라이다 PC 연동은 /api/ingest/lidar를 사용합니다.",
         requestBody: {
           required: false,
           content: {

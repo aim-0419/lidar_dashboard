@@ -59,12 +59,14 @@ function applyDashboardEffects(event) {
   mockLidarService.pushLog(`[INGEST] ${event.message}`);
 }
 
-// 라이다 PC mock JSON 수신을 처리하는 service 진입점이다.
-function ingestLidarMock(payload) {
-  // 라이다 mock API의 핵심 흐름: 외부 JSON payload -> lidar adapter -> 내부 이벤트 -> 화면 반영.
+// 실제 라이다 PC와 mock 라이다 테스트 API가 같은 변환/화면 반영 흐름을 타도록 공통 처리한다.
+function ingestLidar(payload, options = {}) {
   const event = adaptLidarHttpPayload(payload);
+  const mode = options.mode || "LIVE";
+
   logger.info("external lidar ingest received", {
     id: event.id,
+    mode,
     zoneId: event.zoneId,
     deviceId: event.deviceId,
   });
@@ -72,6 +74,16 @@ function ingestLidarMock(payload) {
   rememberEvent(event);
   applyDashboardEffects(event);
   return event;
+}
+
+// 실제 라이다 PC가 현장에서 호출할 HTTP/JSON 수신 진입점이다.
+function ingestLidarLive(payload) {
+  return ingestLidar(payload, { mode: "LIVE" });
+}
+
+// 개발자와 Swagger/curl 테스트에서 사용할 라이다 mock 수신 진입점이다.
+function ingestLidarMock(payload) {
+  return ingestLidar(payload, { mode: "MOCK" });
 }
 
 // 통합 제어보드 mock 패킷 수신을 처리하는 service 진입점이다.
@@ -130,6 +142,7 @@ function getRecentEvents(limit = 20) {
 }
 
 module.exports = {
+  ingestLidarLive,
   ingestLidarMock,
   ingestControlBoardMock,
   createSerialTest,
