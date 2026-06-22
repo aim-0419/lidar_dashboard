@@ -1,6 +1,8 @@
 // /src/pages/Dashboard/Dashboard.jsx
 import { useState, useEffect, useRef } from "react";
 import { Card } from "../../shared/components/Card";
+import { apiUrl, detectorUrl, WS_BASE } from "../../shared/api/config";
+import { postJson } from "../../shared/api/http";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowUpRight,
@@ -142,20 +144,13 @@ export default function DashboardPage({
   const CAMERA_VIDEO_SRC = "/wrongway_test.mp4";
 
   // YOLO 감지 서버 상태
-  const API_HOST = import.meta.env.VITE_API_HOST || "localhost";
-  const API_PORT = import.meta.env.VITE_API_PORT || "5000";
-  const DETECTOR_HOST = import.meta.env.VITE_DETECTOR_HOST || API_HOST;
-  const DETECTOR_PORT = import.meta.env.VITE_DETECTOR_PORT || "8888";
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${API_HOST}:${API_PORT}`;
-  const WS_URL = import.meta.env.VITE_WS_BASE_URL || `ws://${API_HOST}:${API_PORT}`;
-  const DETECTOR_BASE = import.meta.env.VITE_DETECTOR_BASE_URL || `http://${DETECTOR_HOST}:${DETECTOR_PORT}`;
   const [detectorAlive, setDetectorAlive] = useState(false);
 
   useEffect(() => {
     let timer;
     const pingDetector = async () => {
       try {
-        const res = await fetch(`${DETECTOR_BASE}/health`, { cache: "no-store" });
+        const res = await fetch(detectorUrl("/health"), { cache: "no-store" });
         setDetectorAlive(res.ok);
       } catch {
         setDetectorAlive(false);
@@ -212,13 +207,8 @@ export default function DashboardPage({
         v2.play().catch(()=>{});
       }
 
-      const r = await fetch(`${API_BASE}/api/demo/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}), 
-      });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok || !data.ok) throw new Error(data.error || "start failed");
+      const data = await postJson("/api/demo/start");
+      if (!data.ok) throw new Error(data.error || "start failed");
       pushLog("Demo START 성공");
     } catch (e) {
       pushLog(`Demo START 실패: ${String(e.message || e)}`);
@@ -229,14 +219,8 @@ export default function DashboardPage({
   try {
     pushLog("Demo RESET 요청");
 
-    const r = await fetch(`${API_BASE}/api/demo/reset`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok || !data.ok) throw new Error(data.error || "reset failed");
+    const data = await postJson("/api/demo/reset");
+    if (!data.ok) throw new Error(data.error || "reset failed");
 
     setActiveAlert(null); // 떠 있던 팝업 닫기
     pushLog("Demo RESET 성공");
@@ -267,7 +251,7 @@ export default function DashboardPage({
   // websocket 수신 로직
   // ------------------------------
   useEffect(() => {
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(WS_BASE);
 
     ws.onopen = () => pushLog("WS연결됨");
     ws.onclose = () => pushLog("WS 연결 종료");
@@ -363,7 +347,7 @@ export default function DashboardPage({
 
     const ping = async ()=>{
       try {
-        const res = await fetch(`${API_BASE}/api/health`, { cache: "no-store"}); 
+        const res = await fetch(apiUrl("/api/health"), { cache: "no-store" });
         setServerAlive(res.ok);
       }catch {
         setServerAlive(false);
@@ -619,7 +603,7 @@ export default function DashboardPage({
               </div>
 
               <img
-                src={`${DETECTOR_BASE}/video_feed`}
+                src={detectorUrl("/video_feed")}
                 alt="YOLO Detection Feed"
                 className="w-full h-full object-contain"
               />
@@ -638,7 +622,7 @@ export default function DashboardPage({
                 </div>
 
                 <img
-                  src={`${DETECTOR_BASE}/lidar_feed`}
+                  src={detectorUrl("/lidar_feed")}
                   alt="Lidar Point Cloud Feed"
                   className="w-full h-full object-contain"
                 />
