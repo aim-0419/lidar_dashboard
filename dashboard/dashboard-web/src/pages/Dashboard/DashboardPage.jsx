@@ -34,11 +34,6 @@ export default function DashboardPage({
   const [activeAlert, setActiveAlert] = useState(null); // 긴급 팝업 데이터
   const [alertsEnabled, setAlertsEnabled] = useState(true); // 팝업 허용 토글(ON/OFF)
   const [vmsText, setVmsText] = useState(""); // 전광판 입력
-
-  // 오디오 참조 객체
-  const warningAudioRef = useRef(new Audio("/wrong_way_warning.mp3"));
-  const dangerAudioRef = useRef(new Audio("/wrong_way_danger.mp3"));
-
   const [recentLogs, setRecentLogs] = useState([ // 최근 로그 목록
     { msg: "차량 진출로 B 통과", time: "10:42" },
     { msg: "LIDAR_01 동기화 정상", time: "10:41" },
@@ -67,52 +62,6 @@ export default function DashboardPage({
   const handleDismissAlert = () => {
     setActiveAlert(null);
   }; 
-
-  // 알림 오디오 제어 로직
-  useEffect(() => {
-    if (activeAlert) {
-      const isCritical = Number(activeAlert.stage) === 2;
-
-      if (isCritical) {
-        // 위험 단계: danger.mp3 무한 반복
-        warningAudioRef.current.pause();
-        warningAudioRef.current.currentTime = 0;
-        warningAudioRef.current.onended = null;
-
-        dangerAudioRef.current.loop = true;
-        dangerAudioRef.current.play().catch((err) => console.log("Audio play error:", err));
-      } else {
-        // 경고 단계: warning.mp3 2회 재생
-        dangerAudioRef.current.pause();
-        dangerAudioRef.current.currentTime = 0;
-
-        let playCount = 0;
-        const playWarning = () => {
-          if (playCount < 2) {
-            warningAudioRef.current.currentTime = 0;
-            warningAudioRef.current.play().catch((err) => console.log("Audio play error:", err));
-            playCount++;
-          }
-        };
-
-        warningAudioRef.current.onended = playWarning;
-        playWarning();
-      }
-    } else {
-      // 알림 해제: 모든 소리 중지
-      warningAudioRef.current.pause();
-      warningAudioRef.current.currentTime = 0;
-      warningAudioRef.current.onended = null;
-
-      dangerAudioRef.current.pause();
-      dangerAudioRef.current.currentTime = 0;
-    }
-
-    return () => {
-      warningAudioRef.current.pause();
-      dangerAudioRef.current.pause();
-    };
-  }, [activeAlert]);
 
 
   const handleViewAlert = () => { // 즉시 조치화면 보기 -> 추후 구현
@@ -310,32 +259,18 @@ export default function DashboardPage({
 
   const alertTheme = isCritical
     ? {
-        frame: "border-red-600",
         header: "bg-red-600",
-        headerText: "text-white",
-        subText: "text-red-100",
-        badge: "bg-red-50 text-red-600 border-red-100",
-        primaryBtn: "bg-red-600 hover:bg-red-700 text-white hover:shadow-red-500/30",
-        secondaryBtn: "bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200",
-        stripe:
-          "bg-[linear-gradient(45deg,rgba(220,38,38,0.25)_25%,transparent_25%,transparent_50%,rgba(220,38,38,0.25)_50%,rgba(220,38,38,0.25)_75%,transparent_75%,transparent)]",
-        title: "역주행 위험",
-        priority: "우선순위: 최상",
-        iconBox: "bg-white/20 border-white/30",
+        primaryBtn: "bg-red-600 hover:bg-red-700 focus:ring-red-300",
+        stageTitle: "2nd Alert: Wrong-way Detection",
+        statusText: "DANGER",
+        stageLabel: "역주행 위험 단계",
       }
     : {
-        frame: "border-yellow-500",
-        header: "bg-yellow-400",
-        headerText: "text-gray-900",
-        subText: "text-yellow-900",
-        badge: "bg-yellow-50 text-yellow-700 border-yellow-200",
-        primaryBtn: "bg-yellow-400 hover:bg-yellow-500 text-gray-900 hover:shadow-yellow-400/30",
-        secondaryBtn: "bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200",
-        stripe:
-          "bg-[linear-gradient(45deg,rgba(234,179,8,0.22)_25%,transparent_25%,transparent_50%,rgba(234,179,8,0.22)_50%,rgba(234,179,8,0.22)_75%,transparent_75%,transparent)]",
-        title: "역주행 감지",
-        priority: "우선순위: 보통",
-        iconBox: "bg-white/30 border-white/40",
+        header: "bg-amber-500",
+        primaryBtn: "bg-orange-600 hover:bg-orange-700 focus:ring-orange-300",
+        stageTitle: "1st Alert: Wrong-way Detection",
+        statusText: "WARNING",
+        stageLabel: "역주행 경고 단계",
       };
 
 
@@ -364,72 +299,63 @@ export default function DashboardPage({
     <div className="p-6 space-y-6 bg-white min-h-screen relative">
       {/* 실시간 알림 오버레이 */}
       {activeAlert && (
-      <div key={activeAlert.id} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-in fade-in duration-200">
-        <div className={`bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300 relative border-2 ${alertTheme.frame}`}>
-          {/* 헤더 */}
-          <div className={`${alertTheme.header} p-6 flex items-center justify-between relative overflow-hidden`}>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white/10 to-black/10 opacity-100" />
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-              <Siren className={`w-32 h-32 ${alertTheme.headerText} transform rotate-12`} />
-            </div>
-
-            <div className="relative z-10 flex items-center space-x-4">
-              <div className={`p-3 backdrop-blur-md rounded-full shadow-inner ${alertTheme.iconBox}`}>
-                <Siren className={`w-8 h-8 ${alertTheme.headerText}`} />
-              </div>
-              <div>
-                <h2 className={`text-2xl font-black tracking-wider italic ${alertTheme.headerText}`}>
-                  {alertTheme.title}
-                </h2>
-                <p className={`font-mono text-sm ${alertTheme.subText}`}>
-                  {alertTheme.priority}
-                </p>
-              </div>
-            </div>
-
+      <div
+        key={activeAlert.id}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      >
+        <div className="relative w-full max-w-[360px] overflow-hidden rounded-md bg-white shadow-2xl animate-in zoom-in-95 duration-300">
+          <div className={`${alertTheme.header} relative px-5 py-3 text-center`}>
+            <h2 className="text-lg font-black leading-6 text-white">{alertTheme.statusText}</h2>
             <button
               onClick={handleDismissAlert}
-              className={`relative z-10 transition-colors ${isCritical ? "text-white/70 hover:text-white" : "text-gray-700/70 hover:text-gray-900"}`}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-white/80 transition-colors hover:bg-white/15 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/70"
               aria-label="닫기"
             >
-              <X className="w-6 h-6" />
+              <X className="h-4 w-4" />
             </button>
           </div>
 
-          {/* 본문 */}
-          <div className="p-8 text-center space-y-4">
-            <div className={`inline-block px-4 py-1 rounded-full font-bold text-xs tracking-widest border mb-2 ${alertTheme.badge}`}>
-              {activeAlert.timestamp} • 실시간 이벤트
+          <div className="px-5 pb-5 pt-4">
+            <div className="mb-3 flex items-start gap-2">
+              <Siren className={`mt-0.5 h-4 w-4 shrink-0 ${isCritical ? "text-red-600" : "text-amber-600"}`} />
+              <div>
+                <h3 className="text-base font-black leading-5 text-gray-900">{alertTheme.stageTitle}</h3>
+                <p className="mt-1 text-xs font-semibold text-gray-500">{alertTheme.stageLabel}</p>
+              </div>
             </div>
 
-            <div>
-              <h3 className="text-3xl font-black text-gray-900 mb-2 tracking-tight leading-none">
-                {isCritical ? "역주행 위험 단계" : "역주행 경고 단계"}
-              </h3>
-              <p className="text-lg text-gray-600 font-medium">{activeAlert.subMessage}</p>
+            <div className="mb-3 aspect-[16/9] overflow-hidden border border-gray-200 bg-gray-100" aria-label="실시간 영상 영역" />
+
+            <div className="mb-4 space-y-1 text-sm font-bold text-gray-900">
+              <p>
+                Location:{" "}
+                <span className="font-semibold text-gray-700">
+                  {activeAlert.zone_id || "Zone A - Tunnel Entrance"}
+                </span>
+              </p>
+              <p>
+                Time:{" "}
+                <span className="font-semibold text-gray-700">
+                  {activeAlert.timestamp || "실시간"}
+                </span>
+              </p>
             </div>
 
-            <div className="w-full h-px bg-gray-100 my-4" />
-
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button
-                onClick={handleViewAlert}
-                className={`flex-1 py-4 font-black tracking-wider rounded-lg shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center justify-center space-x-2 ${alertTheme.primaryBtn}`}
-              >
-                <AlertTriangle className="w-5 h-5" />
-                <span>즉시 조치 화면 보기</span>
-              </button>
+            <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={handleDismissAlert}
-                className={`flex-1 py-4 font-bold tracking-wider rounded-lg border transition-colors ${alertTheme.secondaryBtn}`}
+                className="rounded-md border border-gray-200 bg-white px-4 py-3 text-sm font-black text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300"
               >
-                닫기
+                무시
+              </button>
+              <button
+                onClick={handleViewAlert}
+                className={`rounded-md px-4 py-3 text-sm font-black text-white shadow-sm transition-colors focus:outline-none focus:ring-2 ${alertTheme.primaryBtn}`}
+              >
+                확인
               </button>
             </div>
           </div>
-
-          {/* 하단 스트라이프 */}
-          <div className={`h-2 w-full bg-[length:20px_20px] ${alertTheme.stripe}`} />
         </div>
       </div>
     )}
