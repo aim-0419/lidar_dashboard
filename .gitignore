@@ -27,3 +27,7 @@ dashboard/dashboard-web/dist/
 config.json
 dashboard/server/config.json
 dashboard/demo-server/config.json
+
+# Local editor/tool settings
+.vscode/
+dashboard/.claude/
