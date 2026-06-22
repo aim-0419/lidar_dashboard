@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "../../shared/components/Card";
+import { WS_BASE } from "../../shared/api/config";
 import { useSearchParams } from "react-router-dom";
 import {
   Search,
@@ -374,8 +375,7 @@ export default function EventLogPage() {
 
   // WebSocket 연결
   useEffect(() => {
-    const WS_URL = `ws://${window.location.hostname}:5000`;
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(WS_BASE);
 
     ws.onmessage = (e) => {
       try {

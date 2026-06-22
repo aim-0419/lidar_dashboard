@@ -1,6 +1,7 @@
 // /src/pages/Dashboard/WrongwayLogPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getJson } from "../../shared/api/http";
 import { Card } from "../../shared/components/Card";
 import {
   ArrowLeft,
@@ -91,8 +92,7 @@ export default function WrongwayLogPage() {
     useEffect(() => {
         const fetchHistory = async () => {
             try {
-                const res = await fetch(`http://${window.location.hostname}:5000/api/wrongway/history`);
-                const data = await res.json();
+                const data = await getJson("/api/wrongway/history");
                 
                 // 데이터 정규화 (필요한 필드가 없으면 기본값 채움)
                 const mapped = data.map(item => ({
