@@ -3,30 +3,30 @@ const swaggerSpec = {
   info: {
     title: "Lidar Dashboard API",
     version: "1.0.0",
-    description: "Wrong-way detection dashboard backend API",
+    description: "라이다 역주행 관제 대시보드 백엔드 API",
   },
   servers: [
     {
       url: "/",
-      description: "Current backend server",
+      description: "현재 백엔드 서버",
     },
   ],
   tags: [
-    { name: "Health", description: "Server health check" },
-    { name: "Dashboard", description: "Dashboard state and logs" },
-    { name: "Control", description: "Gate and VMS control" },
-    { name: "Wrongway", description: "Wrong-way detection events" },
-    { name: "External Ingest", description: "External lidar and control-board event ingest" },
-    { name: "Demo", description: "Detector demo controls" },
+    { name: "Health", description: "서버 상태 확인" },
+    { name: "Dashboard", description: "대시보드 상태와 로그 조회" },
+    { name: "Control", description: "차단기와 전광판 제어" },
+    { name: "Wrongway", description: "역주행 감지 이벤트" },
+    { name: "External Ingest", description: "라이다 PC와 통합 제어보드 외부 이벤트 수신" },
+    { name: "Demo", description: "감지 데모 제어" },
   ],
   paths: {
     "/api/health": {
       get: {
         tags: ["Health"],
-        summary: "Check backend server health",
+        summary: "백엔드 서버 상태 확인",
         responses: {
           200: {
-            description: "Server is running",
+            description: "서버 실행 중",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/HealthResponse" },
@@ -39,10 +39,10 @@ const swaggerSpec = {
     "/api/state": {
       get: {
         tags: ["Dashboard"],
-        summary: "Get current dashboard state",
+        summary: "현재 대시보드 상태 조회",
         responses: {
           200: {
-            description: "Current in-memory dashboard state",
+            description: "메모리에 저장된 현재 대시보드 상태",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/DashboardState" },
@@ -55,10 +55,10 @@ const swaggerSpec = {
     "/api/logs": {
       get: {
         tags: ["Dashboard"],
-        summary: "Get recent dashboard logs",
+        summary: "최근 대시보드 로그 조회",
         responses: {
           200: {
-            description: "Recent logs",
+            description: "최근 로그 목록",
             content: {
               "application/json": {
                 schema: {
@@ -74,10 +74,10 @@ const swaggerSpec = {
     "/api/gate/open": {
       post: {
         tags: ["Control"],
-        summary: "Open the barrier gate",
+        summary: "차단기 열기",
         responses: {
           200: {
-            description: "Gate open command accepted",
+            description: "차단기 열기 명령 접수",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/GateResponse" },
@@ -90,10 +90,10 @@ const swaggerSpec = {
     "/api/gate/close": {
       post: {
         tags: ["Control"],
-        summary: "Close the barrier gate",
+        summary: "차단기 닫기",
         responses: {
           200: {
-            description: "Gate close command accepted",
+            description: "차단기 닫기 명령 접수",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/GateResponse" },
@@ -106,7 +106,7 @@ const swaggerSpec = {
     "/api/vms": {
       post: {
         tags: ["Control"],
-        summary: "Send text to VMS",
+        summary: "전광판 문구 전송",
         requestBody: {
           required: false,
           content: {
@@ -117,7 +117,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "VMS text accepted",
+            description: "전광판 문구 접수",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/VmsResponse" },
@@ -130,7 +130,7 @@ const swaggerSpec = {
     "/api/wrongway": {
       post: {
         tags: ["Wrongway"],
-        summary: "Receive wrong-way detection event",
+        summary: "역주행 감지 이벤트 수신",
         requestBody: {
           required: false,
           content: {
@@ -141,7 +141,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "Event accepted and broadcasted",
+            description: "이벤트 수신 및 대시보드 전파 완료",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/OkResponse" },
@@ -154,8 +154,8 @@ const swaggerSpec = {
     "/api/ingest/lidar/mock": {
       post: {
         tags: ["External Ingest"],
-        summary: "Receive mock lidar HTTP event",
-        description: "Temporary ingest endpoint for lidar PC JSON tests before the real data contract is confirmed.",
+        summary: "라이다 PC mock HTTP 이벤트 수신",
+        description: "실제 라이다 PC 데이터 규격 확정 전, JSON 수신 흐름을 테스트하기 위한 임시 ingest API입니다.",
         requestBody: {
           required: false,
           content: {
@@ -166,7 +166,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "External lidar event accepted",
+            description: "라이다 외부 이벤트 수신 완료",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ExternalIngestResponse" },
@@ -179,8 +179,8 @@ const swaggerSpec = {
     "/api/ingest/control-board/mock": {
       post: {
         tags: ["External Ingest"],
-        summary: "Receive mock control-board packet",
-        description: "Temporary HTTP test endpoint for RS-485 packet adapter flow. CRC-8 is not verified in this step.",
+        summary: "통합 제어보드 mock 패킷 수신",
+        description: "RS-485 패킷 adapter 흐름을 HTTP로 먼저 테스트하기 위한 임시 API입니다. 이 단계에서는 CRC-8 실제 계산 검증은 수행하지 않습니다.",
         requestBody: {
           required: false,
           content: {
@@ -191,7 +191,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "Control-board mock packet accepted",
+            description: "통합 제어보드 mock 패킷 수신 완료",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ExternalIngestResponse" },
@@ -204,8 +204,8 @@ const swaggerSpec = {
     "/api/ingest/control-board/serial/test": {
       post: {
         tags: ["External Ingest"],
-        summary: "Prepare control-board serial reader test",
-        description: "Checks serial reader input shape without opening a real COM port or adding serialport dependency.",
+        summary: "통합 제어보드 serial reader 테스트",
+        description: "실제 COM 포트를 열거나 serialport 의존성을 추가하지 않고, 현장 테스트에 필요한 포트/보드레이트/샘플 패킷 입력 형태만 확인합니다.",
         requestBody: {
           required: false,
           content: {
@@ -216,7 +216,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "Serial reader test request accepted",
+            description: "serial reader 테스트 요청 접수",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ControlBoardSerialTestResponse" },
@@ -229,7 +229,7 @@ const swaggerSpec = {
     "/api/ingest/events/recent": {
       get: {
         tags: ["External Ingest"],
-        summary: "Get recent external ingest events",
+        summary: "최근 외부 수신 이벤트 조회",
         parameters: [
           {
             name: "limit",
@@ -240,7 +240,7 @@ const swaggerSpec = {
         ],
         responses: {
           200: {
-            description: "Recent external events",
+            description: "최근 외부 수신 이벤트 목록",
             content: {
               "application/json": {
                 schema: {
@@ -256,7 +256,7 @@ const swaggerSpec = {
     "/api/demo/start": {
       post: {
         tags: ["Demo"],
-        summary: "Start detector demo",
+        summary: "감지 데모 시작",
         requestBody: {
           required: false,
           content: {
@@ -270,7 +270,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "Detector demo started",
+            description: "감지 데모 시작 완료",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/DemoResponse" },
@@ -278,7 +278,7 @@ const swaggerSpec = {
             },
           },
           500: {
-            description: "Detector demo start failed",
+            description: "감지 데모 시작 실패",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -291,7 +291,7 @@ const swaggerSpec = {
     "/api/demo/reset": {
       post: {
         tags: ["Demo"],
-        summary: "Reset detector demo",
+        summary: "감지 데모 초기화",
         requestBody: {
           required: false,
           content: {
@@ -305,7 +305,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "Detector demo reset",
+            description: "감지 데모 초기화 완료",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/DemoResponse" },
@@ -313,7 +313,7 @@ const swaggerSpec = {
             },
           },
           500: {
-            description: "Detector demo reset failed",
+            description: "감지 데모 초기화 실패",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -383,14 +383,14 @@ const swaggerSpec = {
       VmsRequest: {
         type: "object",
         properties: {
-          text: { type: "string", maxLength: 80, example: "Wrong-way warning" },
+          text: { type: "string", maxLength: 80, example: "역주행 차량 주의" },
         },
       },
       VmsResponse: {
         type: "object",
         properties: {
           ok: { type: "boolean", example: true },
-          vmsLast: { type: "string", example: "Wrong-way warning" },
+          vmsLast: { type: "string", example: "역주행 차량 주의" },
         },
       },
       WrongwayRequest: {
@@ -398,7 +398,7 @@ const swaggerSpec = {
         properties: {
           id: { type: "string", example: "evt-001" },
           stage: { type: "integer", example: 1 },
-          message: { type: "string", example: "Zone: EXIT-B" },
+          message: { type: "string", example: "구역: 출구-B" },
           timestamp: { type: "string", format: "date-time" },
           zone_id: { type: "string", example: "EXIT-B" },
           track_id: { type: "string", example: "track-12" },
@@ -422,7 +422,7 @@ const swaggerSpec = {
           message: { type: "string", example: "라이다 역주행 감지 이벤트 수신" },
           externalOccurredAt: {
             type: "string",
-            description: "Original timestamp value received from the external device. Kept even when invalid.",
+            description: "외부 장비가 보낸 원본 시간 값입니다. 잘못된 형식이어도 데이터 확인을 위해 그대로 보관합니다.",
             nullable: true,
             example: "2026-06-22T10:15:30+09:00",
           },
@@ -433,13 +433,13 @@ const swaggerSpec = {
             type: "integer",
             nullable: true,
             example: -120,
-            description: "External occurredAt minus backend receivedAt in milliseconds.",
+            description: "외부 장비 시간과 백엔드 수신 시간의 차이입니다. 외부 장비 시간 - 백엔드 수신 시간 기준이며 단위는 ms입니다.",
           },
           confidence: { type: "number", example: 0.92 },
           rawPayload: {
             type: "object",
             additionalProperties: true,
-            description: "Temporary raw payload for field-test debugging. Restrict before production use.",
+            description: "현장 연동 테스트에서 실제 수신 데이터 형식을 확인하기 위한 원본 payload입니다. 운영 전에는 노출/저장 범위를 다시 제한해야 합니다.",
           },
           rawSummary: {
             type: "object",
