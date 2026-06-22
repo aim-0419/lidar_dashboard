@@ -89,7 +89,7 @@ function increaseVehiclePassed() {
   return state.vehiclesPassed;
 }
 
-function applyAlertEffects(alert) {
+function applyDashboardEventEffects(dashboardEvent) {
   state.todaysEvents += 1;
   state.newEvents += 1;
 
@@ -98,12 +98,12 @@ function applyAlertEffects(alert) {
     state.hourlyEvents[currentHour].events += 1;
   }
 
-  if (alert.type === "wrong-way") state.wrongWayEvents += 1;
-  if (alert.type === "unidentified") state.unidentified += 1;
+  if (dashboardEvent.type === "wrong-way") state.wrongWayEvents += 1;
+  if (dashboardEvent.type === "unidentified") state.unidentified += 1;
 }
 
-function addWrongWayHistory(alert) {
-  wrongWayHistory.unshift(alert);
+function addWrongWayHistory(dashboardEvent) {
+  wrongWayHistory.unshift(dashboardEvent);
   if (wrongWayHistory.length > MAX_HISTORY) {
     wrongWayHistory = wrongWayHistory.slice(0, MAX_HISTORY);
   }
@@ -126,8 +126,8 @@ function updateLidarStats() {
   broadcast("state", state);
 }
 
-function broadcastAlert(alert) {
-  broadcast("alert", alert);
+function broadcastDashboardEvent(dashboardEvent) {
+  broadcast("dashboard-event", dashboardEvent);
   broadcast("state", state);
 }
 
@@ -141,9 +141,9 @@ module.exports = {
   closeGate,
   setVmsText,
   increaseVehiclePassed,
-  applyAlertEffects,
+  applyDashboardEventEffects,
   addWrongWayHistory,
   resetKpi,
   updateLidarStats,
-  broadcastAlert,
+  broadcastDashboardEvent,
 };

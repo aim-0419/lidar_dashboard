@@ -1,0 +1,36 @@
+const externalIngestService = require("./externalIngest.service");
+
+// 라이다 mock HTTP 요청을 받아 service로 넘기고 수신 결과를 응답한다.
+function receiveLidarMock(req, res) {
+  // controller는 HTTP 요청/응답만 담당하고, 실제 변환과 화면 반영은 service에 맡긴다.
+  const event = externalIngestService.ingestLidarMock(req.body || {});
+  res.json({ ok: true, eventId: event.id, receivedAt: event.receivedAt, event });
+}
+
+// 통합 제어보드 mock packet 요청을 받아 service로 넘기고 수신 결과를 응답한다.
+function receiveControlBoardMock(req, res) {
+  // 통합 제어보드 mock 요청도 service로 넘겨 내부 이벤트 변환 흐름을 동일하게 탄다.
+  const event = externalIngestService.ingestControlBoardMock(req.body || {});
+  res.json({ ok: true, eventId: event.id, receivedAt: event.receivedAt, event });
+}
+
+// serial reader 테스트 요청을 받아 실제 포트 연결 전 입력 형태와 변환 흐름을 확인한다.
+function testControlBoardSerial(req, res) {
+  // 실제 serialport 연결 없이 현장 입력값과 samplePacket 처리 흐름만 확인하는 테스트 엔드포인트다.
+  const result = externalIngestService.createSerialTest(req.body || {});
+  res.json({ ok: true, ...result });
+}
+
+// 최근 외부 수신 이벤트 목록을 반환한다.
+function getRecentEvents(req, res) {
+  // 최근 수신 이벤트 조회는 현장 테스트 중 수신 여부를 빠르게 확인하기 위한 임시 조회 기능이다.
+  const limit = Number(req.query.limit) || 20;
+  res.json(externalIngestService.getRecentEvents(limit));
+}
+
+module.exports = {
+  receiveLidarMock,
+  receiveControlBoardMock,
+  testControlBoardSerial,
+  getRecentEvents,
+};
