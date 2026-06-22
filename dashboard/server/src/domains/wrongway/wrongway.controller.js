@@ -15,7 +15,7 @@ function receiveWrongWay(req, res) {
     payloadSize: JSON.stringify(body).length,
   });
 
-  const alert = {
+  const dashboardEvent = {
     id: body.id || `evt-${Date.now()}`,
     type: "wrong-way",
     stage: Number(body.stage) || 1,
@@ -37,16 +37,16 @@ function receiveWrongWay(req, res) {
     snapshot: body.snapshot,
   };
 
-  logger.info("wrongway alert broadcast", {
-    id: alert.id,
-    stage: alert.stage,
-    subMessage: alert.subMessage,
+  logger.info("wrongway dashboard event broadcast", {
+    id: dashboardEvent.id,
+    stage: dashboardEvent.stage,
+    subMessage: dashboardEvent.subMessage,
   });
 
-  mockLidarService.applyAlertEffects(alert);
-  mockLidarService.addWrongWayHistory(alert);
-  mockLidarService.broadcastAlert(alert);
-  mockLidarService.pushLog(`[WRONGWAY] ${alert.subMessage}`);
+  mockLidarService.applyDashboardEventEffects(dashboardEvent);
+  mockLidarService.addWrongWayHistory(dashboardEvent);
+  mockLidarService.broadcastDashboardEvent(dashboardEvent);
+  mockLidarService.pushLog(`[WRONGWAY] ${dashboardEvent.subMessage}`);
 
   res.json({ ok: true });
 }

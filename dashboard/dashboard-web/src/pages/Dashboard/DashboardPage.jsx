@@ -31,8 +31,8 @@ export default function DashboardPage({
   onNavigateToTotalVehicles,
   onNavigateToUnidentified,
 }) {
-  const [activeAlert, setActiveAlert] = useState(null); // 긴급 팝업 데이터
-  const [alertsEnabled, setAlertsEnabled] = useState(true); // 팝업 허용 토글(ON/OFF)
+  const [activeDashboardEvent, setActiveDashboardEvent] = useState(null); // 모달로 표시할 대시보드 이벤트
+  const [eventModalEnabled, setEventModalEnabled] = useState(true); // 이벤트 모달 허용 토글(ON/OFF)
   const [vmsText, setVmsText] = useState(""); // 전광판 입력
   const [recentLogs, setRecentLogs] = useState([ // 최근 로그 목록
     { msg: "차량 진출로 B 통과", time: "10:42" },
@@ -53,24 +53,24 @@ export default function DashboardPage({
   const goEvents = (tab) => navigate(`/events?tab=${tab}`);
 
   // websocket onmessage의 항상 최신값 유지
-  const alertsEnabledRef = useRef(alertsEnabled); 
+  const eventModalEnabledRef = useRef(eventModalEnabled); 
   useEffect(() => {
-    alertsEnabledRef.current = alertsEnabled;
-  }, [alertsEnabled]);
+    eventModalEnabledRef.current = eventModalEnabled;
+  }, [eventModalEnabled]);
 
   // 팝업 버튼 핸들러
-  const handleDismissAlert = () => {
-    setActiveAlert(null);
+  const handleDismissDashboardEvent = () => {
+    setActiveDashboardEvent(null);
   }; 
 
 
-  const handleViewAlert = () => { // 즉시 조치화면 보기 -> 추후 구현
-    if (activeAlert?.type === "wrong-way" && onNavigateToTotalVehicles) {
+  const handleViewDashboardEvent = () => { // 즉시 조치화면 보기 -> 추후 구현
+    if (activeDashboardEvent?.type === "wrong-way" && onNavigateToTotalVehicles) {
       onNavigateToTotalVehicles();
-    } else if (activeAlert?.type === "unidentified" && onNavigateToUnidentified) {
+    } else if (activeDashboardEvent?.type === "unidentified" && onNavigateToUnidentified) {
       onNavigateToUnidentified();
     }
-    setActiveAlert(null);
+    setActiveDashboardEvent(null);
   };
 
   const MAX_RECENT_LOGS = 5;
@@ -171,7 +171,7 @@ export default function DashboardPage({
     const data = await postJson("/api/demo/reset");
     if (!data.ok) throw new Error(data.error || "reset failed");
 
-    setActiveAlert(null); // 떠 있던 팝업 닫기
+    setActiveDashboardEvent(null); // 떠 있던 팝업 닫기
     pushLog("Demo RESET 성공");
   } catch (e) {
     pushLog(`Demo RESET 실패: ${String(e.message || e)}`);
@@ -224,23 +224,23 @@ export default function DashboardPage({
       }
 
       // 팝업은 wrong-way만, 토글 on일 때만
-      if(msg.type === "alert") {
-        const alert = msg.payload;
+      if(msg.type === "dashboard-event") {
+        const dashboardEvent = msg.payload;
 
         //토글 off면 팝업 금지, 로그만
-        if (!alertsEnabledRef.current) {
-          if (alert?.subMessage) {
-            setRecentLogs((prev) => [{ msg: `(Muted) ${alert.subMessage}`, time:alert.timestamp || "" }, ...prev].slice(0, 10));
+        if (!eventModalEnabledRef.current) {
+          if (dashboardEvent?.subMessage) {
+            setRecentLogs((prev) => [{ msg: `(Muted) ${dashboardEvent.subMessage}`, time:dashboardEvent.timestamp || "" }, ...prev].slice(0, 10));
           }
           return;
         }
 
-       if (alert?.type === "wrong-way") {
-          setActiveAlert(alert); // 여기서 팝업 뜸
+       if (dashboardEvent?.type === "wrong-way") {
+          setActiveDashboardEvent(dashboardEvent); // 여기서 이벤트 모달이 뜸
         } else {
           // 다른 타입은 로그만
-          if (alert?.subMessage) {
-            setRecentLogs((prev) => [{ msg: alert.subMessage, time: alert.timestamp || "" }, ...prev].slice(0, 10));
+          if (dashboardEvent?.subMessage) {
+            setRecentLogs((prev) => [{ msg: dashboardEvent.subMessage, time: dashboardEvent.timestamp || "" }, ...prev].slice(0, 10));
           }
         }
       }
@@ -255,9 +255,9 @@ export default function DashboardPage({
   // ------------------------------
   // stage별 스타일 함수 
   // ------------------------------
-  const isCritical = Number(activeAlert?.stage) === 2;
+  const isCritical = Number(activeDashboardEvent?.stage) === 2;
 
-  const alertTheme = isCritical
+  const eventModalTheme = isCritical
     ? {
         header: "bg-red-600",
         primaryBtn: "bg-red-600 hover:bg-red-700 focus:ring-red-300",
@@ -298,16 +298,16 @@ export default function DashboardPage({
   return (
     <div className="p-6 space-y-6 bg-white min-h-screen relative">
       {/* 실시간 알림 오버레이 */}
-      {activeAlert && (
+      {activeDashboardEvent && (
       <div
-        key={activeAlert.id}
+        key={activeDashboardEvent.id}
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm animate-in fade-in duration-200"
       >
         <div className="relative w-full max-w-[360px] overflow-hidden rounded-md bg-white shadow-2xl animate-in zoom-in-95 duration-300">
-          <div className={`${alertTheme.header} relative px-5 py-3 text-center`}>
-            <h2 className="text-lg font-black leading-6 text-white">{alertTheme.statusText}</h2>
+          <div className={`${eventModalTheme.header} relative px-5 py-3 text-center`}>
+            <h2 className="text-lg font-black leading-6 text-white">{eventModalTheme.statusText}</h2>
             <button
-              onClick={handleDismissAlert}
+              onClick={handleDismissDashboardEvent}
               className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-white/80 transition-colors hover:bg-white/15 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/70"
               aria-label="닫기"
             >
@@ -319,8 +319,8 @@ export default function DashboardPage({
             <div className="mb-3 flex items-start gap-2">
               <Siren className={`mt-0.5 h-4 w-4 shrink-0 ${isCritical ? "text-red-600" : "text-amber-600"}`} />
               <div>
-                <h3 className="text-base font-black leading-5 text-gray-900">{alertTheme.stageTitle}</h3>
-                <p className="mt-1 text-xs font-semibold text-gray-500">{alertTheme.stageLabel}</p>
+                <h3 className="text-base font-black leading-5 text-gray-900">{eventModalTheme.stageTitle}</h3>
+                <p className="mt-1 text-xs font-semibold text-gray-500">{eventModalTheme.stageLabel}</p>
               </div>
             </div>
 
@@ -330,27 +330,27 @@ export default function DashboardPage({
               <p>
                 Location:{" "}
                 <span className="font-semibold text-gray-700">
-                  {activeAlert.zone_id || "Zone A - Tunnel Entrance"}
+                  {activeDashboardEvent.zone_id || "Zone A - Tunnel Entrance"}
                 </span>
               </p>
               <p>
                 Time:{" "}
                 <span className="font-semibold text-gray-700">
-                  {activeAlert.timestamp || "실시간"}
+                  {activeDashboardEvent.timestamp || "실시간"}
                 </span>
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={handleDismissAlert}
+                onClick={handleDismissDashboardEvent}
                 className="rounded-md border border-gray-200 bg-white px-4 py-3 text-sm font-black text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300"
               >
                 무시
               </button>
               <button
-                onClick={handleViewAlert}
-                className={`rounded-md px-4 py-3 text-sm font-black text-white shadow-sm transition-colors focus:outline-none focus:ring-2 ${alertTheme.primaryBtn}`}
+                onClick={handleViewDashboardEvent}
+                className={`rounded-md px-4 py-3 text-sm font-black text-white shadow-sm transition-colors focus:outline-none focus:ring-2 ${eventModalTheme.primaryBtn}`}
               >
                 확인
               </button>
@@ -420,19 +420,19 @@ export default function DashboardPage({
         </div>
 
         <button
-          onClick={() => setAlertsEnabled((v) => !v)}
+          onClick={() => setEventModalEnabled((v) => !v)}
           className="flex items-center space-x-3 bg-white px-3 py-1.5 rounded border border-red-100 shadow-sm"
           aria-label="알림 토글"
         >
           <span className="text-xs font-bold text-gray-600">알림</span>
           <div
             className={`w-10 h-5 rounded-full relative transition-colors ${
-              alertsEnabled ? "bg-red-500" : "bg-gray-300"
+              eventModalEnabled ? "bg-red-500" : "bg-gray-300"
             }`}
           >
             <div
               className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${
-                alertsEnabled ? "right-0.5" : "left-0.5"
+                eventModalEnabled ? "right-0.5" : "left-0.5"
               }`}
             />
           </div>
