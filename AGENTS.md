@@ -20,8 +20,9 @@
 - 프론트엔드: `docs/ai/frontend.md`
 - Docker: `docs/ai/docker.md`
 - 린트/테스트: `docs/ai/lint-test.md`
+- 테스트 피드백 루프: `docs/ai/testing-feedback-loop.md`
 - 프로젝트 메모: `docs/ai/project-notes.md`
-- AI 하네스 엔지니어링: `docs/ai/harness-engineering.md`
+- AI 활용 가이드: `docs/ai/harness-engineering.md`
 
 ## 개발 컨벤션 문서
 
@@ -29,6 +30,7 @@
 - 프론트엔드 컨벤션: `docs/conventions/frontend.md`
 - 백엔드 컨벤션: `docs/conventions/backend.md`
 - Git 컨벤션: `docs/conventions/git.md`
+- 환경 설정 컨벤션: `docs/conventions/environment.md`
 
 ## 현재 프로젝트 전제
 
