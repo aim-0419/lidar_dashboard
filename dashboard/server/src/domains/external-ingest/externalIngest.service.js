@@ -47,6 +47,13 @@ function toDashboardEvent(event) {
 function applyDashboardEffects(event) {
   // 외부 이벤트가 들어오면 기존 mockLidarService를 통해 화면 상태, 이력, WebSocket 알림을 갱신한다.
   // 상황 해제 이벤트는 신규 역주행 건수로 세지 않기 위해 로그만 남긴다.
+  // 통합 제어보드 패킷의 CRC나 프레임 구조가 잘못된 경우에는 화면 이벤트로 전파하지 않는다.
+  // 대신 recentEvents/rawPayload/rawSummary에는 남겨서 현장에서 어떤 패킷이 들어왔는지 확인할 수 있게 한다.
+  if (event.rawSummary?.crcStatus === "INVALID" || event.rawSummary?.packetValid === false) {
+    mockLidarService.pushLog(`[INGEST:INVALID] ${event.message}`);
+    return;
+  }
+
   if (event.eventType === EXTERNAL_EVENT_TYPE.SITUATION_CLEARED) {
     mockLidarService.pushLog(`[INGEST] ${event.message}`);
     return;
@@ -59,12 +66,14 @@ function applyDashboardEffects(event) {
   mockLidarService.pushLog(`[INGEST] ${event.message}`);
 }
 
-// 라이다 PC mock JSON 수신을 처리하는 service 진입점이다.
-function ingestLidarMock(payload) {
-  // 라이다 mock API의 핵심 흐름: 외부 JSON payload -> lidar adapter -> 내부 이벤트 -> 화면 반영.
+// 실제 라이다 PC와 mock 라이다 테스트 API가 같은 변환/화면 반영 흐름을 타도록 공통 처리한다.
+function ingestLidar(payload, options = {}) {
   const event = adaptLidarHttpPayload(payload);
+  const mode = options.mode || "LIVE";
+
   logger.info("external lidar ingest received", {
     id: event.id,
+    mode,
     zoneId: event.zoneId,
     deviceId: event.deviceId,
   });
@@ -72,6 +81,16 @@ function ingestLidarMock(payload) {
   rememberEvent(event);
   applyDashboardEffects(event);
   return event;
+}
+
+// 실제 라이다 PC가 현장에서 호출할 HTTP/JSON 수신 진입점이다.
+function ingestLidarLive(payload) {
+  return ingestLidar(payload, { mode: "LIVE" });
+}
+
+// 개발자와 Swagger/curl 테스트에서 사용할 라이다 mock 수신 진입점이다.
+function ingestLidarMock(payload) {
+  return ingestLidar(payload, { mode: "MOCK" });
 }
 
 // 통합 제어보드 mock 패킷 수신을 처리하는 service 진입점이다.
@@ -83,6 +102,26 @@ function ingestControlBoardMock(payload) {
     id: event.id,
     command: event.rawSummary.command,
     crcStatus: event.rawSummary.crcStatus,
+    packetValid: event.rawSummary.packetValid,
+  });
+
+  rememberEvent(event);
+  applyDashboardEffects(event);
+  return event;
+}
+
+// 통합 제어보드 실제 HTTP 수신을 처리하는 service 진입점이다.
+function ingestControlBoardLive(payload) {
+  // 현장에서는 RS-485 직접 연결, HTTP 브릿지, 테스트 프로그램 중 어떤 방식이 될지 아직 확정되지 않았다.
+  // 그래서 실제 수신용 URL은 먼저 열어두고, 내부 처리는 mock과 같은 parser/adapter 흐름을 재사용한다.
+  const event = adaptControlBoardPacket(payload);
+
+  logger.info("external control board packet received", {
+    id: event.id,
+    mode: "LIVE",
+    command: event.rawSummary.command,
+    crcStatus: event.rawSummary.crcStatus,
+    packetValid: event.rawSummary.packetValid,
   });
 
   rememberEvent(event);
@@ -130,7 +169,9 @@ function getRecentEvents(limit = 20) {
 }
 
 module.exports = {
+  ingestLidarLive,
   ingestLidarMock,
+  ingestControlBoardLive,
   ingestControlBoardMock,
   createSerialTest,
   getRecentEvents,

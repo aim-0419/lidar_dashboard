@@ -4,34 +4,44 @@ const {
   createExternalEvent,
   createRawSummary,
 } = require("../externalEvent.model");
+const { parseControlBoardPacket } = require("../protocol/controlBoardProtocol");
 
 // command 값은 제어보드 신호 의미를 내부 이벤트 종류와 경고 단계로 매핑한다.
 const COMMAND_EVENT_MAP = {
-  STAGE_1: { eventType: EXTERNAL_EVENT_TYPE.CONTROL_STAGE, stage: 1, message: "통합 제어보드 1차 경고 수신" },
-  STAGE_2: { eventType: EXTERNAL_EVENT_TYPE.CONTROL_STAGE, stage: 2, message: "통합 제어보드 2차 경고 수신" },
-  CLEAR: { eventType: EXTERNAL_EVENT_TYPE.SITUATION_CLEARED, stage: 0, message: "통합 제어보드 상황 해제 수신" },
+  STAGE_1_ON: { eventType: EXTERNAL_EVENT_TYPE.CONTROL_STAGE, stage: 1, message: "통합 제어보드 1차 경고 시작" },
+  STAGE_2_ON: { eventType: EXTERNAL_EVENT_TYPE.CONTROL_STAGE, stage: 2, message: "통합 제어보드 2차 경고 시작" },
+  STAGE_2_RETURN: { eventType: EXTERNAL_EVENT_TYPE.SITUATION_CLEARED, stage: 2, message: "통합 제어보드 2차 복귀/해제" },
+  SYSTEM_RESET: { eventType: EXTERNAL_EVENT_TYPE.SITUATION_CLEARED, stage: 0, message: "통합 제어보드 전체 시스템 리셋" },
+  UNKNOWN: { eventType: EXTERNAL_EVENT_TYPE.UNKNOWN, stage: 0, message: "통합 제어보드 패킷 수신" },
 };
 
-// packet이 문자열이든 바이트 배열이든 현장 확인용 크기를 계산한다.
-function getPacketSize(packet) {
-  if (Array.isArray(packet)) return packet.length;
-  if (typeof packet === "string") return packet.length;
-  return 0;
+function getFallbackCommand(payload) {
+  // packet이 아직 없거나 파싱할 수 없을 때는 Swagger 테스트용 command 값을 사용한다.
+  return String(payload.command || payload.commandCode || "UNKNOWN").toUpperCase();
 }
 
-// 통합 제어보드 packet/mock payload를 내부 표준 이벤트로 바꾸는 adapter 함수다.
-function adaptControlBoardPacket(payload = {}, options = {}) {
-  // 통합 제어보드는 실제 현장에서 RS-485 패킷으로 신호를 줄 가능성이 높다.
-  // 지금 단계에서는 HTTP mock API로 packet/command/crcValid 값을 받아 adapter 흐름만 먼저 검증한다.
-  // 실제 CRC-8 계산과 바이트 위치 해석은 protocol adapter 단계에서 PDF 규격 기준으로 구현한다.
-  const command = String(payload.command || payload.commandCode || "UNKNOWN").toUpperCase();
-  const mapped = COMMAND_EVENT_MAP[command] || {
-    eventType: EXTERNAL_EVENT_TYPE.UNKNOWN,
-    stage: payload.stage,
-    message: "통합 제어보드 패킷 수신",
-  };
+function getParsedCommand(payload, packetResult) {
+  // 실제 패킷에서 해석한 command를 우선 사용한다.
+  // packet 해석이 UNKNOWN이면 기존 mock command 값을 fallback으로 사용해 테스트 편의성을 유지한다.
+  if (packetResult?.command && packetResult.command !== "UNKNOWN") return packetResult.command;
+  return getFallbackCommand(payload);
+}
 
-  const crcStatus = payload.crcValid === true ? "VALID" : payload.crcValid === false ? "INVALID" : "NOT_VERIFIED";
+function getCrcStatus(payload, packetResult) {
+  // packet이 있으면 실제 CRC 계산 결과를 우선 사용한다.
+  // packet이 없으면 기존 mock 테스트용 crcValid 값을 사용한다.
+  if (packetResult?.crcStatus) return packetResult.crcStatus;
+  return payload.crcValid === true ? "VALID" : payload.crcValid === false ? "INVALID" : "NOT_VERIFIED";
+}
+
+function adaptControlBoardPacket(payload = {}, options = {}) {
+  // 통합 제어보드는 실제 현장에서 RS-485 10바이트 패킷으로 신호를 줄 가능성이 높다.
+  // 이 adapter는 HTTP mock으로 받은 packet도 실제 패킷과 같은 방식으로 파싱해서 내부 이벤트로 바꾼다.
+  // packet이 없으면 기존 command/crcValid 기반 mock 흐름을 유지해 Swagger 테스트를 계속 사용할 수 있다.
+  const packetResult = payload.packet ? parseControlBoardPacket(payload.packet) : null;
+  const command = getParsedCommand(payload, packetResult);
+  const mapped = COMMAND_EVENT_MAP[command] || COMMAND_EVENT_MAP.UNKNOWN;
+  const crcStatus = getCrcStatus(payload, packetResult);
 
   return createExternalEvent({
     id: payload.id || payload.event_id,
@@ -48,7 +58,13 @@ function adaptControlBoardPacket(payload = {}, options = {}) {
       ...createRawSummary(payload),
       command,
       crcStatus,
-      packetSize: getPacketSize(payload.packet),
+      packetSize: packetResult?.packetSize || 0,
+      packetBytes: packetResult?.hex || [],
+      crcExpected: packetResult?.crcExpected ?? null,
+      crcCalculated: packetResult?.crcCalculated ?? null,
+      packetValid: packetResult?.isValid ?? crcStatus === "VALID",
+      packetErrors: packetResult?.errors || [],
+      parsed: packetResult?.parsed || null,
     },
   });
 }

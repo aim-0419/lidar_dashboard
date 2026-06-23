@@ -1,9 +1,22 @@
 const externalIngestService = require("./externalIngest.service");
 
+// 실제 라이다 PC HTTP 요청을 받아 service로 넘기고 수신 결과를 응답한다.
+function receiveLidar(req, res) {
+  const event = externalIngestService.ingestLidarLive(req.body || {});
+  res.json({ ok: true, eventId: event.id, receivedAt: event.receivedAt, event });
+}
+
 // 라이다 mock HTTP 요청을 받아 service로 넘기고 수신 결과를 응답한다.
 function receiveLidarMock(req, res) {
   // controller는 HTTP 요청/응답만 담당하고, 실제 변환과 화면 반영은 service에 맡긴다.
   const event = externalIngestService.ingestLidarMock(req.body || {});
+  res.json({ ok: true, eventId: event.id, receivedAt: event.receivedAt, event });
+}
+
+// 통합 제어보드 실제 HTTP ingest 요청을 받아 service로 넘긴다.
+function receiveControlBoard(req, res) {
+  // RS-485 장비가 직접 HTTP를 호출하지 않더라도, 브릿지/테스트 프로그램이 같은 진입점을 사용할 수 있게 둔다.
+  const event = externalIngestService.ingestControlBoardLive(req.body || {});
   res.json({ ok: true, eventId: event.id, receivedAt: event.receivedAt, event });
 }
 
@@ -29,7 +42,9 @@ function getRecentEvents(req, res) {
 }
 
 module.exports = {
+  receiveLidar,
   receiveLidarMock,
+  receiveControlBoard,
   receiveControlBoardMock,
   testControlBoardSerial,
   getRecentEvents,

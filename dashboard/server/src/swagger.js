@@ -151,11 +151,36 @@ const swaggerSpec = {
         },
       },
     },
+    "/api/ingest/lidar": {
+      post: {
+        tags: ["External Ingest"],
+        summary: "라이다 PC 실제 HTTP 이벤트 수신",
+        description: "현장 라이다 PC가 실제 역주행 감지 JSON을 전송할 때 사용하는 API입니다. 수신된 원본 데이터는 현장 연동 확인을 위해 rawPayload로 함께 반환됩니다.",
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/LidarIngestRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "라이다 실제 이벤트 수신 완료",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ExternalIngestResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/ingest/lidar/mock": {
       post: {
         tags: ["External Ingest"],
         summary: "라이다 PC mock HTTP 이벤트 수신",
-        description: "실제 라이다 PC 데이터 규격 확정 전, JSON 수신 흐름을 테스트하기 위한 임시 ingest API입니다.",
+        description: "개발자 또는 Swagger/curl 테스트에서 라이다 수신 흐름을 확인하기 위한 mock API입니다. 실제 라이다 PC 연동은 /api/ingest/lidar를 사용합니다.",
         requestBody: {
           required: false,
           content: {
@@ -176,11 +201,37 @@ const swaggerSpec = {
         },
       },
     },
+    "/api/ingest/control-board": {
+      post: {
+        tags: ["External Ingest"],
+        summary: "통합 제어보드 실제 HTTP 패킷 수신",
+        description:
+          "통합 제어보드 또는 중간 브릿지 프로그램이 실제 패킷을 HTTP JSON으로 넘길 때 사용하는 API입니다. RS-485 직접 연결이 확정되기 전까지 실제 수신 진입점으로 유지하고, 내부에서는 mock과 같은 parser/adapter 흐름을 사용합니다.",
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ControlBoardMockRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "통합 제어보드 실제 패킷 수신 완료",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ExternalIngestResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/ingest/control-board/mock": {
       post: {
         tags: ["External Ingest"],
         summary: "통합 제어보드 mock 패킷 수신",
-        description: "RS-485 패킷 adapter 흐름을 HTTP로 먼저 테스트하기 위한 임시 API입니다. 이 단계에서는 CRC-8 실제 계산 검증은 수행하지 않습니다.",
+        description: "RS-485 10바이트 패킷 adapter 흐름을 HTTP로 먼저 테스트하기 위한 API입니다. packet이 있으면 Byte 1~6 기준 CRC-8/SMBUS를 계산해 Byte 7 값과 비교합니다.",
         requestBody: {
           required: false,
           content: {
@@ -444,6 +495,7 @@ const swaggerSpec = {
           rawSummary: {
             type: "object",
             additionalProperties: true,
+            description: "원본 payload의 필드 목록, 크기, 제어보드 패킷 파싱 결과, CRC 검증 결과를 담는 진단 정보입니다.",
           },
         },
       },
@@ -475,8 +527,16 @@ const swaggerSpec = {
               },
             ],
           },
-          command: { type: "string", enum: ["STAGE_1", "STAGE_2", "CLEAR", "UNKNOWN"], example: "STAGE_1" },
-          crcValid: { type: "boolean", example: true },
+          command: {
+            type: "string",
+            enum: ["STAGE_1_ON", "STAGE_2_ON", "STAGE_2_RETURN", "SYSTEM_RESET", "UNKNOWN"],
+            example: "STAGE_1_ON",
+          },
+          crcValid: {
+            type: "boolean",
+            example: true,
+            description: "packet 없이 command만 테스트할 때 사용하는 임시 CRC 상태 값입니다. packet이 있으면 실제 CRC-8 계산 결과가 우선 적용됩니다.",
+          },
           zone_id: { type: "string", example: "ROUNDABOUT-01" },
           device_id: { type: "string", example: "CONTROL-BOARD-01" },
         },
