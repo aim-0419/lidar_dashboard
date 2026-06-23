@@ -205,7 +205,7 @@ const swaggerSpec = {
       post: {
         tags: ["External Ingest"],
         summary: "통합 제어보드 mock 패킷 수신",
-        description: "RS-485 패킷 adapter 흐름을 HTTP로 먼저 테스트하기 위한 임시 API입니다. 이 단계에서는 CRC-8 실제 계산 검증은 수행하지 않습니다.",
+        description: "RS-485 10바이트 패킷 adapter 흐름을 HTTP로 먼저 테스트하기 위한 API입니다. packet이 있으면 Byte 1~6 기준 CRC-8/SMBUS를 계산해 Byte 7 값과 비교합니다.",
         requestBody: {
           required: false,
           content: {
@@ -469,6 +469,7 @@ const swaggerSpec = {
           rawSummary: {
             type: "object",
             additionalProperties: true,
+            description: "원본 payload의 필드 목록, 크기, 제어보드 패킷 파싱 결과, CRC 검증 결과를 담는 진단 정보입니다.",
           },
         },
       },
@@ -500,8 +501,16 @@ const swaggerSpec = {
               },
             ],
           },
-          command: { type: "string", enum: ["STAGE_1", "STAGE_2", "CLEAR", "UNKNOWN"], example: "STAGE_1" },
-          crcValid: { type: "boolean", example: true },
+          command: {
+            type: "string",
+            enum: ["STAGE_1_ON", "STAGE_2_ON", "STAGE_2_RETURN", "SYSTEM_RESET", "UNKNOWN"],
+            example: "STAGE_1_ON",
+          },
+          crcValid: {
+            type: "boolean",
+            example: true,
+            description: "packet 없이 command만 테스트할 때 사용하는 임시 CRC 상태 값입니다. packet이 있으면 실제 CRC-8 계산 결과가 우선 적용됩니다.",
+          },
           zone_id: { type: "string", example: "ROUNDABOUT-01" },
           device_id: { type: "string", example: "CONTROL-BOARD-01" },
         },

@@ -47,6 +47,13 @@ function toDashboardEvent(event) {
 function applyDashboardEffects(event) {
   // 외부 이벤트가 들어오면 기존 mockLidarService를 통해 화면 상태, 이력, WebSocket 알림을 갱신한다.
   // 상황 해제 이벤트는 신규 역주행 건수로 세지 않기 위해 로그만 남긴다.
+  // 통합 제어보드 패킷의 CRC나 프레임 구조가 잘못된 경우에는 화면 이벤트로 전파하지 않는다.
+  // 대신 recentEvents/rawPayload/rawSummary에는 남겨서 현장에서 어떤 패킷이 들어왔는지 확인할 수 있게 한다.
+  if (event.rawSummary?.crcStatus === "INVALID" || event.rawSummary?.packetValid === false) {
+    mockLidarService.pushLog(`[INGEST:INVALID] ${event.message}`);
+    return;
+  }
+
   if (event.eventType === EXTERNAL_EVENT_TYPE.SITUATION_CLEARED) {
     mockLidarService.pushLog(`[INGEST] ${event.message}`);
     return;
@@ -95,6 +102,7 @@ function ingestControlBoardMock(payload) {
     id: event.id,
     command: event.rawSummary.command,
     crcStatus: event.rawSummary.crcStatus,
+    packetValid: event.rawSummary.packetValid,
   });
 
   rememberEvent(event);
