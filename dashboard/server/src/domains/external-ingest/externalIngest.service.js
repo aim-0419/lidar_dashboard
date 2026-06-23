@@ -110,6 +110,25 @@ function ingestControlBoardMock(payload) {
   return event;
 }
 
+// 통합 제어보드 실제 HTTP 수신을 처리하는 service 진입점이다.
+function ingestControlBoardLive(payload) {
+  // 현장에서는 RS-485 직접 연결, HTTP 브릿지, 테스트 프로그램 중 어떤 방식이 될지 아직 확정되지 않았다.
+  // 그래서 실제 수신용 URL은 먼저 열어두고, 내부 처리는 mock과 같은 parser/adapter 흐름을 재사용한다.
+  const event = adaptControlBoardPacket(payload);
+
+  logger.info("external control board packet received", {
+    id: event.id,
+    mode: "LIVE",
+    command: event.rawSummary.command,
+    crcStatus: event.rawSummary.crcStatus,
+    packetValid: event.rawSummary.packetValid,
+  });
+
+  rememberEvent(event);
+  applyDashboardEffects(event);
+  return event;
+}
+
 // 실제 COM 포트를 열기 전, serial reader 입력 형태만 검증하는 테스트 진입점이다.
 function createSerialTest(payload = {}) {
   // serial reader 테스트는 아직 COM 포트를 열지 않는다.
@@ -152,6 +171,7 @@ function getRecentEvents(limit = 20) {
 module.exports = {
   ingestLidarLive,
   ingestLidarMock,
+  ingestControlBoardLive,
   ingestControlBoardMock,
   createSerialTest,
   getRecentEvents,

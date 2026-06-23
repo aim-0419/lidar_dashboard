@@ -201,6 +201,32 @@ const swaggerSpec = {
         },
       },
     },
+    "/api/ingest/control-board": {
+      post: {
+        tags: ["External Ingest"],
+        summary: "통합 제어보드 실제 HTTP 패킷 수신",
+        description:
+          "통합 제어보드 또는 중간 브릿지 프로그램이 실제 패킷을 HTTP JSON으로 넘길 때 사용하는 API입니다. RS-485 직접 연결이 확정되기 전까지 실제 수신 진입점으로 유지하고, 내부에서는 mock과 같은 parser/adapter 흐름을 사용합니다.",
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ControlBoardMockRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "통합 제어보드 실제 패킷 수신 완료",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ExternalIngestResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/ingest/control-board/mock": {
       post: {
         tags: ["External Ingest"],

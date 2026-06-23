@@ -13,6 +13,13 @@ function receiveLidarMock(req, res) {
   res.json({ ok: true, eventId: event.id, receivedAt: event.receivedAt, event });
 }
 
+// 통합 제어보드 실제 HTTP ingest 요청을 받아 service로 넘긴다.
+function receiveControlBoard(req, res) {
+  // RS-485 장비가 직접 HTTP를 호출하지 않더라도, 브릿지/테스트 프로그램이 같은 진입점을 사용할 수 있게 둔다.
+  const event = externalIngestService.ingestControlBoardLive(req.body || {});
+  res.json({ ok: true, eventId: event.id, receivedAt: event.receivedAt, event });
+}
+
 // 통합 제어보드 mock packet 요청을 받아 service로 넘기고 수신 결과를 응답한다.
 function receiveControlBoardMock(req, res) {
   // 통합 제어보드 mock 요청도 service로 넘겨 내부 이벤트 변환 흐름을 동일하게 탄다.
@@ -37,6 +44,7 @@ function getRecentEvents(req, res) {
 module.exports = {
   receiveLidar,
   receiveLidarMock,
+  receiveControlBoard,
   receiveControlBoardMock,
   testControlBoardSerial,
   getRecentEvents,
