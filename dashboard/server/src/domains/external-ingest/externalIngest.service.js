@@ -168,6 +168,36 @@ function getRecentEvents(limit = 20) {
   return recentEvents.slice(0, limit);
 }
 
+// 외부 장비 수신 상태를 현장 점검용으로 요약한다.
+function getIngestStatus() {
+  // DB가 붙기 전까지는 recentEvents 메모리 목록이 유일한 수신 근거다.
+  // 그래서 최근 이벤트를 기준으로 "마지막 수신 시각", "최근 오류 패킷 수", "장비별 최근 수신"만 빠르게 보여준다.
+  const now = new Date().toISOString();
+  const invalidEvents = recentEvents.filter(
+    (event) => event.rawSummary?.crcStatus === "INVALID" || event.rawSummary?.packetValid === false,
+  );
+
+  const lastLidarEvent = recentEvents.find((event) => String(event.source || "").includes("LIDAR"));
+  const lastControlBoardEvent = recentEvents.find((event) =>
+    String(event.source || "").includes("CONTROL_BOARD"),
+  );
+
+  const lastEvent = recentEvents[0] || null;
+
+  return {
+    ok: true,
+    checkedAt: now,
+    storage: "MEMORY",
+    totalRecentEvents: recentEvents.length,
+    invalidRecentEvents: invalidEvents.length,
+    lastReceivedAt: lastEvent?.receivedAt || null,
+    lastLidarReceivedAt: lastLidarEvent?.receivedAt || null,
+    lastControlBoardReceivedAt: lastControlBoardEvent?.receivedAt || null,
+    lastEvent,
+    lastInvalidEvent: invalidEvents[0] || null,
+  };
+}
+
 module.exports = {
   ingestLidarLive,
   ingestLidarMock,
@@ -175,4 +205,5 @@ module.exports = {
   ingestControlBoardMock,
   createSerialTest,
   getRecentEvents,
+  getIngestStatus,
 };

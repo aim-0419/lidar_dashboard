@@ -39,6 +39,26 @@ function getState() {
   return state;
 }
 
+function getControlStatus() {
+  // 현장 테스트 중에는 차단기/VMS/라이다 표시 상태를 한 번에 확인해야 한다.
+  // 기존 /state는 화면 전체 KPI까지 포함하므로, 제어 장비 확인용으로 필요한 값만 따로 묶어 반환한다.
+  return {
+    ok: true,
+    checkedAt: new Date().toISOString(),
+    siteId: state.siteId,
+    deviceId: state.deviceId,
+    gate: state.gate,
+    vmsLast: state.vmsLast,
+    lidar: state.lidar,
+    counters: {
+      todaysEvents: state.todaysEvents,
+      newEvents: state.newEvents,
+      wrongWayEvents: state.wrongWayEvents,
+      vehiclesPassed: state.vehiclesPassed,
+    },
+  };
+}
+
 function getLogs(limit = 10) {
   return logs.slice(0, limit);
 }
@@ -134,6 +154,7 @@ function broadcastDashboardEvent(dashboardEvent) {
 module.exports = {
   setBroadcaster,
   getState,
+  getControlStatus,
   getLogs,
   getWrongWayHistory,
   pushLog,

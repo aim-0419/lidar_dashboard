@@ -41,6 +41,12 @@ function getRecentEvents(req, res) {
   res.json(externalIngestService.getRecentEvents(limit));
 }
 
+// 최근 외부 장비 수신 상태를 현장 점검용으로 요약해서 반환한다.
+function getIngestStatus(req, res) {
+  // 원시 이벤트 목록 전체를 보지 않아도 마지막 수신/CRC 오류 여부를 빠르게 확인하기 위한 API다.
+  res.json(externalIngestService.getIngestStatus());
+}
+
 module.exports = {
   receiveLidar,
   receiveLidarMock,
@@ -48,4 +54,5 @@ module.exports = {
   receiveControlBoardMock,
   testControlBoardSerial,
   getRecentEvents,
+  getIngestStatus,
 };

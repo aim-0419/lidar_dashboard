@@ -127,6 +127,24 @@ const swaggerSpec = {
         },
       },
     },
+    "/api/control/status": {
+      get: {
+        tags: ["Control"],
+        summary: "제어 상태 조회",
+        description:
+          "현장 연동 테스트 중 차단기, 전광판, 라이다 표시 상태를 한 번에 확인하기 위한 API입니다. 현재는 DB 없이 메모리 상태를 반환합니다.",
+        responses: {
+          200: {
+            description: "현재 제어 상태",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ControlStatusResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/wrongway": {
       post: {
         tags: ["Wrongway"],
@@ -304,6 +322,24 @@ const swaggerSpec = {
         },
       },
     },
+    "/api/ingest/status": {
+      get: {
+        tags: ["External Ingest"],
+        summary: "외부 수신 상태 조회",
+        description:
+          "라이다 PC와 통합 제어보드에서 최근 수신된 이벤트를 기준으로 마지막 수신 시각, 최근 오류 패킷 수, 최근 오류 이벤트를 요약합니다. 현장 테스트에서 수신 여부를 빠르게 확인하기 위한 API입니다.",
+        responses: {
+          200: {
+            description: "외부 수신 상태 요약",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/IngestStatusResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/demo/start": {
       post: {
         tags: ["Demo"],
@@ -444,6 +480,33 @@ const swaggerSpec = {
           vmsLast: { type: "string", example: "역주행 차량 주의" },
         },
       },
+      ControlStatusResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          checkedAt: { type: "string", format: "date-time" },
+          siteId: { type: "string", example: "Site-01" },
+          deviceId: { type: "string", example: "LIDAR-01" },
+          gate: { type: "string", enum: ["OPENED", "CLOSED"], example: "CLOSED" },
+          vmsLast: { type: "string", example: "역주행 차량 주의" },
+          lidar: {
+            type: "object",
+            properties: {
+              pts: { type: "integer", example: 2405 },
+              hz: { type: "integer", example: 10 },
+            },
+          },
+          counters: {
+            type: "object",
+            properties: {
+              todaysEvents: { type: "integer", example: 3 },
+              newEvents: { type: "integer", example: 1 },
+              wrongWayEvents: { type: "integer", example: 2 },
+              vehiclesPassed: { type: "integer", example: 12842 },
+            },
+          },
+        },
+      },
       WrongwayRequest: {
         type: "object",
         properties: {
@@ -496,6 +559,27 @@ const swaggerSpec = {
             type: "object",
             additionalProperties: true,
             description: "원본 payload의 필드 목록, 크기, 제어보드 패킷 파싱 결과, CRC 검증 결과를 담는 진단 정보입니다.",
+          },
+        },
+      },
+      IngestStatusResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          checkedAt: { type: "string", format: "date-time" },
+          storage: { type: "string", example: "MEMORY" },
+          totalRecentEvents: { type: "integer", example: 5 },
+          invalidRecentEvents: { type: "integer", example: 1 },
+          lastReceivedAt: { type: "string", format: "date-time", nullable: true },
+          lastLidarReceivedAt: { type: "string", format: "date-time", nullable: true },
+          lastControlBoardReceivedAt: { type: "string", format: "date-time", nullable: true },
+          lastEvent: {
+            nullable: true,
+            oneOf: [{ $ref: "#/components/schemas/ExternalEvent" }],
+          },
+          lastInvalidEvent: {
+            nullable: true,
+            oneOf: [{ $ref: "#/components/schemas/ExternalEvent" }],
           },
         },
       },
