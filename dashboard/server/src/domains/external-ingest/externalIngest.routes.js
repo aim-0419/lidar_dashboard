@@ -10,6 +10,7 @@ router.post("/ingest/lidar/mock", controller.receiveLidarMock);
 router.post("/ingest/control-board", controller.receiveControlBoard);
 router.post("/ingest/control-board/mock", controller.receiveControlBoardMock);
 router.post("/ingest/control-board/serial/test", controller.testControlBoardSerial);
+router.get("/ingest/status", controller.getIngestStatus);
 router.get("/ingest/events/recent", controller.getRecentEvents);
 
 module.exports = router;

@@ -4,6 +4,11 @@ function getState(req, res) {
   res.json(mockLidarService.getState());
 }
 
+function getControlStatus(req, res) {
+  // 현장 점검자가 차단기/VMS/라이다 표시 상태만 빠르게 확인할 수 있게 service 결과를 그대로 반환한다.
+  res.json(mockLidarService.getControlStatus());
+}
+
 function getLogs(req, res) {
   res.json(mockLidarService.getLogs(10));
 }
@@ -30,6 +35,7 @@ function passVehicle(req, res) {
 
 module.exports = {
   getState,
+  getControlStatus,
   getLogs,
   openGate,
   closeGate,

@@ -4,6 +4,7 @@ const controller = require("./mockLidar.controller");
 const router = express.Router();
 
 router.get("/state", controller.getState);
+router.get("/control/status", controller.getControlStatus);
 router.get("/logs", controller.getLogs);
 
 router.post("/gate/open", controller.openGate);
