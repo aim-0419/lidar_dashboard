@@ -13,6 +13,7 @@
 
 ## AI 작업 문서
 
+- 현재 프로젝트 컨텍스트: `docs/ai/project-context.md`
 - 피드백/승인: `docs/ai/feedback-loop.md`
 - 설계: `docs/ai/design.md`
 - 구현: `docs/ai/implementation.md`
@@ -31,6 +32,11 @@
 - 백엔드 컨벤션: `docs/conventions/backend.md`
 - Git 컨벤션: `docs/conventions/git.md`
 - 환경 설정 컨벤션: `docs/conventions/environment.md`
+
+## 연동 규격 문서
+
+- 라이다 PC-대시보드 payload 규격: `docs/specs/lidar-dashboard-payload.md`
+- 대시보드-통합제어보드 프로토콜 정의 TODO: `docs/specs/dashboard-control-board-protocol.md`
 
 ## 현재 프로젝트 전제
 
