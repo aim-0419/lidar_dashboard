@@ -36,6 +36,8 @@ API 구조는 바꾸지 말고, 밝은 톤으로 가독성만 개선.
 
 ## 작업 문서 선택
 
+- 라이다/대시보드/통합제어보드 작업은 `docs/ai/project-context.md`를 먼저 확인합니다.
+- 라이다 payload와 제어보드 연동 규격은 `docs/specs/` 아래 문서를 참고합니다.
 - 프론트 작업은 `docs/ai/frontend.md`를 참고합니다.
 - 백엔드/API/Swagger 작업은 `docs/ai/backend.md`를 참고합니다.
 - 구현 원칙은 `docs/ai/implementation.md`를 참고합니다.
