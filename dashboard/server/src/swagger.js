@@ -13,6 +13,7 @@ const swaggerSpec = {
   ],
   tags: [
     { name: "Health", description: "서버 상태 확인" },
+    { name: "Database", description: "DB 연결과 기본 테이블 확인" },
     { name: "Dashboard", description: "대시보드 상태와 로그 조회" },
     { name: "Control", description: "차단기와 전광판 제어" },
     { name: "Wrongway", description: "역주행 감지 이벤트" },
@@ -30,6 +31,32 @@ const swaggerSpec = {
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/HealthResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/database/health": {
+      get: {
+        tags: ["Database"],
+        summary: "DB 연결 상태 확인",
+        description:
+          "Prisma가 PostgreSQL에 접속할 수 있는지 확인하고, 기본 테이블별 데이터 수를 반환합니다. 마이그레이션과 seed 적용 여부를 Swagger에서 빠르게 점검하기 위한 API입니다.",
+        responses: {
+          200: {
+            description: "DB 연결 및 기본 테이블 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DatabaseHealthResponse" },
+              },
+            },
+          },
+          503: {
+            description: "DB 연결 또는 기본 테이블 조회 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DatabaseHealthErrorResponse" },
               },
             },
           },
@@ -418,6 +445,37 @@ const swaggerSpec = {
         properties: {
           ok: { type: "boolean", example: true },
           ts: { type: "string", format: "date-time" },
+        },
+      },
+      DatabaseHealthResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          checkedAt: { type: "string", format: "date-time" },
+          database: { type: "string", example: "postgresql" },
+          tables: {
+            type: "object",
+            properties: {
+              users: { type: "integer", example: 0 },
+              sites: { type: "integer", example: 1 },
+              zones: { type: "integer", example: 2 },
+              devices: { type: "integer", example: 4 },
+              vehicleTracks: { type: "integer", example: 0 },
+              trafficEvents: { type: "integer", example: 0 },
+              eventLogs: { type: "integer", example: 0 },
+            },
+          },
+        },
+      },
+      DatabaseHealthErrorResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: false },
+          checkedAt: { type: "string", format: "date-time" },
+          message: {
+            type: "string",
+            example: "DB 연결 또는 기본 테이블 조회에 실패했습니다.",
+          },
         },
       },
       OkResponse: {

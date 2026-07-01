@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String     @id @default(cuid())
+  userId       String     @unique @map("user_id")
+  name         String
+  passwordHash String     @map("password_hash")
+  role         String     @default("SUPER_ADMIN")
+  isActive     Boolean    @default(true) @map("is_active")
+  lastLoginAt  DateTime?  @map("last_login_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  eventLogs    EventLog[]
+
+  @@map("users")
+}
+
+model Site {
+  id          String   @id @default(cuid())
+  name        String
+  location    String?
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  zones       Zone[]
+
+  @@map("sites")
+}
+
+model Zone {
+  id            String         @id @default(cuid())
+  siteId        String         @map("site_id")
+  zoneCode      String?        @unique @map("zone_code")
+  name          String
+  type          String?
+  description   String?
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  site          Site           @relation(fields: [siteId], references: [id])
+  devices       Device[]
+  vehicleTracks VehicleTrack[]
+  trafficEvents TrafficEvent[]
+
+  @@index([siteId])
+  @@map("zones")
+}
+
+model Device {
+  id                String    @id @default(cuid())
+  zoneId            String    @map("zone_id")
+  deviceCode        String?   @unique @map("device_code")
+  name              String
+  deviceType        String    @map("device_type")
+  status            String    @default("UNKNOWN")
+  healthStatus      String    @default("UNKNOWN") @map("health_status")
+  ipAddress         String?   @map("ip_address")
+  port              Int?
+  lastSeenAt        DateTime? @map("last_seen_at")
+  installedLocation String?   @map("installed_location")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  zone              Zone      @relation(fields: [zoneId], references: [id])
+
+  @@index([zoneId])
+  @@index([deviceType])
+  @@index([status])
+  @@index([healthStatus])
+  @@map("devices")
+}
+
+model TrafficEvent {
+  id                       String        @id @default(cuid())
+  eventCode                String?       @unique @map("event_code")
+  eventType                String        @map("event_type")
+  status                   String        @default("NEW")
+  occurredAt               DateTime?     @map("occurred_at")
+  receivedAt               DateTime      @default(now()) @map("received_at")
+  zoneId                   String?       @map("zone_id")
+  vehicleTrackId           String?       @map("vehicle_track_id")
+  externalZoneId           String?       @map("external_zone_id")
+  trackId                  String?       @map("track_id")
+  warningLevel             Int?          @map("warning_level")
+  confidence               Float?
+  message                  String?
+  speedMs                  Float?        @map("speed_ms")
+  speedKmh                 Float?        @map("speed_kmh")
+  objectClass              Int?          @map("object_class")
+  objectUuid               String?       @map("object_uuid")
+  description              String?
+  consecutiveCount         Int?          @map("consecutive_count")
+  isConfirmed              Boolean?      @map("is_confirmed")
+  normalMovingVehicleCount Int?          @map("normal_moving_vehicle_count")
+  rawPayload               Json          @map("raw_payload")
+  createdAt                DateTime      @default(now()) @map("created_at")
+  updatedAt                DateTime      @updatedAt @map("updated_at")
+  zone                     Zone?         @relation(fields: [zoneId], references: [id])
+  vehicleTrack             VehicleTrack? @relation(fields: [vehicleTrackId], references: [id], onDelete: SetNull)
+  eventLogs                EventLog[]
+
+  @@index([zoneId])
+  @@index([vehicleTrackId])
+  @@index([externalZoneId])
+  @@index([trackId])
+  @@index([eventType])
+  @@index([warningLevel])
+  @@index([status])
+  @@index([occurredAt])
+  @@index([receivedAt])
+  @@map("traffic_events")
+}
+
+model VehicleTrack {
+  id                           String         @id @default(cuid())
+  trackId                      String         @unique @map("track_id")
+  zoneId                       String?        @map("zone_id")
+  externalZoneId               String?        @map("external_zone_id")
+  lastEventType                String?        @map("last_event_type")
+  lastWarningLevel             Int?           @map("last_warning_level")
+  objectClass                  Int?           @map("object_class")
+  firstSeenAt                  DateTime       @default(now()) @map("first_seen_at")
+  lastSeenAt                   DateTime       @default(now()) @map("last_seen_at")
+  lastNormalMovingVehicleCount Int?           @map("last_normal_moving_vehicle_count")
+  rawPayload                   Json?          @map("raw_payload")
+  createdAt                    DateTime       @default(now()) @map("created_at")
+  updatedAt                    DateTime       @updatedAt @map("updated_at")
+  zone                         Zone?          @relation(fields: [zoneId], references: [id])
+  trafficEvents                TrafficEvent[]
+
+  @@index([zoneId])
+  @@index([externalZoneId])
+  @@index([lastEventType])
+  @@index([lastSeenAt])
+  @@map("vehicle_tracks")
+}
+
+model EventLog {
+  id        String        @id @default(cuid())
+  eventId   String?       @map("event_id")
+  userId    String?       @map("user_id")
+  action    String
+  message   String?
+  metadata  Json?
+  createdAt DateTime      @default(now()) @map("created_at")
+  event     TrafficEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("event_logs")
+}

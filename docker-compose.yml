@@ -1,41 +1,67 @@
 services:
+  # PostgreSQL 개발 DB 컨테이너입니다.
+  # 로컬 PC에 PostgreSQL을 직접 설치하지 않고, Docker 안에서 DB를 실행합니다.
   lidar-dashboard-db-postgres:
     image: postgres:16-alpine
     environment:
+      # 컨테이너가 처음 초기화될 때 생성할 DB 이름/유저/비밀번호입니다.
+      # 이미 DB 볼륨이 만들어진 뒤에는 이 값을 바꿔도 기존 DB 계정이 자동 변경되지 않습니다.
       POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     ports:
+      # 로컬 PC의 POSTGRES_PORT를 컨테이너 내부 PostgreSQL 기본 포트 5432에 연결합니다.
+      # 예: POSTGRES_PORT=5433이면 localhost:5433 -> 컨테이너:5432로 접속됩니다.
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
+      # DB 데이터를 컨테이너 삭제 후에도 유지하는 Docker volume입니다.
+      # 개발 DB를 완전히 초기화하려면 docker compose down -v로 이 volume까지 삭제해야 합니다.
       - lidar_dashboard_db_postgres_data:/var/lib/postgresql/data
     healthcheck:
+      # 백엔드가 DB 준비 전에 먼저 뜨지 않도록 PostgreSQL 접속 가능 여부를 확인합니다.
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?POSTGRES_USER is required} -d ${POSTGRES_DB:?POSTGRES_DB is required}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # 대시보드 백엔드 API 서버입니다.
+  # Docker 내부에서는 DB를 localhost가 아니라 서비스명(lidar-dashboard-db-postgres)으로 바라봅니다.
   backend:
     build:
       context: ./dashboard/server
     env_file:
       - .env
     environment:
+      # 백엔드가 외부 클라이언트/데모 서버와 통신할 때 사용하는 주소 설정입니다.
       DASHBOARD_HOST: ${PUBLIC_HOST:-localhost}
       DASHBOARD_PORT: ${DASHBOARD_PORT:-5000}
       DETECTOR_HOST: ${COMPOSE_DETECTOR_HOST:-host.docker.internal}
       DETECTOR_PORT: ${DETECTOR_PORT:-8888}
       DASHBOARD_BASE_URL: http://${PUBLIC_HOST:-localhost}:${DASHBOARD_PORT:-5000}
       DETECTOR_BASE_URL: http://${COMPOSE_DETECTOR_HOST:-host.docker.internal}:${DETECTOR_PORT:-8888}
+      # 백엔드 컨테이너 내부에서 PostgreSQL 컨테이너로 접속하는 DB URL입니다.
+      # 로컬 터미널용 DATABASE_URL(localhost:5433)과 달리, Docker 내부 서비스명과 5432 포트를 사용합니다.
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@lidar-dashboard-db-postgres:5432/${POSTGRES_DB}?schema=public
     ports:
+      # 로컬 PC에서 백엔드 API에 접근하기 위한 포트 매핑입니다.
       - "${DASHBOARD_PORT:-5000}:${DASHBOARD_PORT:-5000}"
+    depends_on:
+      # DB healthcheck가 통과한 뒤 백엔드 컨테이너를 시작합니다.
+      lidar-dashboard-db-postgres:
+        condition: service_healthy
+    # 개발용 Docker 실행에서는 DB 준비 후 Prisma migration/seed를 자동 적용하고 서버를 시작합니다.
+    # seed는 upsert 기반이라 반복 실행해도 기본 현장/장비 데이터가 중복 생성되지 않습니다.
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed && npm start"
 
+  # 대시보드 프론트엔드 개발 서버입니다.
+  # VITE_* 값은 브라우저에서 API/WebSocket 주소를 만들 때 사용됩니다.
   frontend:
     build:
       context: ./dashboard/dashboard-web
     env_file:
       - .env
     environment:
+      # 브라우저는 Docker 내부 서비스명이 아니라 접근 가능한 호스트/포트를 사용해야 합니다.
       VITE_API_HOST: ${PUBLIC_HOST:-localhost}
       VITE_API_PORT: ${DASHBOARD_PORT:-5000}
       VITE_DETECTOR_HOST: ${PUBLIC_HOST:-localhost}
@@ -44,10 +70,13 @@ services:
       VITE_WS_BASE_URL: ws://${PUBLIC_HOST:-localhost}:${DASHBOARD_PORT:-5000}
       VITE_DETECTOR_BASE_URL: http://${PUBLIC_HOST:-localhost}:${DETECTOR_PORT:-8888}
     ports:
+      # 로컬 PC에서 프론트엔드 화면에 접근하기 위한 포트 매핑입니다.
       - "${FRONTEND_PORT:-5173}:5173"
     depends_on:
       - backend
 
+  # 데모/AI 감지 서버입니다.
+  # 기본 compose up에는 포함되지 않고, demo-docker profile을 켰을 때만 실행됩니다.
   demo-server:
     profiles:
       - demo-docker
@@ -57,14 +86,20 @@ services:
     env_file:
       - .env
     environment:
+      # Docker 내부에서 백엔드로 이벤트를 보낼 때 사용하는 주소입니다.
+      # demo-server도 Docker로 띄우면 backend 서비스명으로 접근합니다.
       DASHBOARD_HOST: ${COMPOSE_BACKEND_HOST:-backend}
       DASHBOARD_PORT: ${DASHBOARD_PORT:-5000}
       DETECTOR_PORT: ${DETECTOR_PORT:-8888}
+      # 통합제어보드/시리얼 테스트용 설정입니다. 실제 장비 값은 .env에서 지정합니다.
       SERIAL_PORT: ${SERIAL_PORT:-}
       BAUD_RATE: ${BAUD_RATE:-9600}
+      # 데모 감지에 사용할 테스트 영상 경로입니다.
       VIDEO_SOURCE: ${VIDEO_SOURCE:-../dashboard-web/public/wrongway_test.mp4}
     ports:
+      # 로컬 PC에서 데모 서버 API에 접근하기 위한 포트 매핑입니다.
       - "${DETECTOR_PORT:-8888}:${DETECTOR_PORT:-8888}"
 
 volumes:
+  # PostgreSQL 데이터 저장용 named volume입니다.
   lidar_dashboard_db_postgres_data:
