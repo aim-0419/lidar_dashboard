@@ -53,4 +53,47 @@ async function getZones() {
   }));
 }
 
-module.exports = { getZones, getZonesBySite };
+// 구역 하나의 상세 정보를 소속 현장 요약과 디바이스 목록까지 포함해 조회한다.
+async function getZoneById(id) {
+  const zone = await prisma.zone.findUnique({
+    where: { id },
+    include: {
+      site: { select: { id: true, name: true, location: true } },
+      devices: { orderBy: { createdAt: "asc" } },
+    },
+  });
+
+  // 존재하지 않는 구역은 null로 반환해 controller에서 404로 구분한다.
+  if (!zone) return null;
+
+  return {
+    id: zone.id,
+    siteId: zone.siteId,
+    site: zone.site
+      ? { id: zone.site.id, name: zone.site.name, location: zone.site.location }
+      : null,
+    zoneCode: zone.zoneCode,
+    name: zone.name,
+    type: zone.type,
+    description: zone.description,
+    deviceCount: zone.devices.length,
+    devices: zone.devices.map((device) => ({
+      id: device.id,
+      deviceCode: device.deviceCode,
+      name: device.name,
+      deviceType: device.deviceType,
+      status: device.status,
+      healthStatus: device.healthStatus,
+      ipAddress: device.ipAddress,
+      port: device.port,
+      lastSeenAt: device.lastSeenAt,
+      installedLocation: device.installedLocation,
+      createdAt: device.createdAt,
+      updatedAt: device.updatedAt,
+    })),
+    createdAt: zone.createdAt,
+    updatedAt: zone.updatedAt,
+  };
+}
+
+module.exports = { getZones, getZonesBySite, getZoneById };
