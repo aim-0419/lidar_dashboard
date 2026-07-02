@@ -571,25 +571,44 @@ const swaggerSpec = {
           updatedAt: { type: "string", format: "date-time" },
         },
       },
+      ApiError: {
+        type: "object",
+        properties: {
+          status: { type: "integer", example: 503 },
+          code: { type: "string", example: "SITE_LIST_QUERY_FAILED" },
+          message: {
+            type: "string",
+            example: "현장 목록 조회에 실패했습니다.",
+          },
+          details: {
+            type: "array",
+            items: {},
+            example: [],
+          },
+        },
+      },
       SiteListResponse: {
         type: "object",
         properties: {
-          ok: { type: "boolean", example: true },
-          count: { type: "integer", example: 1 },
-          sites: {
-            type: "array",
-            items: { $ref: "#/components/schemas/Site" },
+          success: { type: "boolean", example: true },
+          data: {
+            type: "object",
+            properties: {
+              count: { type: "integer", example: 1 },
+              sites: {
+                type: "array",
+                items: { $ref: "#/components/schemas/Site" },
+              },
+            },
           },
+          message: { type: "string", example: "OK" },
         },
       },
       SiteListErrorResponse: {
         type: "object",
         properties: {
-          ok: { type: "boolean", example: false },
-          message: {
-            type: "string",
-            example: "현장 목록 조회에 실패했습니다.",
-          },
+          success: { type: "boolean", example: false },
+          error: { $ref: "#/components/schemas/ApiError" },
         },
       },
       SiteDevice: {
@@ -654,17 +673,26 @@ const swaggerSpec = {
       SiteDetailResponse: {
         type: "object",
         properties: {
-          ok: { type: "boolean", example: true },
-          site: { $ref: "#/components/schemas/SiteDetail" },
+          success: { type: "boolean", example: true },
+          data: { $ref: "#/components/schemas/SiteDetail" },
+          message: { type: "string", example: "OK" },
         },
       },
       SiteNotFoundResponse: {
         type: "object",
         properties: {
-          ok: { type: "boolean", example: false },
-          message: {
-            type: "string",
-            example: "해당 현장을 찾을 수 없습니다.",
+          success: { type: "boolean", example: false },
+          error: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 404 },
+              code: { type: "string", example: "SITE_NOT_FOUND" },
+              message: {
+                type: "string",
+                example: "해당 현장을 찾을 수 없습니다.",
+              },
+              details: { type: "array", items: {}, example: [] },
+            },
           },
         },
       },
