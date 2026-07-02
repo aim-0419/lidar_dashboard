@@ -28,4 +28,29 @@ async function getZonesBySite(siteId) {
   }));
 }
 
-module.exports = { getZonesBySite };
+// 전체 구역(zone) 목록을 소속 현장 요약과 디바이스 수와 함께 조회한다.
+async function getZones() {
+  const zones = await prisma.zone.findMany({
+    orderBy: { createdAt: "asc" },
+    include: {
+      // 전체 목록에서는 각 구역이 어느 현장 소속인지 함께 보여준다.
+      site: { select: { id: true, name: true } },
+      _count: { select: { devices: true } },
+    },
+  });
+
+  return zones.map((zone) => ({
+    id: zone.id,
+    siteId: zone.siteId,
+    site: zone.site ? { id: zone.site.id, name: zone.site.name } : null,
+    zoneCode: zone.zoneCode,
+    name: zone.name,
+    type: zone.type,
+    description: zone.description,
+    deviceCount: zone._count.devices,
+    createdAt: zone.createdAt,
+    updatedAt: zone.updatedAt,
+  }));
+}
+
+module.exports = { getZones, getZonesBySite };

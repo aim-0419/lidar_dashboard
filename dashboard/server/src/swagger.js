@@ -92,6 +92,32 @@ const swaggerSpec = {
         },
       },
     },
+    "/api/zones": {
+      get: {
+        tags: ["Zones"],
+        summary: "구역 목록 조회",
+        description:
+          "등록된 전체 구역(zone) 목록을 생성순으로 반환합니다. 각 구역의 소속 현장 요약과 디바이스 수를 함께 제공합니다.",
+        responses: {
+          200: {
+            description: "구역 목록 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ZoneListResponse" },
+              },
+            },
+          },
+          503: {
+            description: "구역 목록 조회 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ZoneListErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/sites/{siteId}/zones": {
       get: {
         tags: ["Zones"],
@@ -597,6 +623,14 @@ const swaggerSpec = {
         properties: {
           id: { type: "string", example: "zone-roundabout-01" },
           siteId: { type: "string", example: "site-wolchulsan-rest-area" },
+          site: {
+            type: "object",
+            nullable: true,
+            properties: {
+              id: { type: "string", example: "site-wolchulsan-rest-area" },
+              name: { type: "string", example: "월출산휴게소" },
+            },
+          },
           zoneCode: { type: "string", nullable: true, example: "ROUNDABOUT-01" },
           name: { type: "string", example: "회전교차로 1" },
           type: { type: "string", nullable: true, example: "ROUNDABOUT" },

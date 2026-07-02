@@ -1,8 +1,9 @@
 const express = require("express");
-const { getZonesBySiteController } = require("./zones.controller");
+const { getZonesController, getZonesBySiteController } = require("./zones.controller");
 
 const router = express.Router();
 
+router.get("/zones", getZonesController);
 router.get("/sites/:siteId/zones", getZonesBySiteController);
 
 module.exports = router;
