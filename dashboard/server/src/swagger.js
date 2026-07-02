@@ -14,6 +14,7 @@ const swaggerSpec = {
   tags: [
     { name: "Health", description: "서버 상태 확인" },
     { name: "Database", description: "DB 연결과 기본 테이블 확인" },
+    { name: "Sites", description: "현장 정보 조회" },
     { name: "Dashboard", description: "대시보드 상태와 로그 조회" },
     { name: "Control", description: "차단기와 전광판 제어" },
     { name: "Wrongway", description: "역주행 감지 이벤트" },
@@ -21,6 +22,32 @@ const swaggerSpec = {
     { name: "Demo", description: "감지 데모 제어" },
   ],
   paths: {
+    "/api/sites": {
+      get: {
+        tags: ["Sites"],
+        summary: "현장 목록 조회",
+        description:
+          "등록된 현장 목록을 생성순으로 반환합니다. 각 현장에 속한 존(zone) 수와 디바이스 수를 함께 제공해 현장 규모를 빠르게 확인할 수 있습니다.",
+        responses: {
+          200: {
+            description: "현장 목록 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SiteListResponse" },
+              },
+            },
+          },
+          503: {
+            description: "현장 목록 조회 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SiteListErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/health": {
       get: {
         tags: ["Health"],
@@ -482,6 +509,44 @@ const swaggerSpec = {
         type: "object",
         properties: {
           ok: { type: "boolean", example: true },
+        },
+      },
+      Site: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "site-wolchulsan-rest-area" },
+          name: { type: "string", example: "월출산휴게소" },
+          location: { type: "string", nullable: true, example: "전라남도 영암군" },
+          description: {
+            type: "string",
+            nullable: true,
+            example: "라이다 역주행 방지 시스템 1차 개발 대상 현장",
+          },
+          zoneCount: { type: "integer", example: 2 },
+          deviceCount: { type: "integer", example: 4 },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      SiteListResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          count: { type: "integer", example: 1 },
+          sites: {
+            type: "array",
+            items: { $ref: "#/components/schemas/Site" },
+          },
+        },
+      },
+      SiteListErrorResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: false },
+          message: {
+            type: "string",
+            example: "현장 목록 조회에 실패했습니다.",
+          },
         },
       },
       ErrorResponse: {
