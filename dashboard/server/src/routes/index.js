@@ -5,6 +5,7 @@ const externalIngestRoutes = require("../domains/external-ingest/externalIngest.
 const mockLidarRoutes = require("../domains/mock-lidar/mockLidar.routes");
 const sitesRoutes = require("../domains/sites/sites.routes");
 const wrongwayRoutes = require("../domains/wrongway/wrongway.routes");
+const zonesRoutes = require("../domains/zones/zones.routes");
 
 const router = express.Router();
 
@@ -18,5 +19,6 @@ router.use(externalIngestRoutes);
 router.use(mockLidarRoutes);
 router.use(sitesRoutes);
 router.use(wrongwayRoutes);
+router.use(zonesRoutes);
 
 module.exports = router;
