@@ -14,6 +14,8 @@ const swaggerSpec = {
   tags: [
     { name: "Health", description: "서버 상태 확인" },
     { name: "Database", description: "DB 연결과 기본 테이블 확인" },
+    { name: "Sites", description: "현장 정보 조회" },
+    { name: "Zones", description: "현장별 구역 조회" },
     { name: "Dashboard", description: "대시보드 상태와 로그 조회" },
     { name: "Control", description: "차단기와 전광판 제어" },
     { name: "Wrongway", description: "역주행 감지 이벤트" },
@@ -21,6 +23,187 @@ const swaggerSpec = {
     { name: "Demo", description: "감지 데모 제어" },
   ],
   paths: {
+    "/api/sites": {
+      get: {
+        tags: ["Sites"],
+        summary: "현장 목록 조회",
+        description:
+          "등록된 현장 목록을 생성순으로 반환합니다. 각 현장에 속한 존(zone) 수와 디바이스 수를 함께 제공해 현장 규모를 빠르게 확인할 수 있습니다.",
+        responses: {
+          200: {
+            description: "현장 목록 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SiteListResponse" },
+              },
+            },
+          },
+          503: {
+            description: "현장 목록 조회 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SiteListErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/sites/{id}": {
+      get: {
+        tags: ["Sites"],
+        summary: "현장 상세 조회",
+        description:
+          "현장 하나의 상세 정보를 반환합니다. 해당 현장에 속한 존(zone) 목록과 각 존의 디바이스까지 중첩해서 제공합니다.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "site-wolchulsan-rest-area",
+          },
+        ],
+        responses: {
+          200: {
+            description: "현장 상세 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SiteDetailResponse" },
+              },
+            },
+          },
+          404: {
+            description: "현장을 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SiteNotFoundResponse" },
+              },
+            },
+          },
+          503: {
+            description: "현장 상세 조회 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SiteListErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/zones": {
+      get: {
+        tags: ["Zones"],
+        summary: "구역 목록 조회",
+        description:
+          "등록된 전체 구역(zone) 목록을 생성순으로 반환합니다. 각 구역의 소속 현장 요약과 디바이스 수를 함께 제공합니다.",
+        responses: {
+          200: {
+            description: "구역 목록 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ZoneListResponse" },
+              },
+            },
+          },
+          503: {
+            description: "구역 목록 조회 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ZoneListErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/zones/{id}": {
+      get: {
+        tags: ["Zones"],
+        summary: "구역 상세 조회",
+        description:
+          "구역 하나의 상세 정보를 반환합니다. 소속 현장 요약과 해당 구역의 디바이스 목록을 함께 제공합니다.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "zone-roundabout-01",
+          },
+        ],
+        responses: {
+          200: {
+            description: "구역 상세 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ZoneDetailResponse" },
+              },
+            },
+          },
+          404: {
+            description: "구역을 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ZoneNotFoundResponse" },
+              },
+            },
+          },
+          503: {
+            description: "구역 상세 조회 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ZoneListErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/sites/{siteId}/zones": {
+      get: {
+        tags: ["Zones"],
+        summary: "현장별 구역 조회",
+        description:
+          "특정 현장에 속한 구역(zone) 목록을 생성순으로 반환합니다. 각 구역의 디바이스 수를 함께 제공합니다.",
+        parameters: [
+          {
+            name: "siteId",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "site-wolchulsan-rest-area",
+          },
+        ],
+        responses: {
+          200: {
+            description: "현장별 구역 목록 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ZoneListResponse" },
+              },
+            },
+          },
+          404: {
+            description: "현장을 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SiteNotFoundResponse" },
+              },
+            },
+          },
+          503: {
+            description: "현장별 구역 조회 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ZoneListErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/health": {
       get: {
         tags: ["Health"],
@@ -478,10 +661,270 @@ const swaggerSpec = {
           },
         },
       },
+      Zone: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "zone-roundabout-01" },
+          siteId: { type: "string", example: "site-wolchulsan-rest-area" },
+          site: {
+            type: "object",
+            nullable: true,
+            properties: {
+              id: { type: "string", example: "site-wolchulsan-rest-area" },
+              name: { type: "string", example: "월출산휴게소" },
+            },
+          },
+          zoneCode: { type: "string", nullable: true, example: "ROUNDABOUT-01" },
+          name: { type: "string", example: "회전교차로 1" },
+          type: { type: "string", nullable: true, example: "ROUNDABOUT" },
+          description: {
+            type: "string",
+            nullable: true,
+            example: "월출산휴게소 회전교차로 1",
+          },
+          deviceCount: { type: "integer", example: 2 },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      ZoneListResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: {
+            type: "object",
+            properties: {
+              count: { type: "integer", example: 2 },
+              zones: {
+                type: "array",
+                items: { $ref: "#/components/schemas/Zone" },
+              },
+            },
+          },
+          message: { type: "string", example: "OK" },
+        },
+      },
+      ZoneListErrorResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: false },
+          error: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 503 },
+              code: { type: "string", example: "ZONE_LIST_QUERY_FAILED" },
+              message: {
+                type: "string",
+                example: "구역 목록 조회에 실패했습니다.",
+              },
+              details: { type: "array", items: {}, example: [] },
+            },
+          },
+        },
+      },
+      ZoneDetail: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "zone-roundabout-01" },
+          siteId: { type: "string", example: "site-wolchulsan-rest-area" },
+          site: {
+            type: "object",
+            nullable: true,
+            properties: {
+              id: { type: "string", example: "site-wolchulsan-rest-area" },
+              name: { type: "string", example: "월출산휴게소" },
+              location: { type: "string", nullable: true, example: "전라남도 영암군" },
+            },
+          },
+          zoneCode: { type: "string", nullable: true, example: "ROUNDABOUT-01" },
+          name: { type: "string", example: "회전교차로 1" },
+          type: { type: "string", nullable: true, example: "ROUNDABOUT" },
+          description: {
+            type: "string",
+            nullable: true,
+            example: "월출산휴게소 회전교차로 1",
+          },
+          deviceCount: { type: "integer", example: 2 },
+          devices: {
+            type: "array",
+            items: { $ref: "#/components/schemas/SiteDevice" },
+          },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      ZoneDetailResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: { $ref: "#/components/schemas/ZoneDetail" },
+          message: { type: "string", example: "OK" },
+        },
+      },
+      ZoneNotFoundResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: false },
+          error: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 404 },
+              code: { type: "string", example: "ZONE_NOT_FOUND" },
+              message: {
+                type: "string",
+                example: "해당 구역을 찾을 수 없습니다.",
+              },
+              details: { type: "array", items: {}, example: [] },
+            },
+          },
+        },
+      },
       OkResponse: {
         type: "object",
         properties: {
           ok: { type: "boolean", example: true },
+        },
+      },
+      Site: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "site-wolchulsan-rest-area" },
+          name: { type: "string", example: "월출산휴게소" },
+          location: { type: "string", nullable: true, example: "전라남도 영암군" },
+          description: {
+            type: "string",
+            nullable: true,
+            example: "라이다 역주행 방지 시스템 1차 개발 대상 현장",
+          },
+          zoneCount: { type: "integer", example: 2 },
+          deviceCount: { type: "integer", example: 4 },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      ApiError: {
+        type: "object",
+        properties: {
+          status: { type: "integer", example: 503 },
+          code: { type: "string", example: "SITE_LIST_QUERY_FAILED" },
+          message: {
+            type: "string",
+            example: "현장 목록 조회에 실패했습니다.",
+          },
+          details: {
+            type: "array",
+            items: {},
+            example: [],
+          },
+        },
+      },
+      SiteListResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: {
+            type: "object",
+            properties: {
+              count: { type: "integer", example: 1 },
+              sites: {
+                type: "array",
+                items: { $ref: "#/components/schemas/Site" },
+              },
+            },
+          },
+          message: { type: "string", example: "OK" },
+        },
+      },
+      SiteListErrorResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: false },
+          error: { $ref: "#/components/schemas/ApiError" },
+        },
+      },
+      SiteDevice: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "device-lidar-pc-01" },
+          deviceCode: { type: "string", nullable: true, example: "LIDAR-PC-01" },
+          name: { type: "string", example: "회전교차로 1 라이다 PC" },
+          deviceType: { type: "string", example: "LIDAR_PC" },
+          status: { type: "string", example: "UNKNOWN" },
+          healthStatus: { type: "string", example: "UNKNOWN" },
+          ipAddress: { type: "string", nullable: true, example: "192.168.0.10" },
+          port: { type: "integer", nullable: true, example: 8080 },
+          lastSeenAt: { type: "string", format: "date-time", nullable: true },
+          installedLocation: { type: "string", nullable: true, example: "회전교차로 1" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      SiteZone: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "zone-roundabout-01" },
+          zoneCode: { type: "string", nullable: true, example: "ROUNDABOUT-01" },
+          name: { type: "string", example: "회전교차로 1" },
+          type: { type: "string", nullable: true, example: "ROUNDABOUT" },
+          description: {
+            type: "string",
+            nullable: true,
+            example: "월출산휴게소 회전교차로 1",
+          },
+          deviceCount: { type: "integer", example: 2 },
+          devices: {
+            type: "array",
+            items: { $ref: "#/components/schemas/SiteDevice" },
+          },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      SiteDetail: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "site-wolchulsan-rest-area" },
+          name: { type: "string", example: "월출산휴게소" },
+          location: { type: "string", nullable: true, example: "전라남도 영암군" },
+          description: {
+            type: "string",
+            nullable: true,
+            example: "라이다 역주행 방지 시스템 1차 개발 대상 현장",
+          },
+          zoneCount: { type: "integer", example: 2 },
+          deviceCount: { type: "integer", example: 4 },
+          zones: {
+            type: "array",
+            items: { $ref: "#/components/schemas/SiteZone" },
+          },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      SiteDetailResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: { $ref: "#/components/schemas/SiteDetail" },
+          message: { type: "string", example: "OK" },
+        },
+      },
+      SiteNotFoundResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: false },
+          error: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 404 },
+              code: { type: "string", example: "SITE_NOT_FOUND" },
+              message: {
+                type: "string",
+                example: "해당 현장을 찾을 수 없습니다.",
+              },
+              details: { type: "array", items: {}, example: [] },
+            },
+          },
         },
       },
       ErrorResponse: {
