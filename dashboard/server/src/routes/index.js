@@ -1,4 +1,5 @@
 const express = require("express");
+const controlBoardRoutes = require("../domains/control-board/controlBoard.routes");
 const databaseRoutes = require("../domains/database/database.routes");
 const demoRoutes = require("../domains/demo/demo.routes");
 const externalIngestRoutes = require("../domains/external-ingest/externalIngest.routes");
@@ -12,6 +13,7 @@ router.get("/health", (req, res) => {
 });
 
 router.use(demoRoutes);
+router.use(controlBoardRoutes);
 router.use(databaseRoutes);
 router.use(externalIngestRoutes);
 router.use(mockLidarRoutes);

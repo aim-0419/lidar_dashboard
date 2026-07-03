@@ -16,6 +16,7 @@ const swaggerSpec = {
     { name: "Database", description: "DB 연결과 기본 테이블 확인" },
     { name: "Dashboard", description: "대시보드 상태와 로그 조회" },
     { name: "Control", description: "차단기와 전광판 제어" },
+    { name: "Control Board", description: "통합제어보드 이더넷 TCP 명령 전송" },
     { name: "Wrongway", description: "역주행 감지 이벤트" },
     { name: "External Ingest", description: "라이다 PC와 통합 제어보드 외부 이벤트 수신" },
     { name: "Demo", description: "감지 데모 제어" },
@@ -166,6 +167,117 @@ const swaggerSpec = {
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ControlStatusResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/control-board/commands": {
+      post: {
+        tags: ["Control Board"],
+        summary: "통합제어보드 TCP 명령 전송",
+        description:
+          "대시보드 서버가 RS-485 10바이트 프로토콜 프레임을 생성한 뒤, 이더넷 TCP 소켓으로 통합제어보드에 전송합니다. dryRun이 true이면 실제 TCP 전송 없이 패킷 생성과 CRC-8 계산만 확인합니다.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ControlBoardCommandRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "통합제어보드 명령 처리 결과",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ControlBoardCommandResponse" },
+              },
+            },
+          },
+          400: {
+            description: "요청값 또는 통합제어보드 접속 설정 오류",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          502: {
+            description: "통합제어보드 TCP 전송 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+      get: {
+        tags: ["Control Board"],
+        summary: "최근 통합제어보드 명령 목록 조회",
+        parameters: [
+          {
+            name: "limit",
+            in: "query",
+            required: false,
+            schema: { type: "integer", example: 20 },
+          },
+        ],
+        responses: {
+          200: {
+            description: "최근 명령 목록",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    items: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/ControlBoardCommandResponse" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/control-board/commands/{id}": {
+      get: {
+        tags: ["Control Board"],
+        summary: "통합제어보드 명령 결과 조회",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", example: "cmd_123456" },
+          },
+        ],
+        responses: {
+          200: {
+            description: "명령 상세 결과",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    item: { $ref: "#/components/schemas/ControlBoardCommandResponse" },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "명령 ID를 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
               },
             },
           },
@@ -562,6 +674,79 @@ const swaggerSpec = {
               wrongWayEvents: { type: "integer", example: 2 },
               vehiclesPassed: { type: "integer", example: 12842 },
             },
+          },
+        },
+      },
+      ControlBoardCommandRequest: {
+        type: "object",
+        required: ["commandType"],
+        properties: {
+          commandType: {
+            type: "string",
+            enum: [
+              "STAGE_1_ON",
+              "STAGE_2_ON",
+              "STAGE_2_RETURN",
+              "SYSTEM_RESET",
+              "warning_level_1",
+              "warning_level_2",
+              "situation_ended",
+            ],
+            example: "STAGE_1_ON",
+            description: "통합제어보드로 보낼 명령 유형입니다. 별칭은 내부에서 PDF 프로토콜 명령으로 변환합니다.",
+          },
+          zoneId: { type: "string", example: "zone-1" },
+          reason: { type: "string", example: "wrong-way-level-1" },
+          host: {
+            type: "string",
+            example: "192.168.0.10",
+            description: ".env의 CONTROL_BOARD_HOST 대신 임시 테스트 IP를 지정할 때 사용합니다.",
+          },
+          port: {
+            type: "integer",
+            example: 5000,
+            description: ".env의 CONTROL_BOARD_PORT 대신 임시 테스트 port를 지정할 때 사용합니다.",
+          },
+          timeoutMs: { type: "integer", example: 3000 },
+          dryRun: {
+            type: "boolean",
+            example: true,
+            description: "true이면 실제 TCP 전송 없이 10바이트 패킷과 CRC-8 계산 결과만 확인합니다.",
+          },
+        },
+      },
+      ControlBoardCommandResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          commandId: { type: "string", example: "cmd_123456" },
+          commandType: { type: "string", example: "STAGE_1_ON" },
+          status: {
+            type: "string",
+            enum: ["dry-run", "pending", "ack-received", "sent-timeout", "send-failed"],
+            example: "dry-run",
+          },
+          host: { type: "string", nullable: true, example: "192.168.0.10" },
+          port: { type: "integer", nullable: true, example: 5000 },
+          requestedAt: { type: "string", format: "date-time" },
+          sentAt: { type: "string", format: "date-time", nullable: true },
+          ackAt: { type: "string", format: "date-time", nullable: true },
+          ackReceived: { type: "boolean", example: false },
+          timeout: { type: "boolean", example: false },
+          packet: {
+            type: "object",
+            properties: {
+              hexString: {
+                type: "string",
+                example: "02 A1 10 01 01 02 00 49 03 0D",
+              },
+              parsed: { type: "object", additionalProperties: true },
+            },
+          },
+          ack: {
+            type: "object",
+            nullable: true,
+            additionalProperties: true,
           },
         },
       },

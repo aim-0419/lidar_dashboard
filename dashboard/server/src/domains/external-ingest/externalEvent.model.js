@@ -10,6 +10,7 @@ const EXTERNAL_EVENT_SOURCE = {
 
 // eventType은 화면 반영 방식과 이력 분류를 결정하는 내부 이벤트 종류다.
 const EXTERNAL_EVENT_TYPE = {
+  NORMAL_DRIVING: "NORMAL_DRIVING",
   WRONG_WAY: "WRONG_WAY",
   CONTROL_STAGE: "CONTROL_STAGE",
   SITUATION_CLEARED: "SITUATION_CLEARED",
@@ -74,9 +75,13 @@ function createExternalEvent(input) {
     id: input.id || createEventId(),
     source: input.source,
     eventType: input.eventType || EXTERNAL_EVENT_TYPE.UNKNOWN,
+    // originalType은 라이다 PC가 보낸 type 원문을 보존해서, 추후 DB/화면/디버깅에서 외부 규격 그대로 확인할 수 있게 한다.
+    originalType: input.originalType,
+    warningLevel: input.warningLevel,
     stage: Number(input.stage) || 0,
     siteId: input.siteId || "Site-01",
     zoneId: input.zoneId || "UNKNOWN",
+    externalZoneId: input.externalZoneId || input.zoneId || "UNKNOWN",
     deviceId: input.deviceId || "UNKNOWN",
     trackId: input.trackId,
     message: input.message || "External event received",
@@ -86,6 +91,14 @@ function createExternalEvent(input) {
     isOccurredAtValid: occurredAtInfo.isOccurredAtValid,
     timeSkewMs: occurredAtInfo.timeSkewMs,
     confidence: input.confidence,
+    speedMs: input.speedMs,
+    speedKmh: input.speedKmh,
+    objectClass: input.objectClass,
+    objectUuid: input.objectUuid,
+    description: input.description,
+    consecutiveCount: input.consecutiveCount,
+    isConfirmed: input.isConfirmed,
+    normalMovingVehicleCount: input.normalMovingVehicleCount,
     rawPayload: input.rawPayload ?? input.raw ?? null,
     rawSummary: input.rawSummary || createRawSummary(input.rawPayload ?? input.raw),
   };
