@@ -38,8 +38,51 @@ const SELECT_LABEL = {
   0x12: "BARRIER_ONLY",
 };
 
+// 대시보드에서 보내는 추상 명령을 실제 10바이트 패킷의 핵심 바이트로 바꾸는 표다.
+// Byte 3 MODE, Byte 4 STATUS, Byte 5 SELECT 조합이 실제 통합제어보드 동작 의미를 결정한다.
+const COMMAND_PACKET_MAP = {
+  // 1차 경고: 경고 설비 묶음만 ON으로 보는 기본 명령이다.
+  STAGE_1_ON: { mode: 0x01, status: 0x01, select: 0x02 },
+
+  // 2차 경고: 전체 설비 또는 안전 설비까지 포함해 강한 제어를 걸 때 쓰는 명령이다.
+  STAGE_2_ON: { mode: 0x02, status: 0x01, select: 0x01 },
+
+  // 2차 복귀/상황 해제: 차단기 복귀 또는 안전 설비 해제 흐름으로 해석한다.
+  STAGE_2_RETURN: { mode: 0x02, status: 0x02, select: 0x03 },
+
+  // 전체 리셋: 대기 상태로 돌리는 명령이다.
+  SYSTEM_RESET: { mode: 0x00, status: 0x00, select: 0x01 },
+};
+
+// API 사용자가 STAGE_1_ON 같은 내부 명칭을 몰라도 의미가 같은 값을 넣을 수 있게 별칭을 둔다.
+// 예: wrong-way-level-1, warning_level_1 같은 입력은 모두 STAGE_1_ON으로 정규화된다.
+const COMMAND_ALIAS = {
+  WARNING_LEVEL_1: "STAGE_1_ON",
+  WRONG_WAY_LEVEL_1: "STAGE_1_ON",
+  STAGE_1: "STAGE_1_ON",
+  WARNING_LEVEL_2: "STAGE_2_ON",
+  WRONG_WAY_LEVEL_2: "STAGE_2_ON",
+  STAGE_2: "STAGE_2_ON",
+  SITUATION_ENDED: "STAGE_2_RETURN",
+  SITUATION_CLEARED: "STAGE_2_RETURN",
+  RETURN: "STAGE_2_RETURN",
+  RESET: "SYSTEM_RESET",
+};
+
 function toHex(byte) {
+  // 숫자 바이트를 디버깅하기 쉬운 0xNN 형태로 바꾼다.
   return `0x${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+}
+
+function toHexString(bytes) {
+  // Buffer/byte 배열을 Swagger 응답에서 읽기 좋은 "02 A1 ..." 형태로 바꾼다.
+  return bytes.map((byte) => byte.toString(16).toUpperCase().padStart(2, "0")).join(" ");
+}
+
+function normalizeCommand(commandType) {
+  // 외부 입력은 케밥케이스/스네이크케이스/대소문자가 섞일 수 있어 내부 명령명으로 통일한다.
+  const normalized = String(commandType || "").trim().replace(/-/g, "_").toUpperCase();
+  return COMMAND_ALIAS[normalized] || normalized;
 }
 
 function parseByteToken(token) {
@@ -120,6 +163,57 @@ function getProtocolCommand(parsed) {
   if (parsed.mode === "STAGE_2" && parsed.status === "BARRIER_RETURN") return "STAGE_2_RETURN";
   if (parsed.mode === "WAIT" && parsed.status === "OFF") return "SYSTEM_RESET";
   return "UNKNOWN";
+}
+
+function buildControlBoardPacket(commandType, options = {}) {
+  // 대시보드가 통합제어보드로 보낼 명령을 PDF 기준 10바이트 프레임으로 만든다.
+  // TCP는 이 바이트 배열을 운반만 하므로, 장비 프로토콜에서 요구하는 CRC-8은 여기서 직접 계산해 넣는다.
+  const command = normalizeCommand(commandType);
+  const mapping = COMMAND_PACKET_MAP[command];
+
+  if (!mapping) {
+    // 지원하지 않는 명령은 임의 패킷을 만들지 않는다.
+    // 현장 장비 제어이므로 알 수 없는 명령을 조용히 전송하면 더 위험하다.
+    throw new Error(`지원하지 않는 통합제어보드 명령입니다: ${commandType}`);
+  }
+
+  // 10바이트 프레임 구조:
+  // [0] STX, [1] ID, [2] TYPE, [3] MODE, [4] STATUS,
+  // [5] SELECT, [6] RESERVED, [7] CRC, [8] ETX, [9] EOF.
+  const bytes = [
+    STX,
+    options.deviceId ?? DEVICE_ID,
+    // 0x10은 대시보드/PC가 통합제어보드로 보내는 명령 패킷을 의미한다.
+    0x10,
+    options.mode ?? mapping.mode,
+    options.status ?? mapping.status,
+    options.select ?? mapping.select,
+    options.reserved ?? 0x00,
+    0x00,
+    ETX,
+    EOF,
+  ];
+
+  // CRC 계산 범위는 수신 파서와 동일하게 Byte 1~6이다.
+  bytes[7] = calculateCrc8Smbus(bytes.slice(1, 7));
+
+  return {
+    // 정규화된 내부 명령명이다. API 응답과 로그에서 같은 기준으로 추적한다.
+    command,
+
+    // 실제 TCP 전송에 사용할 숫자 바이트 배열이다.
+    bytes,
+
+    // 사람이 보기 쉬운 HEX 배열/문자열이다.
+    hex: bytes.map(toHex),
+    hexString: toHexString(bytes),
+
+    // Node net.Socket.write에 그대로 넘길 Buffer다.
+    buffer: Buffer.from(bytes),
+
+    // 우리가 만든 패킷을 다시 파싱해서 CRC/프레임 구조가 맞는지 자체 검증한 결과다.
+    parsed: parseControlBoardPacket(bytes),
+  };
 }
 
 function parseControlBoardPacket(packet) {
@@ -214,6 +308,8 @@ function parseControlBoardPacket(packet) {
 }
 
 module.exports = {
+  buildControlBoardPacket,
   calculateCrc8Smbus,
+  normalizeCommand,
   parseControlBoardPacket,
 };

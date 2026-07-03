@@ -25,6 +25,10 @@ const dashboardBaseUrl = (
   process.env.DASHBOARD_BASE_URL || `http://${dashboardHost}:${port}`
 ).replace(/\/+$/, "");
 
+const controlBoardHost = process.env.CONTROL_BOARD_HOST || "";
+const controlBoardPort = Number(process.env.CONTROL_BOARD_PORT || 0);
+const controlBoardTimeoutMs = Number(process.env.CONTROL_BOARD_TIMEOUT_MS || 3000);
+
 const distPath = path.join(serverRoot, "../dashboard-web/dist");
 
 module.exports = {
@@ -35,6 +39,9 @@ module.exports = {
     detectorPort,
     detectorBaseUrl,
     dashboardBaseUrl,
+    controlBoardHost,
+    controlBoardPort,
+    controlBoardTimeoutMs,
     distPath,
   },
 };
