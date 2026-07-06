@@ -43,8 +43,51 @@ function getWrongWayTestPayloads(req, res) {
   res.json(wrongwayService.getTestPayloads(`${protocol}://${host}`));
 }
 
+async function sendNormalDrivingTest(req, res) {
+  try {
+    const result = await wrongwayService.sendNormalDrivingTestPayload(req.body || {});
+    res.json(result);
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ok: false,
+      message: error.message || "정주행 테스트 데이터 전송 중 오류가 발생했습니다.",
+      details: error.details,
+    });
+  }
+}
+
+function startNormalDrivingStream(req, res) {
+  res.json(wrongwayService.startNormalDrivingStream(req.body || {}));
+}
+
+function stopNormalDrivingStream(req, res) {
+  res.json(wrongwayService.stopNormalDrivingStream());
+}
+
+function getNormalDrivingStreamStatus(req, res) {
+  res.json(wrongwayService.getNormalStreamStatus());
+}
+
+async function sendWrongWayLevel1Test(req, res) {
+  try {
+    const result = await wrongwayService.sendWrongWayLevel1TestPayload(req.body || {});
+    res.status(result.result?.stored ? 201 : 200).json(result);
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ok: false,
+      message: error.message || "역주행 1차 테스트 데이터 전송 중 오류가 발생했습니다.",
+      details: error.details,
+    });
+  }
+}
+
 module.exports = {
   receiveWrongWay,
   getWrongWayHistory,
   getWrongWayTestPayloads,
+  getNormalDrivingStreamStatus,
+  sendNormalDrivingTest,
+  sendWrongWayLevel1Test,
+  startNormalDrivingStream,
+  stopNormalDrivingStream,
 };

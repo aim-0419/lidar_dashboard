@@ -470,7 +470,9 @@ const swaggerSpec = {
     "/api/wrongway": {
       post: {
         tags: ["Wrongway"],
-        summary: "역주행 감지 이벤트 수신",
+        summary: "라이다 정주행/역주행 이벤트 수신",
+        description:
+          "라이다 PC가 보내는 공식 수신 API입니다. normal-driving은 VehicleTrack upsert로 최신 상태만 갱신하고, wrong-way-level-1은 TrafficEvent/EventLog에 저장합니다.",
         requestBody: {
           required: false,
           content: {
@@ -485,6 +487,142 @@ const swaggerSpec = {
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/OkResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/wrongway/test-payloads": {
+      get: {
+        tags: ["Wrongway"],
+        summary: "라이다 테스트 payload와 API URL 조회",
+        description:
+          "정주행/역주행 테스트 payload와 Swagger 테스트용 API URL을 한 번에 확인합니다.",
+        responses: {
+          200: {
+            description: "테스트 payload 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/WrongwayTestPayloadsResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/wrongway/test/normal": {
+      post: {
+        tags: ["Wrongway"],
+        summary: "정주행 테스트 데이터 1회 전송",
+        description:
+          "정주행 payload를 1회 생성해 기존 /api/wrongway 처리 흐름으로 보냅니다. VehicleTrack upsert 동작을 단건으로 확인할 때 사용합니다.",
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/WrongwayTestOptions" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "정주행 테스트 데이터 처리 완료",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/WrongwayTestSendResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/wrongway/test/normal-stream/start": {
+      post: {
+        tags: ["Wrongway"],
+        summary: "정주행 테스트 데이터 1초 간격 전송 시작",
+        description:
+          "서버 내부에서 1초마다 normal-driving payload를 생성해 기존 /api/wrongway 처리 흐름으로 보냅니다. 같은 track_id를 반복 전송해 VehicleTrack upsert를 확인합니다.",
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/WrongwayTestOptions" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "정주행 테스트 스트림 시작 또는 이미 실행 중",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/NormalDrivingStreamStatus" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/wrongway/test/normal-stream/stop": {
+      post: {
+        tags: ["Wrongway"],
+        summary: "정주행 테스트 데이터 1초 간격 전송 중지",
+        responses: {
+          200: {
+            description: "정주행 테스트 스트림 중지",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/NormalDrivingStreamStatus" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/wrongway/test/normal-stream/status": {
+      get: {
+        tags: ["Wrongway"],
+        summary: "정주행 테스트 스트림 상태 조회",
+        responses: {
+          200: {
+            description: "정주행 테스트 스트림 상태",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/NormalDrivingStreamStatus" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/wrongway/test/wrong-way-level-1": {
+      post: {
+        tags: ["Wrongway"],
+        summary: "역주행 1차 테스트 데이터 1회 전송",
+        description:
+          "역주행 1차 payload를 1회 생성해 기존 /api/wrongway 처리 흐름으로 보냅니다. TrafficEvent 저장과 동일 track_id 중복 방지를 확인합니다.",
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/WrongwayTestOptions" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "역주행 1차 테스트 데이터 처리 완료 또는 중복 처리",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/WrongwayTestSendResponse" },
+              },
+            },
+          },
+          201: {
+            description: "역주행 1차 이벤트 신규 저장",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/WrongwayTestSendResponse" },
               },
             },
           },
@@ -1195,17 +1333,104 @@ const swaggerSpec = {
       },
       WrongwayRequest: {
         type: "object",
+        required: ["type", "track_id"],
         properties: {
-          id: { type: "string", example: "evt-001" },
-          stage: { type: "integer", example: 1 },
-          message: { type: "string", example: "구역: 출구-B" },
-          timestamp: { type: "string", format: "date-time" },
-          zone_id: { type: "string", example: "EXIT-B" },
-          track_id: { type: "string", example: "track-12" },
-          confidence: { type: "number", example: 0.92 },
-          video_ts_ms: { type: "integer", example: 12345 },
-          device_id: { type: "string", example: "LIDAR-01" },
-          serial_no: { type: "string", example: "SN-001" },
+          type: {
+            type: "string",
+            enum: ["normal-driving", "wrong-way-level-1", "wrong-way-level-2", "situation-ended"],
+            example: "normal-driving",
+          },
+          warning_level: { type: "integer", example: 0 },
+          timestamp: { type: "string", example: "2026-01-13T14:43:53.860089+09:00" },
+          confidence: { type: "number", example: 1.0 },
+          zone_id: { type: "string", example: "Z261" },
+          track_id: { type: "string", example: "test-normal-track-001" },
+          message: { type: "string", example: "정주행" },
+          speed_ms: { type: "number", example: 0.5792374909226594 },
+          speed_kmh: { type: "number", example: 2.085254967321574 },
+          object_class: { type: "integer", example: 1 },
+          description: { type: "string", example: "Normal" },
+          consecutive_count: { type: "integer", example: 0 },
+          is_confirmed: { type: "boolean", example: false },
+        },
+      },
+      WrongwayTestOptions: {
+        type: "object",
+        properties: {
+          trackId: {
+            type: "string",
+            example: "test-normal-track-001",
+            description: "테스트용 track_id를 직접 지정할 때 사용합니다.",
+          },
+          zoneId: {
+            type: "string",
+            example: "Z261",
+            description: "테스트용 zone_id를 직접 지정할 때 사용합니다.",
+          },
+        },
+      },
+      WrongwayReceiveResult: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          stored: { type: "boolean", example: false },
+          duplicated: { type: "boolean", example: false },
+          reason: { type: "string", example: "TRACK_UPDATED" },
+          eventId: { type: "string", nullable: true, example: null },
+          trackId: { type: "string", example: "test-normal-track-001" },
+          type: { type: "string", example: "normal-driving" },
+          warningLevel: { type: "integer", example: 0 },
+          normalMovingVehicleCount: { type: "integer", example: 1 },
+          receivedAt: { type: "string", format: "date-time" },
+        },
+      },
+      WrongwayTestSendResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          payload: { $ref: "#/components/schemas/WrongwayRequest" },
+          result: { $ref: "#/components/schemas/WrongwayReceiveResult" },
+        },
+      },
+      WrongwayTestPayloadsResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          endpoint: { type: "string", example: "http://localhost:5000/api/wrongway" },
+          note: { type: "string" },
+          testApis: {
+            type: "object",
+            additionalProperties: { type: "string" },
+          },
+          payloads: {
+            type: "object",
+            properties: {
+              normalDriving: { $ref: "#/components/schemas/WrongwayRequest" },
+              wrongWayLevel1: { $ref: "#/components/schemas/WrongwayRequest" },
+            },
+          },
+        },
+      },
+      NormalDrivingStreamStatus: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          running: { type: "boolean", example: true },
+          startedAt: { type: "string", format: "date-time", nullable: true },
+          stoppedAt: { type: "string", format: "date-time", nullable: true },
+          sentCount: { type: "integer", example: 3 },
+          intervalMs: { type: "integer", example: 1000 },
+          trackId: { type: "string", example: "test-normal-track-001" },
+          zoneId: { type: "string", example: "Z261" },
+          lastResult: {
+            nullable: true,
+            oneOf: [{ $ref: "#/components/schemas/WrongwayReceiveResult" }],
+          },
+          lastError: {
+            type: "object",
+            nullable: true,
+            additionalProperties: true,
+          },
         },
       },
       ExternalEvent: {

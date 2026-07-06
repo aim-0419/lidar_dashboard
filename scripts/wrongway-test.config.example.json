@@ -1,0 +1,13 @@
+{
+  "baseUrl": "",
+  "scenario": "all",
+  "beforeNormalCount": 10,
+  "afterNormalCount": 10,
+  "intervalMs": 1000,
+  "afterWrongwayDelayMs": 10000,
+  "normalTrackId": "script-normal-track-001",
+  "wrongwayTrackId": "script-wrongway-track-001",
+  "normalZoneId": "Z261",
+  "wrongwayZoneId": "Z327",
+  "duplicateWrongway": true
+}
