@@ -16,6 +16,7 @@ const swaggerSpec = {
     { name: "Database", description: "DB 연결과 기본 테이블 확인" },
     { name: "Sites", description: "현장 정보 조회" },
     { name: "Zones", description: "현장별 구역 조회" },
+    { name: "Devices", description: "장비 목록/상세/상태 조회" },
     { name: "Dashboard", description: "대시보드 상태와 로그 조회" },
     { name: "Control", description: "차단기와 전광판 제어" },
     { name: "Control Board", description: "통합제어보드 이더넷 TCP 명령 전송" },
@@ -199,6 +200,161 @@ const swaggerSpec = {
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ZoneListErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/devices": {
+      get: {
+        tags: ["Devices"],
+        summary: "장비 목록 조회",
+        description:
+          "등록된 전체 장비(device) 목록을 생성순으로 반환합니다. 각 장비의 소속 구역/현장 요약을 함께 제공합니다.",
+        responses: {
+          200: {
+            description: "장비 목록 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DeviceListResponse" },
+              },
+            },
+          },
+          503: {
+            description: "장비 목록 조회 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DeviceListErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/devices/{id}": {
+      get: {
+        tags: ["Devices"],
+        summary: "장비 상세 조회",
+        description:
+          "장비 하나의 상세 정보를 반환합니다. 소속 구역과 현장 요약을 함께 제공합니다.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "device-lidar-pc-01",
+          },
+        ],
+        responses: {
+          200: {
+            description: "장비 상세 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DeviceDetailResponse" },
+              },
+            },
+          },
+          404: {
+            description: "장비를 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DeviceNotFoundResponse" },
+              },
+            },
+          },
+          503: {
+            description: "장비 상세 조회 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DeviceListErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/devices/{id}/status": {
+      get: {
+        tags: ["Devices"],
+        summary: "장비 상태조회",
+        description:
+          "장비 하나의 상태 값(status, healthStatus, lastSeenAt)만 좁게 반환합니다. 상태 폴링/헬스 확인 화면에서 가볍게 사용합니다.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "device-lidar-pc-01",
+          },
+        ],
+        responses: {
+          200: {
+            description: "장비 상태 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DeviceStatusResponse" },
+              },
+            },
+          },
+          404: {
+            description: "장비를 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DeviceNotFoundResponse" },
+              },
+            },
+          },
+          503: {
+            description: "장비 상태 조회 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DeviceListErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/zones/{zoneId}/devices": {
+      get: {
+        tags: ["Devices"],
+        summary: "구역별 장비 조회",
+        description:
+          "특정 구역(zone)에 속한 장비 목록을 생성순으로 반환합니다.",
+        parameters: [
+          {
+            name: "zoneId",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "zone-roundabout-01",
+          },
+        ],
+        responses: {
+          200: {
+            description: "구역별 장비 목록 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DeviceListResponse" },
+              },
+            },
+          },
+          404: {
+            description: "구역을 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ZoneNotFoundResponse" },
+              },
+            },
+          },
+          503: {
+            description: "구역별 장비 조회 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/DeviceListErrorResponse" },
               },
             },
           },
@@ -1023,6 +1179,160 @@ const swaggerSpec = {
               message: {
                 type: "string",
                 example: "해당 구역을 찾을 수 없습니다.",
+              },
+              details: { type: "array", items: {}, example: [] },
+            },
+          },
+        },
+      },
+      DeviceZoneSummary: {
+        type: "object",
+        nullable: true,
+        properties: {
+          id: { type: "string", example: "zone-roundabout-01" },
+          zoneCode: { type: "string", nullable: true, example: "ROUNDABOUT-01" },
+          name: { type: "string", example: "회전교차로 1" },
+          site: {
+            type: "object",
+            nullable: true,
+            properties: {
+              id: { type: "string", example: "site-wolchulsan-rest-area" },
+              name: { type: "string", example: "월출산휴게소" },
+            },
+          },
+        },
+      },
+      Device: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "device-lidar-pc-01" },
+          zoneId: { type: "string", example: "zone-roundabout-01" },
+          deviceCode: { type: "string", nullable: true, example: "LIDAR-PC-01" },
+          name: { type: "string", example: "회전교차로 1 라이다 PC" },
+          deviceType: { type: "string", example: "LIDAR_PC" },
+          status: { type: "string", example: "UNKNOWN" },
+          healthStatus: { type: "string", example: "UNKNOWN" },
+          ipAddress: { type: "string", nullable: true, example: "192.168.0.10" },
+          port: { type: "integer", nullable: true, example: 8080 },
+          lastSeenAt: { type: "string", format: "date-time", nullable: true },
+          installedLocation: { type: "string", nullable: true, example: "회전교차로 1" },
+          zone: { $ref: "#/components/schemas/DeviceZoneSummary" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      DeviceListResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: {
+            type: "object",
+            properties: {
+              count: { type: "integer", example: 4 },
+              devices: {
+                type: "array",
+                items: { $ref: "#/components/schemas/Device" },
+              },
+            },
+          },
+          message: { type: "string", example: "OK" },
+        },
+      },
+      DeviceListErrorResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: false },
+          error: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 503 },
+              code: { type: "string", example: "DEVICE_LIST_QUERY_FAILED" },
+              message: {
+                type: "string",
+                example: "장비 목록 조회에 실패했습니다.",
+              },
+              details: { type: "array", items: {}, example: [] },
+            },
+          },
+        },
+      },
+      DeviceDetail: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "device-lidar-pc-01" },
+          zoneId: { type: "string", example: "zone-roundabout-01" },
+          deviceCode: { type: "string", nullable: true, example: "LIDAR-PC-01" },
+          name: { type: "string", example: "회전교차로 1 라이다 PC" },
+          deviceType: { type: "string", example: "LIDAR_PC" },
+          status: { type: "string", example: "UNKNOWN" },
+          healthStatus: { type: "string", example: "UNKNOWN" },
+          ipAddress: { type: "string", nullable: true, example: "192.168.0.10" },
+          port: { type: "integer", nullable: true, example: 8080 },
+          lastSeenAt: { type: "string", format: "date-time", nullable: true },
+          installedLocation: { type: "string", nullable: true, example: "회전교차로 1" },
+          zone: {
+            type: "object",
+            nullable: true,
+            properties: {
+              id: { type: "string", example: "zone-roundabout-01" },
+              zoneCode: { type: "string", nullable: true, example: "ROUNDABOUT-01" },
+              name: { type: "string", example: "회전교차로 1" },
+              site: {
+                type: "object",
+                nullable: true,
+                properties: {
+                  id: { type: "string", example: "site-wolchulsan-rest-area" },
+                  name: { type: "string", example: "월출산휴게소" },
+                  location: { type: "string", nullable: true, example: "전라남도 영암군" },
+                },
+              },
+            },
+          },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      DeviceDetailResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: { $ref: "#/components/schemas/DeviceDetail" },
+          message: { type: "string", example: "OK" },
+        },
+      },
+      DeviceStatus: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "device-lidar-pc-01" },
+          deviceCode: { type: "string", nullable: true, example: "LIDAR-PC-01" },
+          name: { type: "string", example: "회전교차로 1 라이다 PC" },
+          deviceType: { type: "string", example: "LIDAR_PC" },
+          status: { type: "string", example: "UNKNOWN" },
+          healthStatus: { type: "string", example: "UNKNOWN" },
+          lastSeenAt: { type: "string", format: "date-time", nullable: true },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      DeviceStatusResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: { $ref: "#/components/schemas/DeviceStatus" },
+          message: { type: "string", example: "OK" },
+        },
+      },
+      DeviceNotFoundResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: false },
+          error: {
+            type: "object",
+            properties: {
+              status: { type: "integer", example: 404 },
+              code: { type: "string", example: "DEVICE_NOT_FOUND" },
+              message: {
+                type: "string",
+                example: "해당 장비를 찾을 수 없습니다.",
               },
               details: { type: "array", items: {}, example: [] },
             },
