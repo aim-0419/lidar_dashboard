@@ -5,6 +5,19 @@ const { adaptLidarHttpPayload } = require("../external-ingest/adapters/lidarHttp
 
 const WRONGWAY_LEVEL_1 = "wrong-way-level-1";
 const NORMAL_DRIVING = "normal-driving";
+const NORMAL_STREAM_INTERVAL_MS = 1000;
+
+let normalStreamTimer = null;
+let normalStreamState = {
+  running: false,
+  startedAt: null,
+  stoppedAt: null,
+  sentCount: 0,
+  lastResult: null,
+  lastError: null,
+  trackId: null,
+  zoneId: null,
+};
 
 function createHttpError(statusCode, message, details) {
   const error = new Error(message);
@@ -18,6 +31,51 @@ function toDateOrNull(value) {
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toKstIsoString(date = new Date()) {
+  // 라이다 PC 예시가 +09:00 KST ISO 문자열이라 테스트 payload도 같은 형태로 맞춘다.
+  const kstDate = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  return kstDate.toISOString().replace("Z", "+09:00");
+}
+
+function createNormalDrivingPayload(options = {}) {
+  // 정주행 테스트 payload는 같은 track_id로 반복 전송해 VehicleTrack upsert를 확인하는 용도다.
+  const sequence = Number(options.sequence || 0);
+  return {
+    type: NORMAL_DRIVING,
+    warning_level: 0,
+    timestamp: toKstIsoString(),
+    confidence: 1.0,
+    zone_id: options.zoneId || options.zone_id || "Z261",
+    track_id: options.trackId || options.track_id || "test-normal-track-001",
+    message: "정주행",
+    speed_ms: 0.5 + sequence * 0.05,
+    speed_kmh: (0.5 + sequence * 0.05) * 3.6,
+    object_class: 1,
+    description: "Normal",
+    consecutive_count: 0,
+    is_confirmed: false,
+  };
+}
+
+function createWrongWayLevel1Payload(options = {}) {
+  // 역주행 1차 테스트 payload는 TrafficEvent 저장과 중복 방지 로직을 확인하는 용도다.
+  return {
+    type: WRONGWAY_LEVEL_1,
+    warning_level: 1,
+    timestamp: toKstIsoString(),
+    confidence: 0.95,
+    zone_id: options.zoneId || options.zone_id || "Z327",
+    track_id: options.trackId || options.track_id || "test-wrongway-track-001",
+    message: "역주행 1차 감지",
+    speed_ms: 2.835765050970876,
+    speed_kmh: 10.208754183495154,
+    object_class: 6,
+    description: "Wrong-way driving detected (Heading and Path Confirmed)",
+    consecutive_count: 3,
+    is_confirmed: true,
+  };
 }
 
 async function findZoneByExternalCode(externalZoneId) {
@@ -252,42 +310,19 @@ async function receiveWrongWayPayload(payload = {}) {
 function getTestPayloads(baseUrl = "http://localhost:5000") {
   const endpoint = `${baseUrl.replace(/\/+$/, "")}/api/wrongway`;
 
-  const normalDriving = {
-    type: "normal-driving",
-    warning_level: 0,
-    timestamp: "2026-01-13T14:43:53.860089+09:00",
-    confidence: 1.0,
-    zone_id: "Z261",
-    track_id: "54750000-0000-0000-0000-000000000000",
-    message: "정주행",
-    speed_ms: 0.5792374909226594,
-    speed_kmh: 2.085254967321574,
-    object_class: 1,
-    description: "Normal",
-    consecutive_count: 0,
-    is_confirmed: false,
-  };
-
-  const wrongWayLevel1 = {
-    type: "wrong-way-level-1",
-    warning_level: 1,
-    timestamp: "2026-01-13T14:43:54.360258+09:00",
-    confidence: 0.95,
-    zone_id: "Z327",
-    track_id: "81760000-0000-0000-0000-000000000000",
-    message: "역주행 1차 감지",
-    speed_ms: 2.835765050970876,
-    speed_kmh: 10.208754183495154,
-    object_class: 6,
-    description: "Wrong-way driving detected (Heading and Path Confirmed)",
-    consecutive_count: 3,
-    is_confirmed: true,
-  };
+  const normalDriving = createNormalDrivingPayload();
+  const wrongWayLevel1 = createWrongWayLevel1Payload();
 
   return {
     ok: true,
     endpoint,
     note: "다른 PC에서는 localhost 대신 대시보드 서버 PC의 내부망 IP를 사용합니다.",
+    testApis: {
+      startNormalStream: `${baseUrl.replace(/\/+$/, "")}/api/wrongway/test/normal-stream/start`,
+      stopNormalStream: `${baseUrl.replace(/\/+$/, "")}/api/wrongway/test/normal-stream/stop`,
+      normalStreamStatus: `${baseUrl.replace(/\/+$/, "")}/api/wrongway/test/normal-stream/status`,
+      sendWrongWayLevel1: `${baseUrl.replace(/\/+$/, "")}/api/wrongway/test/wrong-way-level-1`,
+    },
     payloads: {
       normalDriving,
       wrongWayLevel1,
@@ -295,7 +330,104 @@ function getTestPayloads(baseUrl = "http://localhost:5000") {
   };
 }
 
+async function sendNormalDrivingTestPayload(options = {}) {
+  const payload = createNormalDrivingPayload(options);
+  const result = await receiveWrongWayPayload(payload);
+  return { ok: true, payload, result };
+}
+
+async function sendWrongWayLevel1TestPayload(options = {}) {
+  const payload = createWrongWayLevel1Payload(options);
+  const result = await receiveWrongWayPayload(payload);
+  return { ok: true, payload, result };
+}
+
+function getNormalStreamStatus() {
+  return {
+    ok: true,
+    ...normalStreamState,
+    intervalMs: NORMAL_STREAM_INTERVAL_MS,
+  };
+}
+
+function stopNormalDrivingStream() {
+  if (normalStreamTimer) {
+    clearInterval(normalStreamTimer);
+    normalStreamTimer = null;
+  }
+
+  normalStreamState = {
+    ...normalStreamState,
+    running: false,
+    stoppedAt: new Date().toISOString(),
+  };
+
+  return getNormalStreamStatus();
+}
+
+async function tickNormalDrivingStream(options = {}) {
+  const sequence = normalStreamState.sentCount + 1;
+  const payload = createNormalDrivingPayload({
+    ...options,
+    sequence,
+    trackId: normalStreamState.trackId,
+    zoneId: normalStreamState.zoneId,
+  });
+
+  try {
+    const result = await receiveWrongWayPayload(payload);
+    normalStreamState = {
+      ...normalStreamState,
+      sentCount: sequence,
+      lastResult: result,
+      lastError: null,
+    };
+  } catch (error) {
+    normalStreamState = {
+      ...normalStreamState,
+      lastError: {
+        message: error.message,
+        details: error.details,
+      },
+    };
+    logger.error("normal driving stream tick failed", { error });
+  }
+}
+
+function startNormalDrivingStream(options = {}) {
+  if (normalStreamTimer) {
+    return {
+      ...getNormalStreamStatus(),
+      message: "정주행 테스트 스트림이 이미 실행 중입니다.",
+    };
+  }
+
+  normalStreamState = {
+    running: true,
+    startedAt: new Date().toISOString(),
+    stoppedAt: null,
+    sentCount: 0,
+    lastResult: null,
+    lastError: null,
+    trackId: options.trackId || options.track_id || "test-normal-track-001",
+    zoneId: options.zoneId || options.zone_id || "Z261",
+  };
+
+  // 시작 버튼을 누른 직후 한 번 전송하고, 이후 1초 간격으로 같은 track_id를 반복 전송한다.
+  tickNormalDrivingStream(options);
+  normalStreamTimer = setInterval(() => {
+    tickNormalDrivingStream(options);
+  }, NORMAL_STREAM_INTERVAL_MS);
+
+  return getNormalStreamStatus();
+}
+
 module.exports = {
-  receiveWrongWayPayload,
   getTestPayloads,
+  getNormalStreamStatus,
+  receiveWrongWayPayload,
+  sendNormalDrivingTestPayload,
+  sendWrongWayLevel1TestPayload,
+  startNormalDrivingStream,
+  stopNormalDrivingStream,
 };
