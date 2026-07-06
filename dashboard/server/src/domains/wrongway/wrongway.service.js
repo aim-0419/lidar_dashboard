@@ -1,7 +1,7 @@
 const { prisma } = require("../../prisma/client");
 const { logger } = require("../../utils/logger");
 const mockLidarService = require("../mock-lidar/mockLidar.service");
-const { adaptLidarHttpPayload } = require("../external-ingest/adapters/lidarHttp.adapter");
+const { adaptLidarHttpPayload } = require("./adapters/lidarHttp.adapter");
 const {
   WRONGWAY_EVENT_STATUS,
   WRONGWAY_EVENT_TYPE,

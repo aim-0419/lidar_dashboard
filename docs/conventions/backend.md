@@ -59,7 +59,19 @@ domains/wrongway
 - wrongway.routes.js
 - wrongway.controller.js
 - wrongway.service.js
+- adapters
+  - lidarHttp.adapter.js
+- wrongway.dto.js
+- wrongway.constants.js
 ```
+
+## DTO와 adapter 기준
+
+- `dto`: 컨트롤러가 받거나 반환하는 요청/응답 규격을 고정합니다.
+- `adapter`: 외부 장비 payload를 대시보드 내부에서 쓰는 형태로 변환합니다.
+- 라이다 PC처럼 외부 데이터가 조금씩 바뀔 수 있는 연동은 adapter에 변환 책임을 둡니다.
+- `wrongway` 실제 저장 흐름에서 쓰는 라이다 HTTP adapter는 `domains/wrongway/adapters`에 둡니다.
+- `external-ingest`는 현장 진단, mock 수신, 통합제어보드 패킷 확인처럼 DB 저장 전 수신 상태를 확인하는 용도로 둡니다.
 
 ## Prisma 기준
 
