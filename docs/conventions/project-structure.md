@@ -111,6 +111,12 @@ dashboard/server
 
 향후 DB, 인증, 사용자 관리가 확정되면 `prisma`, `auth`, `users` 같은 도메인을 추가합니다.
 
+라이다 연동 도메인 기준:
+
+- `domains/wrongway`: `/api/wrongway` 수신, DB 저장, 중복 처리, 테스트 payload API를 담당합니다.
+- `domains/wrongway/adapters`: 라이다 PC HTTP payload를 내부 이벤트 형태로 변환합니다.
+- `domains/external-ingest`: 현장 진단용 mock 수신, 최근 수신 상태 확인, 통합제어보드 패킷 테스트를 담당합니다.
+
 ## 데모/AI 서버 기준
 
 `dashboard/demo-server`는 실제 라이다 PC가 아닌 영상 기반 데모 감지 서버입니다.
