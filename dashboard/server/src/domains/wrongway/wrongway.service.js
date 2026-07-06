@@ -2,9 +2,17 @@ const { prisma } = require("../../prisma/client");
 const { logger } = require("../../utils/logger");
 const mockLidarService = require("../mock-lidar/mockLidar.service");
 const { adaptLidarHttpPayload } = require("../external-ingest/adapters/lidarHttp.adapter");
+const {
+  WRONGWAY_EVENT_STATUS,
+  WRONGWAY_EVENT_TYPE,
+  WRONGWAY_RECEIVE_REASON,
+  WRONGWAY_WARNING_LEVEL,
+} = require("./wrongway.constants");
+const {
+  createWrongwayReceiveResponse,
+  createWrongwayTestSendResponse,
+} = require("./wrongway.dto");
 
-const WRONGWAY_LEVEL_1 = "wrong-way-level-1";
-const NORMAL_DRIVING = "normal-driving";
 const NORMAL_STREAM_INTERVAL_MS = 1000;
 
 let normalStreamTimer = null;
@@ -43,7 +51,7 @@ function createNormalDrivingPayload(options = {}) {
   // 정주행 테스트 payload는 같은 track_id로 반복 전송해 VehicleTrack upsert를 확인하는 용도다.
   const sequence = Number(options.sequence || 0);
   return {
-    type: NORMAL_DRIVING,
+    type: WRONGWAY_EVENT_TYPE.NORMAL_DRIVING,
     warning_level: 0,
     timestamp: toKstIsoString(),
     confidence: 1.0,
@@ -62,7 +70,7 @@ function createNormalDrivingPayload(options = {}) {
 function createWrongWayLevel1Payload(options = {}) {
   // 역주행 1차 테스트 payload는 TrafficEvent 저장과 중복 방지 로직을 확인하는 용도다.
   return {
-    type: WRONGWAY_LEVEL_1,
+    type: WRONGWAY_EVENT_TYPE.WRONGWAY_LEVEL_1,
     warning_level: 1,
     timestamp: toKstIsoString(),
     confidence: 0.95,
@@ -113,7 +121,7 @@ function toDashboardEvent(event, trafficEvent) {
 
 async function countNormalDrivingTracks() {
   return prisma.vehicleTrack.count({
-    where: { lastEventType: NORMAL_DRIVING },
+    where: { lastEventType: WRONGWAY_EVENT_TYPE.NORMAL_DRIVING },
   });
 }
 
@@ -156,8 +164,8 @@ async function findDuplicatedLevel1Event(event) {
   return prisma.trafficEvent.findFirst({
     where: {
       trackId: event.trackId,
-      eventType: WRONGWAY_LEVEL_1,
-      warningLevel: 1,
+      eventType: WRONGWAY_EVENT_TYPE.WRONGWAY_LEVEL_1,
+      warningLevel: WRONGWAY_WARNING_LEVEL.LEVEL_1,
     },
     orderBy: { receivedAt: "desc" },
   });
@@ -166,15 +174,15 @@ async function findDuplicatedLevel1Event(event) {
 async function createLevel1TrafficEvent(event, zone, vehicleTrack, normalMovingVehicleCount) {
   const trafficEvent = await prisma.trafficEvent.create({
     data: {
-      eventType: WRONGWAY_LEVEL_1,
-      status: "NEW",
+      eventType: WRONGWAY_EVENT_TYPE.WRONGWAY_LEVEL_1,
+      status: WRONGWAY_EVENT_STATUS.NEW,
       occurredAt: toDateOrNull(event.occurredAt),
       receivedAt: new Date(event.receivedAt),
       zoneId: zone?.id || null,
       vehicleTrackId: vehicleTrack.id,
       externalZoneId: event.externalZoneId,
       trackId: event.trackId,
-      warningLevel: 1,
+      warningLevel: WRONGWAY_WARNING_LEVEL.LEVEL_1,
       confidence: event.confidence,
       message: event.message,
       speedMs: event.speedMs,
@@ -238,50 +246,50 @@ async function receiveWrongWayPayload(payload = {}) {
     warningLevel: event.warningLevel,
   });
 
-  if (event.originalType === NORMAL_DRIVING) {
-    return {
-      ok: true,
+  if (event.originalType === WRONGWAY_EVENT_TYPE.NORMAL_DRIVING) {
+    return createWrongwayReceiveResponse({
       stored: false,
       duplicated: false,
-      reason: "TRACK_UPDATED",
+      reason: WRONGWAY_RECEIVE_REASON.TRACK_UPDATED,
       eventId: null,
       trackId: event.trackId,
       type: event.originalType,
       warningLevel: event.warningLevel,
       normalMovingVehicleCount,
       receivedAt: event.receivedAt,
-    };
+    });
   }
 
-  if (event.originalType !== WRONGWAY_LEVEL_1 || event.warningLevel !== 1) {
-    return {
-      ok: true,
+  if (
+    event.originalType !== WRONGWAY_EVENT_TYPE.WRONGWAY_LEVEL_1 ||
+    event.warningLevel !== WRONGWAY_WARNING_LEVEL.LEVEL_1
+  ) {
+    return createWrongwayReceiveResponse({
       stored: false,
       duplicated: false,
-      reason: "NOT_IMPLEMENTED_YET",
+      reason: WRONGWAY_RECEIVE_REASON.NOT_IMPLEMENTED_YET,
       eventId: null,
       trackId: event.trackId,
       type: event.originalType,
       warningLevel: event.warningLevel,
       normalMovingVehicleCount,
       receivedAt: event.receivedAt,
-    };
+    });
   }
 
   const duplicatedEvent = await findDuplicatedLevel1Event(event);
   if (duplicatedEvent) {
-    return {
-      ok: true,
+    return createWrongwayReceiveResponse({
       stored: false,
       duplicated: true,
-      reason: "DUPLICATED_WRONGWAY_LEVEL_1",
+      reason: WRONGWAY_RECEIVE_REASON.DUPLICATED_WRONGWAY_LEVEL_1,
       eventId: duplicatedEvent.id,
       trackId: event.trackId,
       type: event.originalType,
       warningLevel: event.warningLevel,
       normalMovingVehicleCount,
       receivedAt: event.receivedAt,
-    };
+    });
   }
 
   const trafficEvent = await createLevel1TrafficEvent(
@@ -293,18 +301,17 @@ async function receiveWrongWayPayload(payload = {}) {
 
   applyLevel1DashboardEffects(event, trafficEvent);
 
-  return {
-    ok: true,
+  return createWrongwayReceiveResponse({
     stored: true,
     duplicated: false,
-    reason: "WRONGWAY_LEVEL_1_STORED",
+    reason: WRONGWAY_RECEIVE_REASON.WRONGWAY_LEVEL_1_STORED,
     eventId: trafficEvent.id,
     trackId: event.trackId,
     type: event.originalType,
     warningLevel: event.warningLevel,
     normalMovingVehicleCount,
     receivedAt: event.receivedAt,
-  };
+  });
 }
 
 function getTestPayloads(baseUrl = "http://localhost:5000") {
@@ -333,13 +340,13 @@ function getTestPayloads(baseUrl = "http://localhost:5000") {
 async function sendNormalDrivingTestPayload(options = {}) {
   const payload = createNormalDrivingPayload(options);
   const result = await receiveWrongWayPayload(payload);
-  return { ok: true, payload, result };
+  return createWrongwayTestSendResponse({ payload, result });
 }
 
 async function sendWrongWayLevel1TestPayload(options = {}) {
   const payload = createWrongWayLevel1Payload(options);
   const result = await receiveWrongWayPayload(payload);
-  return { ok: true, payload, result };
+  return createWrongwayTestSendResponse({ payload, result });
 }
 
 function getNormalStreamStatus() {

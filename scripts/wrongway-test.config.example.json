@@ -1,8 +1,13 @@
 {
   "baseUrl": "",
   "scenario": "all",
+  "randomTrackIds": true,
+  "runId": "",
   "beforeNormalCount": 10,
   "afterNormalCount": 10,
+  "normalVehiclesBefore": 3,
+  "normalVehiclesAfter": 3,
+  "samplesPerVehicle": 3,
   "intervalMs": 1000,
   "afterWrongwayDelayMs": 10000,
   "normalTrackId": "script-normal-track-001",
