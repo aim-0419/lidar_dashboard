@@ -27,6 +27,7 @@ dashboard/dashboard-web/dist/
 config.json
 dashboard/server/config.json
 dashboard/demo-server/config.json
+scripts/wrongway-test.config.json
 
 # Local editor/tool settings
 .vscode/

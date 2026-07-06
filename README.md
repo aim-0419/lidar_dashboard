@@ -139,6 +139,157 @@ curl http://localhost:5000/api/database/health
 }
 ```
 
+## 라이다 수신 테스트
+
+라이다 PC 없이도 `/api/wrongway` 수신, `VehicleTrack` 갱신, `TrafficEvent` 저장 흐름을 테스트할 수 있습니다.
+
+Swagger에서 확인:
+
+```txt
+http://localhost:5000/api-docs
+```
+
+Swagger 주요 테스트 API:
+
+```txt
+GET  /api/wrongway/test-payloads
+POST /api/wrongway/test/normal
+POST /api/wrongway/test/normal-stream/start
+POST /api/wrongway/test/normal-stream/stop
+GET  /api/wrongway/test/normal-stream/status
+POST /api/wrongway/test/wrong-way-level-1
+```
+
+로컬 스크립트 실행:
+
+```bash
+npm run test:wrongway-samples
+```
+
+기본 대상 서버는 루트 `.env`의 `WRONGWAY_TEST_BASE_URL`을 사용합니다.
+
+```env
+WRONGWAY_TEST_BASE_URL=http://192.168.0.60:5000
+```
+
+위 설정이면 스크립트는 `http://192.168.0.60:5000/api/wrongway`로 테스트 데이터를 전송합니다.
+
+`WRONGWAY_TEST_BASE_URL`이 비어 있으면 `PUBLIC_HOST`와 `DASHBOARD_PORT`를 조합해 사용합니다.
+
+테스트 요청 대상 결정 우선순위:
+
+```txt
+1. 명령어 --base-url
+2. scripts/wrongway-test.config.json의 baseUrl
+3. .env의 WRONGWAY_TEST_BASE_URL
+4. .env의 PUBLIC_HOST + DASHBOARD_PORT
+5. http://localhost:5000
+```
+
+예시:
+
+```bash
+npm run test:wrongway-samples -- --base-url http://192.168.0.20:5000
+```
+
+위처럼 명령어에서 `--base-url`을 넘기면 `.env`와 config 파일보다 우선 적용됩니다.
+
+세부 테스트 값을 파일로 관리해야 하면 설정 파일을 생성합니다.
+
+```bash
+copy scripts\wrongway-test.config.example.json scripts\wrongway-test.config.json
+```
+
+`scripts/wrongway-test.config.json` 예시:
+
+```json
+{
+  "baseUrl": "",
+  "scenario": "all",
+  "beforeNormalCount": 10,
+  "afterNormalCount": 10,
+  "intervalMs": 1000,
+  "afterWrongwayDelayMs": 10000,
+  "normalTrackId": "script-normal-track-001",
+  "wrongwayTrackId": "script-wrongway-track-001",
+  "normalZoneId": "Z261",
+  "wrongwayZoneId": "Z327",
+  "duplicateWrongway": true
+}
+```
+
+기본 시나리오:
+
+```txt
+정주행 10회, 1초 간격
+역주행 1차 1회
+10초 대기
+정주행 10회, 1초 간격
+```
+
+명령어 옵션으로 임시 덮어쓰기:
+
+```bash
+npm run test:wrongway-samples -- --base-url http://서버IP:5000 --before-normal-count 30 --after-normal-count 30
+```
+
+다른 노트북 또는 내부망 서버로 한 번만 전송:
+
+```bash
+npm run test:wrongway-samples -- http://서버IP:5000
+```
+
+정주행만 전송:
+
+```bash
+npm run test:wrongway-samples -- --scenario normal --normal-count 60
+```
+
+역주행 1차만 전송:
+
+```bash
+npm run test:wrongway-samples -- --scenario wrongway --wrongway-track-id laptop-wrongway-001
+```
+
+사용 가능한 옵션:
+
+```txt
+--base-url URL
+--scenario all|normal|wrongway
+--normal-count N
+--before-normal-count N
+--after-normal-count N
+--interval-ms N
+--after-wrongway-delay-ms N
+--normal-track-id ID
+--wrongway-track-id ID
+--normal-zone-id ID
+--wrongway-zone-id ID
+--no-duplicate-wrongway
+```
+
+주의:
+
+- `scripts/wrongway-test.config.json`은 로컬 테스트용 파일이라 Git에 올리지 않습니다.
+- 공유용 기본 형식은 `scripts/wrongway-test.config.example.json`만 수정합니다.
+
+스크립트 동작:
+
+- 정주행 데이터 10회 전송
+- 각 정주행 데이터는 1초 간격으로 전송
+- 같은 `track_id` 기준으로 `VehicleTrack` upsert 확인
+- 역주행 1차 데이터 1회 전송
+- 기본값에서는 같은 역주행 1차 데이터 재전송으로 중복 방지 확인
+- 역주행 이후 10초 대기 후 정주행 데이터 10회 재전송
+
+DBeaver에서 확인할 테이블:
+
+```sql
+SELECT * FROM vehicle_tracks;
+SELECT * FROM traffic_events;
+SELECT * FROM event_logs;
+```
+
 ## 컨테이너 관리
 
 백그라운드 실행:
