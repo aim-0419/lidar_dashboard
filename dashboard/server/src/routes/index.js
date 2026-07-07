@@ -1,4 +1,5 @@
 const express = require("express");
+const authRoutes = require("../domains/auth/auth.routes");
 const controlBoardRoutes = require("../domains/control-board/controlBoard.routes");
 const databaseRoutes = require("../domains/database/database.routes");
 const demoRoutes = require("../domains/demo/demo.routes");
@@ -12,6 +13,7 @@ router.get("/health", (req, res) => {
   res.json({ ok: true, ts: new Date().toISOString() });
 });
 
+router.use(authRoutes);
 router.use(demoRoutes);
 router.use(controlBoardRoutes);
 router.use(databaseRoutes);
