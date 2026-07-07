@@ -66,5 +66,7 @@
 
 - 원본 payload는 가능한 한 보존합니다.
 - 라이다 PC 데이터 해석은 adapter 계층에 격리합니다.
+- `/api/wrongway` 실제 저장 흐름의 라이다 HTTP adapter는 `domains/wrongway/adapters`에 둡니다.
+- `external-ingest`는 현장 진단, mock 수신, 통합제어보드 패킷 확인처럼 DB 저장 전 수신 상태 확인 용도로 둡니다.
 - 아직 확정되지 않은 필드는 확정된 것처럼 구현하지 않습니다.
 - 통합제어보드 제어 기능은 별도 프로토콜 정의 후 진행합니다.

@@ -206,8 +206,13 @@ copy scripts\wrongway-test.config.example.json scripts\wrongway-test.config.json
 {
   "baseUrl": "",
   "scenario": "all",
+  "randomTrackIds": true,
+  "runId": "",
   "beforeNormalCount": 10,
   "afterNormalCount": 10,
+  "normalVehiclesBefore": 3,
+  "normalVehiclesAfter": 3,
+  "samplesPerVehicle": 3,
   "intervalMs": 1000,
   "afterWrongwayDelayMs": 10000,
   "normalTrackId": "script-normal-track-001",
@@ -221,10 +226,11 @@ copy scripts\wrongway-test.config.example.json scripts\wrongway-test.config.json
 기본 시나리오:
 
 ```txt
-정주행 10회, 1초 간격
+정주행 전송
 역주행 1차 1회
+역주행 1차 중복 1회
 10초 대기
-정주행 10회, 1초 간격
+정주행 재전송
 ```
 
 명령어 옵션으로 임시 덮어쓰기:
@@ -245,6 +251,20 @@ npm run test:wrongway-samples -- http://서버IP:5000
 npm run test:wrongway-samples -- --scenario normal --normal-count 60
 ```
 
+실행마다 새로운 차량 객체 ID를 만들어 전송:
+
+```bash
+npm run test:wrongway-samples -- --base-url http://서버IP:5000 --random-track-ids
+```
+
+다중 차량 시나리오:
+
+```bash
+npm run test:wrongway-samples -- --random-track-ids --normal-vehicles 5 --samples-per-vehicle 3
+```
+
+위 명령은 정주행 차량 5대를 만들고, 각 차량을 같은 `track_id`로 3회씩 반복 전송합니다. 같은 차량의 반복 데이터는 `vehicle_tracks`에서 upsert되고, 차량 객체가 다르면 새 row로 생성됩니다.
+
 역주행 1차만 전송:
 
 ```bash
@@ -259,8 +279,14 @@ npm run test:wrongway-samples -- --scenario wrongway --wrongway-track-id laptop-
 --normal-count N
 --before-normal-count N
 --after-normal-count N
+--normal-vehicles N
+--normal-vehicles-before N
+--normal-vehicles-after N
+--samples-per-vehicle N
 --interval-ms N
 --after-wrongway-delay-ms N
+--random-track-ids
+--run-id ID
 --normal-track-id ID
 --wrongway-track-id ID
 --normal-zone-id ID
@@ -272,12 +298,15 @@ npm run test:wrongway-samples -- --scenario wrongway --wrongway-track-id laptop-
 
 - `scripts/wrongway-test.config.json`은 로컬 테스트용 파일이라 Git에 올리지 않습니다.
 - 공유용 기본 형식은 `scripts/wrongway-test.config.example.json`만 수정합니다.
+- 정주행 데이터는 `traffic_events`에 매번 쌓지 않고 `vehicle_tracks`에 upsert됩니다.
+- 역주행 1차 데이터는 같은 `track_id`면 중복 이벤트로 판단해 `traffic_events`에 새로 저장하지 않습니다.
 
 스크립트 동작:
 
-- 정주행 데이터 10회 전송
-- 각 정주행 데이터는 1초 간격으로 전송
-- 같은 `track_id` 기준으로 `VehicleTrack` upsert 확인
+- 고정 모드에서는 같은 `track_id` 기준으로 `VehicleTrack` upsert 확인
+- `--random-track-ids` 모드에서는 실행마다 `runId` 기반의 새로운 차량 객체 ID 생성
+- `--normal-vehicles` 옵션으로 여러 정주행 차량 객체 생성
+- `--samples-per-vehicle` 옵션으로 같은 차량 객체를 여러 번 반복 전송
 - 역주행 1차 데이터 1회 전송
 - 기본값에서는 같은 역주행 1차 데이터 재전송으로 중복 방지 확인
 - 역주행 이후 10초 대기 후 정주행 데이터 10회 재전송

@@ -335,10 +335,34 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "이벤트 수신 및 대시보드 전파 완료",
+            description: "정주행 track 갱신 또는 중복/미구현 이벤트 처리 완료",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/OkResponse" },
+                schema: { $ref: "#/components/schemas/WrongwayReceiveResult" },
+              },
+            },
+          },
+          201: {
+            description: "역주행 1차 이벤트 신규 저장 완료",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/WrongwayReceiveResult" },
+              },
+            },
+          },
+          400: {
+            description: "필수 payload 값 누락",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          500: {
+            description: "역주행 데이터 수신 처리 오류",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
               },
             },
           },
@@ -1002,10 +1026,23 @@ const swaggerSpec = {
           ok: { type: "boolean", example: true },
           stored: { type: "boolean", example: false },
           duplicated: { type: "boolean", example: false },
-          reason: { type: "string", example: "TRACK_UPDATED" },
+          reason: {
+            type: "string",
+            enum: [
+              "TRACK_UPDATED",
+              "NOT_IMPLEMENTED_YET",
+              "DUPLICATED_WRONGWAY_LEVEL_1",
+              "WRONGWAY_LEVEL_1_STORED",
+            ],
+            example: "TRACK_UPDATED",
+          },
           eventId: { type: "string", nullable: true, example: null },
           trackId: { type: "string", example: "test-normal-track-001" },
-          type: { type: "string", example: "normal-driving" },
+          type: {
+            type: "string",
+            enum: ["normal-driving", "wrong-way-level-1", "wrong-way-level-2", "wrong-way", "situation-ended"],
+            example: "normal-driving",
+          },
           warningLevel: { type: "integer", example: 0 },
           normalMovingVehicleCount: { type: "integer", example: 1 },
           receivedAt: { type: "string", format: "date-time" },

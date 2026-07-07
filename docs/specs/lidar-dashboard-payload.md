@@ -2,6 +2,17 @@
 
 이 문서는 라이다 PC가 대시보드 백엔드로 전송하는 HTTP JSON 데이터의 현재 개발 기준입니다.
 
+## 코드 처리 위치
+
+- 실제 수신 API: `POST /api/wrongway`
+- 수신 도메인: `dashboard/server/src/domains/wrongway`
+- 변환 adapter: `dashboard/server/src/domains/wrongway/adapters/lidarHttp.adapter.js`
+- 응답 DTO: `dashboard/server/src/domains/wrongway/wrongway.dto.js`
+- 처리 service: `dashboard/server/src/domains/wrongway/wrongway.service.js`
+
+현재 라이다 payload는 외부 장비에서 들어오는 값이므로, controller에서 바로 DB에 저장하지 않습니다.
+adapter가 외부 필드명을 내부 이벤트 필드로 정리하고, service가 `VehicleTrack` 갱신과 `TrafficEvent` 저장 여부를 결정합니다.
+
 ## 기본 연동 정보
 
 - 방향: 라이다 PC -> 대시보드 백엔드

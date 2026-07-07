@@ -1,7 +1,7 @@
 const { logger } = require("../../utils/logger");
 const mockLidarService = require("../mock-lidar/mockLidar.service");
 const { EXTERNAL_EVENT_SOURCE, EXTERNAL_EVENT_TYPE } = require("./externalEvent.model");
-const { adaptLidarHttpPayload } = require("./adapters/lidarHttp.adapter");
+const { adaptLidarHttpPayload } = require("../wrongway/adapters/lidarHttp.adapter");
 const { adaptControlBoardPacket } = require("./adapters/controlBoardPacket.adapter");
 
 // 최근 수신 이벤트는 DB 저장 전까지 메모리에 최대 50건만 유지한다.
