@@ -1,5 +1,6 @@
 const { logger } = require("../../utils/logger");
 const mockLidarService = require("../mock-lidar/mockLidar.service");
+const { createWrongwayErrorResponse } = require("./wrongway.dto");
 const wrongwayService = require("./wrongway.service");
 
 async function receiveWrongWay(req, res) {
@@ -25,11 +26,9 @@ async function receiveWrongWay(req, res) {
       details: error.details,
     });
 
-    res.status(error.statusCode || 500).json({
-      ok: false,
-      message: error.message || "역주행 데이터 수신 처리 중 오류가 발생했습니다.",
-      details: error.details,
-    });
+    res
+      .status(error.statusCode || 500)
+      .json(createWrongwayErrorResponse(error, "역주행 데이터 수신 처리 중 오류가 발생했습니다."));
   }
 }
 
@@ -48,11 +47,9 @@ async function sendNormalDrivingTest(req, res) {
     const result = await wrongwayService.sendNormalDrivingTestPayload(req.body || {});
     res.json(result);
   } catch (error) {
-    res.status(error.statusCode || 500).json({
-      ok: false,
-      message: error.message || "정주행 테스트 데이터 전송 중 오류가 발생했습니다.",
-      details: error.details,
-    });
+    res
+      .status(error.statusCode || 500)
+      .json(createWrongwayErrorResponse(error, "정주행 테스트 데이터 전송 중 오류가 발생했습니다."));
   }
 }
 
@@ -73,11 +70,9 @@ async function sendWrongWayLevel1Test(req, res) {
     const result = await wrongwayService.sendWrongWayLevel1TestPayload(req.body || {});
     res.status(result.result?.stored ? 201 : 200).json(result);
   } catch (error) {
-    res.status(error.statusCode || 500).json({
-      ok: false,
-      message: error.message || "역주행 1차 테스트 데이터 전송 중 오류가 발생했습니다.",
-      details: error.details,
-    });
+    res
+      .status(error.statusCode || 500)
+      .json(createWrongwayErrorResponse(error, "역주행 1차 테스트 데이터 전송 중 오류가 발생했습니다."));
   }
 }
 

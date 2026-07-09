@@ -1,6 +1,6 @@
 const { prisma } = require("../../prisma/client");
 
-// 특정 현장(site)에 속한 구역(zone) 목록을 디바이스 수와 함께 조회한다.
+// 특정 현장(site)에 속한 구역(zone) 목록을 장비 수와 함께 조회한다.
 async function getZonesBySite(siteId) {
   // 존재하지 않는 현장과 구역이 없는 현장을 구분하기 위해 현장 존재 여부를 먼저 확인한다.
   const site = await prisma.site.findUnique({ where: { id: siteId } });
@@ -10,7 +10,7 @@ async function getZonesBySite(siteId) {
     where: { siteId },
     orderBy: { createdAt: "asc" },
     include: {
-      // 구역 목록에서 규모를 빠르게 확인할 수 있도록 디바이스 수를 함께 계산한다.
+      // 구역 목록에서 규모를 빠르게 확인하도록 장비 수를 함께 계산한다.
       _count: { select: { devices: true } },
     },
   });
@@ -28,12 +28,12 @@ async function getZonesBySite(siteId) {
   }));
 }
 
-// 전체 구역(zone) 목록을 소속 현장 요약과 디바이스 수와 함께 조회한다.
+// 전체 구역(zone) 목록을 소속 현장 요약과 장비 수와 함께 조회한다.
 async function getZones() {
   const zones = await prisma.zone.findMany({
     orderBy: { createdAt: "asc" },
     include: {
-      // 전체 목록에서는 각 구역이 어느 현장 소속인지 함께 보여준다.
+      // 전체 목록에서도 각 구역이 어느 현장 소속인지 함께 보여준다.
       site: { select: { id: true, name: true } },
       _count: { select: { devices: true } },
     },
@@ -53,7 +53,7 @@ async function getZones() {
   }));
 }
 
-// 구역 하나의 상세 정보를 소속 현장 요약과 디바이스 목록까지 포함해 조회한다.
+// 구역 하나의 상세 정보를 소속 현장 요약과 장비 목록까지 포함해 조회한다.
 async function getZoneById(id) {
   const zone = await prisma.zone.findUnique({
     where: { id },

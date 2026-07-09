@@ -32,5 +32,3 @@ scripts/wrongway-test.config.json
 # Local editor/tool settings
 .vscode/
 dashboard/.claude/
-
-CLAUDE.md

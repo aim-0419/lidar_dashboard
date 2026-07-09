@@ -1,11 +1,11 @@
 const { prisma } = require("../../prisma/client");
 
-// 현장 목록과 각 현장에 속한 존/디바이스 수를 함께 조회한다.
+// 현장 목록과 각 현장에 속한 구역/장비 수를 함께 조회한다.
 async function getSites() {
   const sites = await prisma.site.findMany({
     orderBy: { createdAt: "asc" },
     include: {
-      // 목록 화면에서 현장 규모를 빠르게 확인할 수 있도록 존/디바이스 수를 함께 계산한다.
+      // 목록 화면에서 현장 규모를 빠르게 확인하도록 구역/장비 수를 함께 계산한다.
       _count: { select: { zones: true } },
       zones: {
         select: {
@@ -16,7 +16,7 @@ async function getSites() {
   });
 
   return sites.map((site) => {
-    // 디바이스는 존에 속하므로 현장 단위 수는 각 존의 디바이스 수를 합산해 구한다.
+    // 장비는 구역에 속하므로 현장 단위 장비 수는 각 구역의 장비 수를 합산한다.
     const deviceCount = site.zones.reduce(
       (sum, zone) => sum + zone._count.devices,
       0
@@ -35,7 +35,7 @@ async function getSites() {
   });
 }
 
-// 현장 하나의 상세 정보를 존/디바이스까지 중첩해서 조회한다.
+// 현장 하나의 상세 정보를 구역/장비까지 중첩해서 조회한다.
 async function getSiteById(id) {
   const site = await prisma.site.findUnique({
     where: { id },

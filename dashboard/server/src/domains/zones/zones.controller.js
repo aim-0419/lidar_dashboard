@@ -56,7 +56,7 @@ async function getZonesBySiteController(req, res) {
   }
 }
 
-// 구역 상세 조회 요청을 받아 디바이스를 포함한 상세 정보를 반환한다.
+// 구역 상세 조회 요청을 받아 장비를 포함한 상세 정보를 반환한다.
 async function getZoneByIdController(req, res) {
   const { id } = req.params;
 

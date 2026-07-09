@@ -1,7 +1,7 @@
 const { prisma } = require("../../prisma/client");
 
 // 장비(device) 응답은 여러 API에서 공통으로 쓰이므로 매퍼를 하나로 유지한다.
-// DB 컬럼명을 그대로 노출하지 않고 프론트가 쓰는 camelCase 필드만 골라 반환한다.
+// DB 컬럼명을 그대로 노출하지 않고 프론트엔드가 읽는 camelCase 필드만 골라 반환한다.
 function toDeviceResponse(device) {
   return {
     id: device.id,
@@ -20,7 +20,7 @@ function toDeviceResponse(device) {
   };
 }
 
-// 장비가 어느 구역/현장 소속인지 목록·상세에서 함께 보여주기 위한 요약 매퍼다.
+// 장비가 어느 구역/현장 소속인지 목록/상세에서 함께 보여주기 위한 요약 매퍼다.
 function toZoneSummary(zone) {
   if (!zone) return null;
   return {
@@ -36,7 +36,7 @@ async function getDevices() {
   const devices = await prisma.device.findMany({
     orderBy: { createdAt: "asc" },
     include: {
-      // 목록에서 각 장비가 어느 구역/현장에 있는지 바로 확인할 수 있도록 요약을 붙인다.
+      // 목록에서 각 장비가 어느 구역/현장에 있는지 바로 확인하도록 요약을 붙인다.
       zone: { select: { id: true, zoneCode: true, name: true, site: { select: { id: true, name: true } } } },
     },
   });
@@ -88,7 +88,7 @@ async function getDevicesByZone(zoneId) {
   return devices.map(toDeviceResponse);
 }
 
-// 장비 하나의 상태 값만 좁게 조회한다. 상태 폴링/헬스 확인 화면에서 가볍게 쓰기 위한 API다.
+// 장비 하나의 상태 값만 좁게 조회한다. 상태 배지/헬스 확인 화면에서 가볍게 쓰기 위한 API다.
 async function getDeviceStatus(id) {
   const device = await prisma.device.findUnique({
     where: { id },

@@ -21,7 +21,7 @@ async function getSitesController(req, res) {
   }
 }
 
-// 현장 상세 조회 요청을 받아 존/디바이스를 포함한 상세 정보를 반환한다.
+// 현장 상세 조회 요청을 받아 구역과 장비를 포함한 상세 정보를 반환한다.
 async function getSiteByIdController(req, res) {
   const { id } = req.params;
 

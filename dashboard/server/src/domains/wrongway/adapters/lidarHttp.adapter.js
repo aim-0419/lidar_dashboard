@@ -3,7 +3,7 @@ const {
   EXTERNAL_EVENT_TYPE,
   createExternalEvent,
   createRawSummary,
-} = require("../externalEvent.model");
+} = require("../../external-ingest/externalEvent.model");
 
 // 라이다 PC가 보내는 상황 type을 대시보드 내부 이벤트 타입으로 변환한다.
 // 외부 type 원문은 originalType으로 따로 보존하고, 내부 처리는 아래 표준 타입을 기준으로 한다.
