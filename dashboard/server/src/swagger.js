@@ -14,6 +14,9 @@ const swaggerSpec = {
   tags: [
     { name: "Health", description: "서버 상태 확인" },
     { name: "Database", description: "DB 연결과 기본 테이블 확인" },
+    { name: "Sites", description: "현장 정보 조회" },
+    { name: "Zones", description: "현장별 구역 조회" },
+    { name: "Devices", description: "장비 목록/상세/상태 조회" },
     { name: "Dashboard", description: "대시보드 상태와 로그 조회" },
     { name: "Control", description: "차단기와 전광판 제어" },
     { name: "Control Board", description: "통합제어보드 이더넷 TCP 명령 전송" },
@@ -58,6 +61,350 @@ const swaggerSpec = {
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/DatabaseHealthErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/sites": {
+      get: {
+        tags: ["Sites"],
+        summary: "현장 목록 조회",
+        description:
+          "등록된 현장 목록을 생성순으로 반환합니다. 각 현장에 속한 구역 수와 장비 수를 함께 제공합니다.",
+        responses: {
+          200: {
+            description: "현장 목록 조회 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    data: {
+                      type: "object",
+                      properties: {
+                        count: { type: "integer", example: 1 },
+                        sites: {
+                          type: "array",
+                          items: { type: "object", additionalProperties: true },
+                        },
+                      },
+                    },
+                    message: { type: "string", example: "OK" },
+                  },
+                },
+              },
+            },
+          },
+          503: {
+            description: "현장 목록 조회 실패",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/sites/{id}": {
+      get: {
+        tags: ["Sites"],
+        summary: "현장 상세 조회",
+        description: "현장 하나의 상세 정보를 반환합니다. 해당 현장에 속한 구역과 장비 정보를 함께 제공합니다.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "site-wolchulsan-rest-area",
+          },
+        ],
+        responses: {
+          200: {
+            description: "현장 상세 조회 성공",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          404: {
+            description: "현장을 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          503: {
+            description: "현장 상세 조회 실패",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/zones": {
+      get: {
+        tags: ["Zones"],
+        summary: "구역 목록 조회",
+        description: "등록된 전체 구역 목록을 생성순으로 반환합니다. 각 구역의 소속 현장 요약과 장비 수를 함께 제공합니다.",
+        responses: {
+          200: {
+            description: "구역 목록 조회 성공",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          503: {
+            description: "구역 목록 조회 실패",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/zones/{id}": {
+      get: {
+        tags: ["Zones"],
+        summary: "구역 상세 조회",
+        description: "구역 하나의 상세 정보를 반환합니다. 소속 현장 요약과 장비 목록을 함께 제공합니다.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "zone-roundabout-01",
+          },
+        ],
+        responses: {
+          200: {
+            description: "구역 상세 조회 성공",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          404: {
+            description: "구역을 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          503: {
+            description: "구역 상세 조회 실패",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/sites/{siteId}/zones": {
+      get: {
+        tags: ["Zones"],
+        summary: "현장별 구역 조회",
+        description: "특정 현장에 속한 구역 목록을 생성순으로 반환합니다.",
+        parameters: [
+          {
+            name: "siteId",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "site-wolchulsan-rest-area",
+          },
+        ],
+        responses: {
+          200: {
+            description: "현장별 구역 조회 성공",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          404: {
+            description: "현장을 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          503: {
+            description: "구역 목록 조회 실패",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/devices": {
+      get: {
+        tags: ["Devices"],
+        summary: "장비 목록 조회",
+        description: "등록된 전체 장비 목록을 생성순으로 반환합니다. 각 장비의 소속 구역/현장 요약을 함께 제공합니다.",
+        responses: {
+          200: {
+            description: "장비 목록 조회 성공",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          503: {
+            description: "장비 목록 조회 실패",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/devices/{id}": {
+      get: {
+        tags: ["Devices"],
+        summary: "장비 상세 조회",
+        description: "장비 하나의 상세 정보를 반환합니다. 소속 구역/현장 요약을 함께 제공합니다.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "device-lidar-pc-01",
+          },
+        ],
+        responses: {
+          200: {
+            description: "장비 상세 조회 성공",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          404: {
+            description: "장비를 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          503: {
+            description: "장비 상세 조회 실패",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/devices/{id}/status": {
+      get: {
+        tags: ["Devices"],
+        summary: "장비 상태 조회",
+        description: "장비 하나의 상태와 헬스 상태만 좁게 반환합니다.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "device-lidar-pc-01",
+          },
+        ],
+        responses: {
+          200: {
+            description: "장비 상태 조회 성공",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          404: {
+            description: "장비를 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          503: {
+            description: "장비 상태 조회 실패",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/zones/{zoneId}/devices": {
+      get: {
+        tags: ["Devices"],
+        summary: "구역별 장비 조회",
+        description: "특정 구역에 속한 장비 목록을 생성순으로 반환합니다.",
+        parameters: [
+          {
+            name: "zoneId",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "zone-roundabout-01",
+          },
+        ],
+        responses: {
+          200: {
+            description: "구역별 장비 조회 성공",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          404: {
+            description: "구역을 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+          503: {
+            description: "장비 목록 조회 실패",
+            content: {
+              "application/json": {
+                schema: { type: "object", additionalProperties: true },
               },
             },
           },
