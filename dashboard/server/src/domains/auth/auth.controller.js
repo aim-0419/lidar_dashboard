@@ -1,9 +1,12 @@
 const authService = require("./auth.service");
 const { logger } = require("../../utils/logger");
 
+const REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
+const REFRESH_TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
 async function login(req, res) {
   try {
-    logger.info("컨트롤러에서 로그인 요청 수신", {
+    logger.info("login request accepted by controller", {
       userId: req.body?.userId,
     });
 
@@ -12,9 +15,21 @@ async function login(req, res) {
       password: req.body?.password,
     });
 
-    res.status(200).json(result);
+    res.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+      maxAge: REFRESH_TOKEN_MAX_AGE_MS,
+      path: "/",
+    });
+
+    res.status(200).json({
+      ok: result.ok,
+      accessToken: result.accessToken,
+      user: result.user,
+    });
   } catch (error) {
-    logger.warn("컨트롤러에서 로그인 요청 실패", {
+    logger.warn("login request failed in controller", {
       userId: req.body?.userId,
       statusCode: error.statusCode,
       message: error.message,

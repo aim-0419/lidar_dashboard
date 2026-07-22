@@ -47,7 +47,7 @@ const swaggerSpec = {
         tags: ["Auth"],
         summary: "관리자 로그인",
         description:
-          "userId와 password를 받아 사용자를 확인하고 access token, refresh token을 발급합니다.",
+          "userId와 password를 받아 사용자를 확인하고 accessToken은 응답 본문으로, refreshToken은 HttpOnly 쿠키로 발급합니다.",
         requestBody: {
           required: true,
           content: {
@@ -59,6 +59,16 @@ const swaggerSpec = {
         responses: {
           200: {
             description: "로그인 성공",
+            headers: {
+              "Set-Cookie": {
+                description: "HttpOnly refreshToken cookie",
+                schema: {
+                  type: "string",
+                  example:
+                    "refreshToken=jwt_refresh_token; HttpOnly; Path=/; SameSite=Lax",
+                },
+              },
+            },
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/LoginSuccessResponse" },
@@ -66,10 +76,77 @@ const swaggerSpec = {
             },
           },
           401: {
-            description: "아이디 또는 비밀번호 불일치, 또는 비활성 사용자",
+            description: "아이디 또는 비밀번호가 올바르지 않거나 비활성 사용자",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/LoginFailResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/users/me": {
+      get: {
+        tags: ["Users"],
+        summary: "? ?? ??",
+        description: "?? ???? ???? ??? ?????.",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: "? ?? ?? ??",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "admin" },
+                        name: { type: "string", example: "???" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: true },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "?? ?? ?? ?? ??",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: {
+                      type: "string",
+                      example: "?? ???? ?? ????? ??? ???????.",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "??? ??? ?? ? ??",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "??? ??? ?? ? ????." },
+                  },
+                },
               },
             },
           },
@@ -1095,6 +1172,13 @@ const swaggerSpec = {
     },
   },
   components: {
+    securitySchemes: {
+      bearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+      },
+    },
     schemas: {
       HealthResponse: {
         type: "object",
@@ -1125,7 +1209,6 @@ const swaggerSpec = {
         properties: {
           ok: { type: "boolean", example: true },
           accessToken: { type: "string", example: "jwt_access_token" },
-          refreshToken: { type: "string", example: "jwt_refresh_token" },
           user: { $ref: "#/components/schemas/LoginUser" },
         },
       },
