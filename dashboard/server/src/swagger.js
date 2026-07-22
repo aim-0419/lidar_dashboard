@@ -13,6 +13,7 @@ const swaggerSpec = {
   ],
   tags: [
     { name: "Health", description: "서버 상태 확인" },
+    { name: "Auth", description: "로그인과 인증 토큰 발급" },
     { name: "Database", description: "DB 연결과 기본 테이블 확인" },
     { name: "Sites", description: "현장 정보 조회" },
     { name: "Zones", description: "현장별 구역 조회" },
@@ -35,6 +36,40 @@ const swaggerSpec = {
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/HealthResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/auth/login": {
+      post: {
+        tags: ["Auth"],
+        summary: "관리자 로그인",
+        description:
+          "userId와 password를 받아 사용자를 확인하고 access token, refresh token을 발급합니다.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/LoginRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "로그인 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/LoginSuccessResponse" },
+              },
+            },
+          },
+          401: {
+            description: "아이디 또는 비밀번호 불일치, 또는 비활성 사용자",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/LoginFailResponse" },
               },
             },
           },
@@ -1068,7 +1103,42 @@ const swaggerSpec = {
           ts: { type: "string", format: "date-time" },
         },
       },
-      DatabaseHealthResponse: {
+      LoginRequest: {
+        type: "object",
+        required: ["userId", "password"],
+        properties: {
+          userId: { type: "string", example: "admin" },
+          password: { type: "string", example: "password" },
+        },
+      },
+      LoginUser: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "user_id" },
+          userId: { type: "string", example: "admin" },
+          name: { type: "string", example: "관리자" },
+          role: { type: "string", example: "super_admin" },
+        },
+      },
+      LoginSuccessResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          accessToken: { type: "string", example: "jwt_access_token" },
+          refreshToken: { type: "string", example: "jwt_refresh_token" },
+          user: { $ref: "#/components/schemas/LoginUser" },
+        },
+      },
+      LoginFailResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: false },
+          message: {
+            type: "string",
+            example: "아이디 또는 비밀번호가 올바르지 않습니다.",
+          },
+        },
+      },      DatabaseHealthResponse: {
         type: "object",
         properties: {
           ok: { type: "boolean", example: true },
@@ -1525,3 +1595,4 @@ const swaggerSpec = {
 };
 
 module.exports = swaggerSpec;
+
