@@ -86,15 +86,52 @@ const swaggerSpec = {
         },
       },
     },
-    "/api/users/me": {
+    "/api/auth/refresh": {
+      post: {
+        tags: ["Auth"],
+        summary: "토큰 재발급",
+        description: "HttpOnly cookie에 저장된 refreshToken을 검증해 새로운 accessToken을 발급합니다.",
+        responses: {
+          200: {
+            description: "토큰 재발급 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    accessToken: { type: "string", example: "jwt_access_token" },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "리프레시 토큰이 없거나 유효하지 않음",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "유효하지 않은 리프레시 토큰입니다." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/auth/me": {
       get: {
-        tags: ["Users"],
-        summary: "? ?? ??",
-        description: "?? ???? ???? ??? ?????.",
+        tags: ["Auth"],
+        summary: "내 정보 조회",
+        description: "현재 로그인한 사용자의 정보를 조회합니다.",
         security: [{ bearerAuth: [] }],
         responses: {
           200: {
-            description: "? ?? ?? ??",
+            description: "내 정보 조회 성공",
             content: {
               "application/json": {
                 schema: {
@@ -106,7 +143,7 @@ const swaggerSpec = {
                       properties: {
                         id: { type: "string", example: "user_id" },
                         userId: { type: "string", example: "admin" },
-                        name: { type: "string", example: "???" },
+                        name: { type: "string", example: "관리자" },
                         role: { type: "string", example: "super_admin" },
                         isActive: { type: "boolean", example: true },
                         lastLoginAt: { type: "string", format: "date-time", nullable: true },
@@ -120,7 +157,107 @@ const swaggerSpec = {
             },
           },
           401: {
-            description: "?? ?? ?? ?? ??",
+            description: "인증 실패",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "유효하지 않은 토큰입니다." },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "사용자 정보를 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "사용자 정보를 찾을 수 없습니다." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/auth/logout": {
+      post: {
+        tags: ["Auth"],
+        summary: "로그아웃",
+        description: "HttpOnly cookie에 저장된 refreshToken을 폐기하고 쿠키를 삭제합니다.",
+        responses: {
+          200: {
+            description: "로그아웃 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                  },
+                },
+              },
+            },
+          },
+          500: {
+            description: "로그아웃 처리 실패",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "로그아웃 처리 중 오류가 발생했습니다." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/users/me": {
+      get: {
+        tags: ["Users"],
+        summary: "내 정보 조회",
+        description: "현재 로그인한 사용자의 정보를 조회합니다.",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: "내 정보 조회 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "admin" },
+                        name: { type: "string", example: "관리자" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: true },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "인증 실패",
             content: {
               "application/json": {
                 schema: {
@@ -129,7 +266,7 @@ const swaggerSpec = {
                     ok: { type: "boolean", example: false },
                     message: {
                       type: "string",
-                      example: "?? ???? ?? ????? ??? ???????.",
+                      example: "유효하지 않은 토큰입니다.",
                     },
                   },
                 },
@@ -137,14 +274,14 @@ const swaggerSpec = {
             },
           },
           404: {
-            description: "??? ??? ?? ? ??",
+            description: "사용자 정보를 찾을 수 없음",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "??? ??? ?? ? ????." },
+                    message: { type: "string", example: "사용자 정보를 찾을 수 없습니다." },
                   },
                 },
               },
@@ -185,6 +322,7 @@ const swaggerSpec = {
         summary: "현장 목록 조회",
         description:
           "등록된 현장 목록을 생성순으로 반환합니다. 각 현장에 속한 구역 수와 장비 수를 함께 제공합니다.",
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "현장 목록 조회 성공",
@@ -235,6 +373,7 @@ const swaggerSpec = {
             example: "site-wolchulsan-rest-area",
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "현장 상세 조회 성공",
@@ -268,6 +407,7 @@ const swaggerSpec = {
         tags: ["Zones"],
         summary: "구역 목록 조회",
         description: "등록된 전체 구역 목록을 생성순으로 반환합니다. 각 구역의 소속 현장 요약과 장비 수를 함께 제공합니다.",
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "구역 목록 조회 성공",
@@ -302,6 +442,7 @@ const swaggerSpec = {
             example: "zone-roundabout-01",
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "구역 상세 조회 성공",
@@ -344,6 +485,7 @@ const swaggerSpec = {
             example: "site-wolchulsan-rest-area",
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "현장별 구역 조회 성공",
@@ -377,6 +519,7 @@ const swaggerSpec = {
         tags: ["Devices"],
         summary: "장비 목록 조회",
         description: "등록된 전체 장비 목록을 생성순으로 반환합니다. 각 장비의 소속 구역/현장 요약을 함께 제공합니다.",
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "장비 목록 조회 성공",
@@ -411,6 +554,7 @@ const swaggerSpec = {
             example: "device-lidar-pc-01",
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "장비 상세 조회 성공",
@@ -453,6 +597,7 @@ const swaggerSpec = {
             example: "device-lidar-pc-01",
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "장비 상태 조회 성공",
@@ -495,6 +640,7 @@ const swaggerSpec = {
             example: "zone-roundabout-01",
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "구역별 장비 조회 성공",
@@ -646,6 +792,7 @@ const swaggerSpec = {
             },
           },
         },
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "통합제어보드 명령 처리 결과",
@@ -717,6 +864,7 @@ const swaggerSpec = {
             schema: { type: "string", example: "cmd_123456" },
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "명령 상세 결과",

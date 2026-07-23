@@ -55,7 +55,6 @@ function authenticateToken(req, res, next) {
           userId: true,
           role: true,
           isActive: true,
-          currentSessionId: true,
         },
       });
 
@@ -73,27 +72,10 @@ function authenticateToken(req, res, next) {
         });
       }
 
-      if (!decoded.sessionId || user.currentSessionId !== decoded.sessionId) {
-        logger.warn("authentication failed: session mismatch", {
-          path: req.originalUrl,
-          method: req.method,
-          userId: user.userId,
-          userDbId: user.id,
-          tokenSessionId: decoded.sessionId,
-          currentSessionId: user.currentSessionId,
-        });
-
-        return res.status(401).json({
-          ok: false,
-          message: "다른 기기에서 다시 로그인되어 세션이 만료되었습니다.",
-        });
-      }
-
       req.user = {
         id: user.id,
         userId: user.userId,
         role: user.role,
-        sessionId: decoded.sessionId,
       };
 
       logger.info("authentication succeeded", {
@@ -101,7 +83,6 @@ function authenticateToken(req, res, next) {
         method: req.method,
         userId: req.user.userId,
         role: req.user.role,
-        sessionId: req.user.sessionId,
       });
 
       next();

@@ -14,7 +14,6 @@ model User {
   role             String         @default("SUPER_ADMIN")
   isActive         Boolean        @default(true) @map("is_active")
   lastLoginAt      DateTime?      @map("last_login_at")
-  currentSessionId String?        @map("current_session_id")
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
   eventLogs        EventLog[]
