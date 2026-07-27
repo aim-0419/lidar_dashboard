@@ -1,0 +1,230 @@
+.event-page .ops-header {
+  align-items: flex-start;
+}
+
+.event-export-button {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  min-height: 36px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.event-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.event-search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: min(100%, 420px);
+  border: 1px solid #dbe4f0;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.event-search input {
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  background: transparent;
+  color: #111827;
+  font-size: 13px;
+  outline: none;
+}
+
+.event-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  color: #64748b;
+}
+
+.event-filter-group button {
+  min-height: 32px;
+  border: 1px solid #dbe4f0;
+  border-radius: 999px;
+  padding: 0 11px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.event-filter-group button.active {
+  border-color: #1d4ed8;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.event-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.event-table-card {
+  overflow: auto;
+}
+
+.event-table {
+  width: 100%;
+  min-width: 780px;
+  border-collapse: collapse;
+}
+
+.event-table th {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 10px 12px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.event-table td {
+  border-bottom: 1px solid #f1f5f9;
+  padding: 12px;
+  color: #334155;
+  font-size: 13px;
+}
+
+.event-table tr {
+  cursor: pointer;
+}
+
+.event-table tbody tr:hover,
+.event-table tbody tr.selected {
+  background: #f8fafc;
+}
+
+.event-type-badge {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.event-type-badge.wrong-way-level-1,
+.event-type-badge.wrong-way-level-2 {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.event-type-badge.pedestrian-entered {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.event-detail {
+  position: sticky;
+  top: 18px;
+  align-self: start;
+}
+
+.event-thumbnail {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(15, 23, 42, 0.08)),
+    repeating-linear-gradient(90deg, #0f172a 0 18px, #172033 18px 36px);
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.event-thumbnail.wrong-way-level-1,
+.event-thumbnail.wrong-way-level-2 {
+  background:
+    linear-gradient(135deg, rgba(220, 38, 38, 0.28), rgba(15, 23, 42, 0.08)),
+    repeating-linear-gradient(90deg, #0f172a 0 18px, #172033 18px 36px);
+}
+
+.event-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.event-detail-list div {
+  border-radius: 10px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.event-detail-list dt {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.event-detail-list dd {
+  margin: 4px 0 0;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+  word-break: break-all;
+}
+
+.event-detail-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.event-detail-actions button {
+  min-height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.event-detail-actions button.primary {
+  border-color: #1d4ed8;
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+.event-empty {
+  color: #64748b;
+  font-size: 13px;
+}
+
+@media (max-width: 1180px) {
+  .event-layout,
+  .event-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .event-layout {
+    display: block;
+  }
+
+  .event-detail {
+    position: static;
+    margin-top: 14px;
+  }
+}
