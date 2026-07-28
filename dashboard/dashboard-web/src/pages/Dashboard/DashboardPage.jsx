@@ -44,7 +44,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [serverAlive, setServerAlive] = useState(false);
   const [eventModalEnabled, setEventModalEnabled] = useState(true);
-  const [activeEvent, setActiveEvent] = useState(realtimeEvents[0]);
+  const [activeEvent, setActiveEvent] = useState(null);
   const [panelMinimized, setPanelMinimized] = useState(false);
   const [latestSnapshot, setLatestSnapshot] = useState(liveSnapshot);
   const modalEnabledRef = useRef(eventModalEnabled);
