@@ -8,8 +8,28 @@ const apiRoutes = require("./routes");
 const { config } = require("./config");
 
 const app = express();
+const allowedOrigins = new Set([
+  config.frontendBaseUrl,
+  config.dashboardBaseUrl,
+  `http://localhost:${config.port}`,
+  `http://127.0.0.1:${config.port}`,
+  `http://${config.publicHost}:${config.frontendPort}`,
+  `http://127.0.0.1:${config.frontendPort}`,
+]);
 
-app.use(cors());
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS origin not allowed: ${origin}`));
+    },
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 app.get("/api-docs.json", (req, res) => res.json(swaggerSpec));

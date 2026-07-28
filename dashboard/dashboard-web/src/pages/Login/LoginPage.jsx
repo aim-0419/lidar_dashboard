@@ -45,7 +45,7 @@ export default function LoginPage() {
       });
       navigate(redirectPath, { replace: true });
     } catch (error) {
-      setErrorMessage(error.message || "·Î±×ÀÎ Ã³¸® Áß ¿À·ù°¡ ¹ß»ıÇß½À´Ï´Ù.");
+      setErrorMessage(error.message || "ë¡œê·¸ì¸ ì²˜ë¦¬ ì¤‘ ì˜¤ë¥˜ê°€ ë°œìƒí–ˆìŠµë‹ˆë‹¤.");
     } finally {
       setIsSubmitting(false);
     }
@@ -77,7 +77,7 @@ export default function LoginPage() {
         {errorMessage ? <p style={errorText}>{errorMessage}</p> : null}
 
         <button type="submit" disabled={isSubmitting} style={btn}>
-          {isSubmitting ? "·Î±×ÀÎ Áß..." : t("title.loginbtn")}
+          {isSubmitting ? "ë¡œê·¸ì¸ ì¤‘..." : t("title.loginbtn")}
         </button>
       </form>
     </div>

@@ -15,7 +15,7 @@ export default function RequireAuth({ children }) {
   const location = useLocation();
 
   if (isInitializing) {
-    return <div style={loadingWrapStyle}>ÀÎÁõ »óÅÂ¸¦ È®ÀÎÇÏ´Â ÁßÀÔ´Ï´Ù.</div>;
+    return <div style={loadingWrapStyle}>ì¸ì¦ ìƒíƒœë¥¼ í™•ì¸í•˜ëŠ” ì¤‘ì…ë‹ˆë‹¤.</div>;
   }
 
   if (!isLoggedIn) {
