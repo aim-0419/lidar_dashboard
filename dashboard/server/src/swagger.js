@@ -14,6 +14,7 @@ const swaggerSpec = {
   tags: [
     { name: "Health", description: "서버 상태 확인" },
     { name: "Auth", description: "로그인과 인증 토큰 발급" },
+    { name: "Users", description: "User management and profile APIs" },
     { name: "Database", description: "DB 연결과 기본 테이블 확인" },
     { name: "Sites", description: "현장 정보 조회" },
     { name: "Zones", description: "현장별 구역 조회" },
@@ -282,6 +283,486 @@ const swaggerSpec = {
                   properties: {
                     ok: { type: "boolean", example: false },
                     message: { type: "string", example: "사용자 정보를 찾을 수 없습니다." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/users": {
+      get: {
+        tags: ["Users"],
+        summary: "Get users list",
+        description: "Returns the list of users for administrators.",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: "Users list fetched successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    count: { type: "integer", example: 1 },
+                    users: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string", example: "user_id" },
+                          userId: { type: "string", example: "admin" },
+                          name: { type: "string", example: "admin" },
+                          role: { type: "string", example: "super_admin" },
+                          isActive: { type: "boolean", example: true },
+                          lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                          createdAt: { type: "string", format: "date-time" },
+                          updatedAt: { type: "string", format: "date-time" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "Authentication failed",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "Authentication is required." },
+                  },
+                },
+              },
+            },
+          },
+          403: {
+            description: "Insufficient permission",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "Permission denied." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: ["Users"],
+        summary: "Create user",
+        description: "Creates a new user for administrators.",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["userId", "name", "password"],
+                properties: {
+                  userId: { type: "string", example: "manager01" },
+                  name: { type: "string", example: "manager" },
+                  password: { type: "string", example: "password123" },
+                  role: { type: "string", example: "SUPER_ADMIN" },
+                  isActive: { type: "boolean", example: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: "User created successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "manager01" },
+                        name: { type: "string", example: "manager" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: true },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: "Invalid request body",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "userId, name, and password are required." },
+                  },
+                },
+              },
+            },
+          },
+          409: {
+            description: "User ID already exists",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "User ID already exists." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/users/{id}": {
+      get: {
+        tags: ["Users"],
+        summary: "Get user detail",
+        description: "Returns a single user detail for administrators.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "user_id",
+          },
+        ],
+        responses: {
+          200: {
+            description: "User detail fetched successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "admin" },
+                        name: { type: "string", example: "admin" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: true },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "Authentication failed",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "Authentication is required." },
+                  },
+                },
+              },
+            },
+          },
+          403: {
+            description: "Insufficient permission",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "Permission denied." },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "User not found." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      patch: {
+        tags: ["Users"],
+        summary: "Update user",
+        description: "Updates a user for administrators.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "user_id",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  userId: { type: "string", example: "manager02" },
+                  name: { type: "string", example: "updated manager" },
+                  role: { type: "string", example: "SUPER_ADMIN" },
+                  isActive: { type: "boolean", example: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "User updated successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "manager02" },
+                        name: { type: "string", example: "updated manager" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: true },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: "Invalid request body",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "At least one field is required to update the user." },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "User not found." },
+                  },
+                },
+              },
+            },
+          },
+          409: {
+            description: "User ID already exists",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "User ID already exists." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      delete: {
+        tags: ["Users"],
+        summary: "Deactivate user",
+        description: "Deactivates a user for administrators.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "user_id",
+          },
+        ],
+        responses: {
+          200: {
+            description: "User deactivated successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "manager02" },
+                        name: { type: "string", example: "updated manager" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: false },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "User not found." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/users/{id}/password": {
+      patch: {
+        tags: ["Users"],
+        summary: "Update user password",
+        description: "Changes or resets a user password for administrators.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "user_id",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["password"],
+                properties: {
+                  password: { type: "string", example: "newPassword123" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "User password updated successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "manager02" },
+                        name: { type: "string", example: "updated manager" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: true },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: "Invalid request body",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "password is required." },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "User not found." },
                   },
                 },
               },
