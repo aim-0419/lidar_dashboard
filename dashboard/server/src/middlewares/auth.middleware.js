@@ -4,6 +4,10 @@ const { config } = require("../config");
 const { prisma } = require("../prisma/client");
 const { logger } = require("../utils/logger");
 
+function normalizeRole(role) {
+  return String(role || "").trim().toUpperCase();
+}
+
 function authenticateToken(req, res, next) {
   const authorizationHeader = req.headers.authorization || "";
 
@@ -101,4 +105,48 @@ function authenticateToken(req, res, next) {
   });
 }
 
-module.exports = { authenticateToken };
+function requireRole(...roles) {
+  const allowedRoles = roles.map(normalizeRole).filter(Boolean);
+
+  return function roleMiddleware(req, res, next) {
+    if (!req.user) {
+      logger.warn("authorization failed: missing authenticated user", {
+        path: req.originalUrl,
+        method: req.method,
+      });
+
+      return res.status(401).json({
+        ok: false,
+        message: "인증이 필요합니다.",
+      });
+    }
+
+    const currentRole = normalizeRole(req.user.role);
+
+    if (allowedRoles.length > 0 && !allowedRoles.includes(currentRole)) {
+      logger.warn("authorization failed: insufficient role", {
+        path: req.originalUrl,
+        method: req.method,
+        userId: req.user.userId,
+        currentRole,
+        allowedRoles,
+      });
+
+      return res.status(403).json({
+        ok: false,
+        message: "권한이 없습니다.",
+      });
+    }
+
+    logger.info("authorization succeeded", {
+      path: req.originalUrl,
+      method: req.method,
+      userId: req.user.userId,
+      currentRole,
+    });
+
+    next();
+  };
+}
+
+module.exports = { authenticateToken, requireRole };
