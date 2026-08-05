@@ -1,126 +1,140 @@
 # 라이다 PC -> 대시보드 payload 규격
 
-이 문서는 라이다 PC가 대시보드 백엔드로 전송하는 HTTP JSON 데이터의 현재 개발 기준입니다.
+> 최종 업데이트: 2026-08-05
 
-## 코드 처리 위치
-
-- 실제 수신 API: `POST /api/wrongway`
-- 수신 도메인: `dashboard/server/src/domains/wrongway`
-- 변환 adapter: `dashboard/server/src/domains/wrongway/adapters/lidarHttp.adapter.js`
-- 응답 DTO: `dashboard/server/src/domains/wrongway/wrongway.dto.js`
-- 처리 service: `dashboard/server/src/domains/wrongway/wrongway.service.js`
-
-현재 라이다 payload는 외부 장비에서 들어오는 값이므로, controller에서 바로 DB에 저장하지 않습니다.
-adapter가 외부 필드명을 내부 이벤트 필드로 정리하고, service가 `VehicleTrack` 갱신과 `TrafficEvent` 저장 여부를 결정합니다.
+이 문서는 라이다 PC가 대시보드 백엔드로 전송하는 HTTP JSON의 최신 외부 연동 기준입니다.
 
 ## 기본 연동 정보
 
 - 방향: 라이다 PC -> 대시보드 백엔드
 - 방식: HTTP POST
-- Content-Type: `application/json`
-- endpoint: `/api/wrongway`
-- 정주행 데이터: 차량이 감지 범위에 있는 동안 1초 간격 전송 가능
-- 역주행 1차 데이터: 상황 발생 시 1회 전송 기준
+- Content-Type: application/json
+- endpoint: /api/wrongway
+- payload 단위: 한 시점의 상위 스냅샷과 objects 다중 객체 배열
+- 객체가 1개여도 objects 배열 안에 넣어 전송
 
-## 정주행 payload 예시
+## 최신 payload 예시
 
-```json
-{
-  "type": "normal-driving",
-  "warning_level": 0,
-  "timestamp": "2026-01-13T14:43:53.860089+09:00",
-  "confidence": 1.0,
-  "zone_id": "Z261",
-  "track_id": "54750000-0000-0000-0000-000000000000",
-  "message": "정주행",
-  "speed_ms": 0.5792374909226594,
-  "speed_kmh": 2.085254967321574,
-  "object_class": 1,
-  "description": "Normal",
-  "consecutive_count": 0,
-  "is_confirmed": false
-}
-```
+    {
+      "timestamp": "2026-01-13T14:35:59.192087+09:00",
+      "source": "lidar-pc-01",
+      "status": "wrong-way-level-2",
+      "total_objects": 6,
+      "moving_vehicle_count": 4,
+      "normal_moving_vehicle_count": 3,
+      "wrong_way_count": 1,
+      "processing_time_ms": 8.518,
+      "objects": [
+        {
+          "type": "normal-driving",
+          "warning_level": 0,
+          "confidence": 1.0,
+          "zone_id": "Z469",
+          "track_id": "8b630000-0000-0000-0000-000000000000",
+          "message": "정주행",
+          "speed_ms": 7.0586720443534725,
+          "speed_kmh": 25.4112193596725,
+          "object_class": 1,
+          "description": "Normal"
+        },
+        {
+          "type": "wrong-way-level-2",
+          "warning_level": 2,
+          "confidence": 0.95,
+          "zone_id": "Z455",
+          "track_id": "f7263000-0000-0000-0000-000000000000",
+          "message": "역주행 2차 감지",
+          "speed_ms": 3.7008093237040853,
+          "speed_kmh": 13.322913565334707,
+          "object_class": 1,
+          "description": "Wrong-way driving detected"
+        },
+        {
+          "type": "pedestrian-entered",
+          "warning_level": 0,
+          "confidence": 0.92,
+          "zone_id": "Z261",
+          "track_id": "ped-20300000-0000-0000-0000-000000000000",
+          "message": "회전교차로 내 보행자 진입",
+          "speed_ms": 1.124,
+          "speed_kmh": 4.0464,
+          "object_class": 7,
+          "description": "Pedestrian entered roundabout area"
+        }
+      ]
+    }
 
-## 역주행 1차 payload 예시
-
-```json
-{
-  "type": "wrong-way-level-1",
-  "warning_level": 1,
-  "timestamp": "2026-01-13T14:43:54.360258+09:00",
-  "confidence": 0.95,
-  "zone_id": "Z327",
-  "track_id": "81760000-0000-0000-0000-000000000000",
-  "message": "역주행 1차 감지",
-  "speed_ms": 2.835765050970876,
-  "speed_kmh": 10.208754183495154,
-  "object_class": 6,
-  "description": "Wrong-way driving detected (Heading and Path Confirmed)",
-  "consecutive_count": 3,
-  "is_confirmed": true
-}
-```
-
-## 필드 설명
+## 상위 필드
 
 | 필드 | 논리 이름 | 설명 |
 | --- | --- | --- |
-| `type` | 이벤트 유형 | `normal-driving`, `wrong-way-level-1` 기준으로 처리합니다. |
-| `warning_level` | 경고 단계 | 정주행 0, 역주행 1차 1, 역주행 2차 2 기준입니다. |
-| `timestamp` | 이벤트 발생 시간 | KST ISO 문자열 형식을 기대합니다. |
-| `confidence` | 감지 신뢰도 | 예시상 0~1 범위입니다. 판단 기준으로 쓰지 않고 표시/저장합니다. |
-| `zone_id` | 외부 감지 구역 ID | 라이다 PC의 lanelet ID 기반 구역 코드입니다. |
-| `track_id` | 객체/트래킹 ID | 동일 차량 중복 처리와 `VehicleTrack` upsert 기준입니다. |
-| `message` | 이벤트 요약 메시지 | 화면 표시와 로그 확인에 사용합니다. |
-| `speed_ms` | 속도(m/s) | optional 값입니다. |
-| `speed_kmh` | 속도(km/h) | optional 값입니다. |
-| `object_class` | 객체 종류 코드 | 코드표의 4번 값은 추가 확인이 필요합니다. |
-| `description` | 감지 상세 설명 | 감지 사유 또는 상태 설명입니다. |
-| `consecutive_count` | 연속 감지 횟수 | 라이다 PC 판단 로직 확인용 값입니다. |
-| `is_confirmed` | 확정 여부 | 라이다 PC가 판단한 감지 확정 여부입니다. |
+| timestamp | 스냅샷 생성 시간 | KST ISO 8601 문자열 |
+| source | 전송 장비 | 라이다 PC 식별자 |
+| status | 전체 상태 | 해당 스냅샷의 대표 상태 |
+| total_objects | 전체 객체 수 | 감지된 모든 객체 수 |
+| moving_vehicle_count | 이동 차량 수 | 이동 중인 차량 수 |
+| normal_moving_vehicle_count | 정상 이동 차량 수 | 정주행 중인 차량 수 |
+| wrong_way_count | 역주행 객체 수 | 스냅샷 내 역주행 객체 수 |
+| processing_time_ms | 처리 시간 | 라이다 PC의 스냅샷 처리 시간(ms) |
+| objects | 감지 객체 목록 | 차량·보행자를 포함한 객체 배열 |
 
-## 현재 처리 기준
+## 객체 필드
 
-- `normal-driving`
-  - 1초 간격으로 반복 수신될 수 있습니다.
-  - 매번 이벤트로 저장하지 않습니다.
-  - 같은 `track_id` 기준으로 `VehicleTrack`을 upsert하여 최신 상태만 갱신합니다.
+| 필드 | 논리 이름 | 설명 |
+| --- | --- | --- |
+| type | 객체 상태 유형 | 정주행, 역주행, 상황 종료, 보행자 진입·이탈 구분 |
+| warning_level | 경고 단계 | 정상 0, 1차 1, 2차 2 |
+| confidence | 감지 신뢰도 | 0~1 범위의 표시·저장용 값 |
+| zone_id | 외부 감지 구역 ID | lanelet ID 기반 구역 코드 |
+| track_id | 객체 추적 ID | 같은 감지 구간의 객체 상태 갱신 기준 |
+| message | 요약 메시지 | 화면과 로그에 표시할 요약 |
+| speed_ms | 속도(m/s) | 객체 속도 |
+| speed_kmh | 속도(km/h) | 화면 표시용 속도 |
+| object_class | 객체 분류 코드 | 차량·버스·보행자 등 외부 코드 |
+| description | 상세 설명 | 라이다 PC가 판단한 상태 설명 |
 
-- `wrong-way-level-1`
-  - `TrafficEvent`와 `EventLog`에 저장합니다.
-  - 같은 `track_id`와 같은 경고 단계가 이미 저장되어 있으면 중복 저장하지 않습니다.
+## type 기준
 
-- `wrong-way-level-2`, `situation-ended`
-  - adapter에서 타입 수신은 가능하지만 실제 저장/상태 변경 로직은 후속 개발 범위입니다.
+| type | warning_level | 의미 |
+| --- | ---: | --- |
+| normal-driving | 0 | 정상 주행 |
+| wrong-way-level-1 | 1 | 회전교차로 내 역주행 1차 감지 |
+| wrong-way-level-2 | 2 | 역주행 객체의 비정상 이탈·2차 경고 |
+| situation-ended | 0 | 역주행 상황 종료·정상 복귀 |
+| pedestrian-entered | 0 | 회전교차로 내 보행자 진입 |
+| pedestrian-exited | 0 | 회전교차로 내 보행자 이탈 |
 
-## 현재 제외한 필드
+## 전송·처리 기준
 
-- `uuid`
-  - 최신 전달 규격에서 제외된 것으로 보고 사용하지 않습니다.
-- `normal_moving_vehicle_count`
-  - 라이다 PC가 보내는 값에 의존하지 않고 대시보드 DB 기준으로 계산합니다.
+- 같은 시점의 정주행·역주행·보행자 객체를 objects 하나에 함께 담습니다.
+- 객체별 track_id를 기준으로 최신 상태를 구분합니다.
+- 감지 범위를 벗어나면 객체 ID가 소멸하므로, 재진입 객체가 동일 차량임을 track_id만으로 보장할 수 없습니다.
+- 전송 주기와 누락 판단 시간은 현장 연동 전 최종 확인합니다.
+- consecutive_count와 is_confirmed는 라이다 PC 내부 판단용 값으로 최신 대시보드 수신 필드에서 제외합니다.
+- uuid는 최신 규격에서 제외된 것으로 보고 사용하지 않습니다.
 
-## Swagger 테스트 API
+## 저장·실시간 처리 방향
 
-- `GET /api/wrongway/test-payloads`
-  - 현재 테스트 payload와 테스트 URL 목록을 조회합니다.
-- `POST /api/wrongway/test/normal`
-  - 정주행 payload를 1회 생성해 기존 `/api/wrongway` 처리 흐름으로 보냅니다.
-- `POST /api/wrongway/test/normal-stream/start`
-  - 정주행 payload를 1초 간격으로 반복 처리합니다.
-- `POST /api/wrongway/test/normal-stream/stop`
-  - 정주행 반복 처리를 중지합니다.
-- `GET /api/wrongway/test/normal-stream/status`
-  - 정주행 반복 처리 상태를 조회합니다.
-- `POST /api/wrongway/test/wrong-way-level-1`
-  - 역주행 1차 payload를 1회 생성해 기존 `/api/wrongway` 처리 흐름으로 보냅니다.
+- Redis: 최신 스냅샷, 현재 objects, 최근 이벤트, 수신 상태 캐시
+- PostgreSQL: 역주행, 보행자 진입·이탈, 상황 종료 이력과 장기 통계
+- 매초 들어오는 정주행 스냅샷 전체를 PostgreSQL에 무조건 영구 저장하지 않습니다.
+- 이벤트성 payload는 원본 확인을 위해 raw_payload에 보관할 수 있습니다.
 
-## 제공되지 않는 것으로 보는 항목
+## 현재 코드 구현 상태
+
+- 실제 수신 API: POST /api/wrongway
+- 수신 도메인: dashboard/server/src/domains/wrongway
+- 변환 adapter: dashboard/server/src/domains/wrongway/adapters/lidarHttp.adapter.js
+- 응답 DTO: dashboard/server/src/domains/wrongway/wrongway.dto.js
+- 처리 service: dashboard/server/src/domains/wrongway/wrongway.service.js
+
+> 중요: 현재 adapter·service·DTO는 단일 객체 payload 중심으로 구현되어 있습니다. 위 다중 객체 규격을 바로 처리한다고 가정하지 말고, objects 반복 변환·객체별 저장 결과·일부 실패 응답·Redis·WebSocket 연결을 후속 개발해야 합니다.
+
+## 제공되지 않는 항목
 
 - CCTV
 - 스냅샷
 - 영상 URL
 - 번호판 인식 결과
 
-위 항목은 라이다 PC 이벤트 JSON이 아니라 추후 별도 CCTV/카메라 연동 영역으로 봅니다.
+위 항목은 라이다 PC 이벤트 JSON이 아니라 추후 별도 CCTV·카메라 연동 영역으로 봅니다.

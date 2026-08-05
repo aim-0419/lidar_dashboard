@@ -2,6 +2,8 @@
 
 이 문서는 프로젝트의 주요 디렉터리 역할과 구조 변경 기준을 정리합니다.
 
+> 최종 업데이트: 2026-08-05
+
 ## 현재 주요 디렉터리
 
 ```text
@@ -38,6 +40,10 @@ dashboard/dashboard-web/src
 - layouts
   - MainLayout.jsx
 - pages
+  - Dashboard
+  - Statistics
+  - EventLog
+  - Devices
 - components
 - context
   - AuthContext.jsx
@@ -55,6 +61,7 @@ dashboard/dashboard-web/src
   - components
     - Card.jsx
   - constants
+    - operationsDashboardData.js
   - hooks
   - utils
 ```
@@ -68,6 +75,8 @@ dashboard/dashboard-web/src
 - `context`: 전역 상태 Provider를 관리합니다.
 - `features`: 인증, 대시보드, 이벤트처럼 기능 도메인별 코드를 둡니다.
 - `shared`: 도메인과 무관하게 재사용되는 공통 코드입니다.
+- `pages/Statistics`: `/statistics` 통계 화면입니다.
+- `shared/constants/operationsDashboardData.js`: 실제 API 연결 전 관제 화면에서 사용하는 mock 스냅샷·객체·이벤트·통계 데이터입니다.
 
 ## 백엔드 구조
 
@@ -127,9 +136,9 @@ dashboard/server
 
 ## 라이다 연동 전제
 
-현재 조선대 측 라이다 PC 데이터 규격은 확정되지 않았습니다.
+현재 조선대 측 라이다 PC의 최신 전송 기준은 상위 스냅샷과 `objects` 배열을 포함한 다중 객체 JSON입니다.
 
 - 실제 수신부는 adapter 계층으로 분리합니다.
-- 프론트 개발은 mock API 또는 기존 demo API를 사용합니다.
-- mock payload는 실제 규격이 아닌 개발용 임시 데이터임을 문서에 명시합니다.
-- 실제 규격 수신 후 DB/API/adapter 설계를 재검토합니다.
+- 현재 adapter는 단일 객체 중심이므로 다중 객체 적용 시 수정합니다.
+- 프론트 리디자인은 `operationsDashboardData.js` mock을 사용하며, 실제 API·Redis·WebSocket 연결 상태와 구분합니다.
+- mock payload는 개발용 데이터임을 코드와 문서에 명시합니다.

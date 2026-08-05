@@ -2,6 +2,8 @@
 
 이 문서는 라이다 역주행 대시보드 작업을 시작하기 전에 확인해야 하는 현재 기준입니다.
 
+> 최종 업데이트: 2026-08-05
+
 ## 프로젝트 목적
 
 - 월출산휴게소 회전교차로 역주행 방지 시스템의 관제 대시보드를 개발합니다.
@@ -27,6 +29,23 @@
   - POST
   - JSON
   - endpoint: `/api/wrongway`
+  - 상위 스냅샷 + `objects` 배열 기반의 다중 객체 payload
+
+## 현재 프론트엔드 화면
+
+- `/`: 전체 현황, KPI, CCTV 영역, 현재 감지 객체, 실시간 이벤트, 장비 연동 상태
+- `/statistics`: 일별·주별·월별 통계, 차량 통행량, 구역별 역주행 현황
+- `/events`: 역주행·보행자·상황 종료 이벤트 이력과 상세
+- `/devices`: 회전교차로별 라이다 PC, 통합제어보드, VMS 상태
+- 현재 리디자인 화면은 `shared/constants/operationsDashboardData.js` mock 데이터를 사용합니다.
+- 메인 경고 모달은 페이지 진입 시 자동 표시하지 않고, 실제 `dashboard-event` 수신 시 표시합니다.
+
+## 규격과 구현 차이
+
+- 최신 외부 규격은 다중 객체 `objects` 배열입니다.
+- 현재 `domains/wrongway/adapters/lidarHttp.adapter.js`는 단일 객체 payload 변환을 중심으로 구현되어 있습니다.
+- 다중 객체 수신·객체별 변환·DB 저장·Redis 캐시·WebSocket 전달은 후속 구현 범위입니다.
+- 문서의 최신 payload 예시를 현재 코드가 이미 지원한다고 가정하지 않습니다.
 
 ## 정의가 필요한 통신
 
@@ -80,3 +99,4 @@
 - 매초 들어오는 objects 배열 전체를 PostgreSQL에 무조건 영구 저장하지 않습니다.
 - 이벤트성 원본 payload는 `traffic_events.raw_payload`에 보관하고, 현재 상태용 payload는 Redis에 짧은 TTL로 보관하는 방향을 우선 검토합니다.
 - 통계 화면에 필요한 일/주/月 집계는 PostgreSQL 이벤트 데이터와 추후 집계 테이블 또는 경량 snapshot 테이블을 조합하는 방식으로 확장합니다.
+- Redis 연동과 통계 API는 아직 프론트엔드 리디자인 화면에 실제로 연결되지 않았습니다.
