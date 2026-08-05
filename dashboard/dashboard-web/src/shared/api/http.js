@@ -72,7 +72,7 @@ async function requestTokenRefresh() {
   const nextAccessToken = response?.data?.accessToken || "";
 
   if (!nextAccessToken) {
-    throw new Error("토큰 재발급에 실패했습니다.");
+    throw new Error("Failed to refresh access token.");
   }
 
   setAccessToken(nextAccessToken);
@@ -159,11 +159,45 @@ export async function postJson(path, body = {}, options = {}) {
   }
 }
 
+export async function patchJson(path, body = {}, options = {}) {
+  try {
+    const response = await http.patch(path, body, {
+      ...options,
+      headers: options.headers || {},
+    });
+
+    if (response.data?.ok === false || response.data?.success === false) {
+      throw new Error(response.data?.message || response.data?.error || `PATCH ${path} failed`);
+    }
+
+    return response.data;
+  } catch (error) {
+    throw normalizeError(error, `PATCH ${path} failed`);
+  }
+}
+
+export async function deleteJson(path, options = {}) {
+  try {
+    const response = await http.delete(path, {
+      ...options,
+      headers: options.headers || {},
+    });
+
+    if (response.data?.ok === false || response.data?.success === false) {
+      throw new Error(response.data?.message || response.data?.error || `DELETE ${path} failed`);
+    }
+
+    return response.data;
+  } catch (error) {
+    throw normalizeError(error, `DELETE ${path} failed`);
+  }
+}
+
 export async function logoutRequest() {
   try {
     await http.post("/api/auth/logout", {});
   } catch (error) {
-    throw normalizeError(error, "로그아웃 처리 중 오류가 발생했습니다.");
+    throw normalizeError(error, "Failed to log out.");
   }
 }
 
@@ -174,6 +208,30 @@ export async function fetchMyProfile() {
 
 export async function loginRequest(credentials) {
   return postJson("/api/auth/login", credentials);
+}
+
+export async function fetchUsers() {
+  return getJson("/api/users");
+}
+
+export async function fetchUserDetail(id) {
+  return getJson(`/api/users/${id}`);
+}
+
+export async function createUserRequest(payload) {
+  return postJson("/api/users", payload);
+}
+
+export async function updateUserRequest(id, payload) {
+  return patchJson(`/api/users/${id}`, payload);
+}
+
+export async function updateUserPasswordRequest(id, payload) {
+  return patchJson(`/api/users/${id}/password`, payload);
+}
+
+export async function deactivateUserRequest(id) {
+  return deleteJson(`/api/users/${id}`);
 }
 
 export async function initializeAccessToken() {
