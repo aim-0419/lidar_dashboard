@@ -3,6 +3,7 @@ import RequireAuth from "../features/auth/RequireAuth";
 
 import LoginPage from "../pages/Login/LoginPage";
 import DashboardPage from "../pages/Dashboard/DashboardPage";
+import StatisticsPage from "../pages/Statistics/StatisticsPage";
 import WrongwayLogPage from "../pages/Dashboard/WrongwayLogPage";
 import EventLogPage from "../pages/EventLog/EventLogPage";
 import DevicesPage from "../pages/Devices/DevicesPage";
@@ -29,6 +30,7 @@ export default function AppRouter() {
         >
           {/* MainLayout 안에서 Outlet으로 표시되는 실제 페이지들이다. */}
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/statistics" element={<StatisticsPage />} />
           <Route path="/dashboard/wrongway" element={<WrongwayLogPage />} />
           <Route path="/events" element={<EventLogPage />} />
           <Route path="/devices" element={<DevicesPage />} />
