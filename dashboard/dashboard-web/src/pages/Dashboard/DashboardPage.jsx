@@ -7,10 +7,8 @@ import {
   Camera,
   Car,
   CheckCircle2,
-  CircleDot,
   Clock3,
   Gauge,
-  MapPin,
   Radio,
   Siren,
   Users,
@@ -18,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { apiUrl, WS_BASE } from "../../shared/api/config";
+import { ZoneLiveView } from "../../features/dashboard/components/ZoneLiveView";
 import {
   detectedObjects,
   liveSnapshot,
@@ -108,11 +107,7 @@ export default function DashboardPage() {
   const visibleEvents = selectedZone
     ? realtimeEvents.filter((event) => event.monitoringZoneId === selectedZone.id)
     : realtimeEvents;
-  const visibleCameras = visibleZones.flatMap((zone) =>
-    zone.cameras.map((camera) => ({ ...camera, monitoringZoneId: zone.id, zoneName: zone.name })),
-  );
   const activeSnapshot = selectedZone?.snapshot || latestSnapshot;
-  const visibleLaneletZoneIds = visibleZones.flatMap((zone) => zone.laneletZoneIds);
 
   // 전체 탭은 실시간 합산값을, 구역 탭은 해당 구역의 mock 스냅샷을 사용한다.
   const kpis = [
@@ -261,53 +256,17 @@ export default function DashboardPage() {
 
       <section className="ops-dashboard-grid">
         <div className="ops-main-column">
-          <article className="ops-card">
-            <div className="ops-card-head">
-              <div>
-                <h2>실시간 현장 화면</h2>
-                <p>회전교차로 CCTV와 라이다 객체 위치를 함께 보는 영역</p>
-              </div>
-              <span className="ops-live-chip">
-                <CircleDot size={13} />
-                LIVE
-              </span>
-            </div>
-            <div className="ops-visual-grid">
-              <div className={`ops-cctv-grid ${selectedZone ? "single" : ""}`}>
-                {visibleCameras.map((camera) => (
-                  <button
-                    type="button"
-                    className="ops-cctv-feed"
-                    key={`${camera.monitoringZoneId}-${camera.id}`}
-                    onClick={() => setSelectedZoneId(camera.monitoringZoneId)}
-                    aria-label={`${camera.zoneName} CCTV 화면 보기`}
-                  >
-                    <span>{camera.label} · {camera.location}</span>
-                    <small className={camera.status}>{camera.status === "online" ? "연결 대기" : "오프라인"}</small>
-                  </button>
-                ))}
-              </div>
-              <div className="ops-map-view">
-                <div className="ops-roundabout">
-                  {visibleObjects.map((item, index) => (
-                    <span
-                      key={item.trackId}
-                      className={`ops-map-object ${item.type}`}
-                      style={{
-                        "--angle": `${index * 63 + 18}deg`,
-                        "--distance": `${38 + (index % 2) * 15}%`,
-                      }}
-                      title={`${item.zoneId} ${item.message}`}
-                    />
-                  ))}
-                </div>
-                <div className="ops-map-caption">
-                  <MapPin size={14} />
-                  Vector Map · {visibleLaneletZoneIds.join("/")}
-                </div>
-              </div>
-            </div>
-          </article>
+          <div className={`ops-zone-live-grid ${selectedZone ? "single" : ""}`}>
+            {visibleZones.map((zone) => (
+              <ZoneLiveView
+                key={zone.id}
+                zone={zone}
+                objects={detectedObjects.filter((item) => item.monitoringZoneId === zone.id)}
+                isOverview={!selectedZone}
+                onSelectZone={setSelectedZoneId}
+              />
+            ))}
+          </div>
 
           <article className="ops-card">
             <div className="ops-card-head">

@@ -193,6 +193,25 @@
   gap: 14px;
 }
 
+.ops-zone-live-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ops-zone-live-grid.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ops-zone-live-grid:not(.single) .ops-visual-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ops-zone-live-grid:not(.single) .ops-cctv-grid,
+.ops-zone-live-grid:not(.single) .ops-map-view {
+  min-height: 260px;
+}
+
 .ops-card {
   padding: 16px;
 }
@@ -230,6 +249,13 @@
   font-weight: 900;
 }
 
+.ops-zone-live-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .ops-visual-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 0.82fr);
@@ -265,7 +291,6 @@
   width: 100%;
   padding: 0;
   text-align: left;
-  cursor: pointer;
 }
 
 .ops-cctv-feed::after {
@@ -725,7 +750,8 @@
   }
 
   .ops-kpi-grid,
-  .ops-cctv-grid {
+  .ops-cctv-grid,
+  .ops-zone-live-grid {
     grid-template-columns: 1fr;
   }
 
