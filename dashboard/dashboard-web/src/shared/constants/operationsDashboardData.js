@@ -13,6 +13,7 @@ export const liveSnapshot = {
 
 export const detectedObjects = [
   {
+    monitoringZoneId: "roundabout-1",
     trackId: "8b630000-0000-0000-0000-000000000000",
     type: "normal-driving",
     warningLevel: 0,
@@ -24,6 +25,7 @@ export const detectedObjects = [
     description: "Normal",
   },
   {
+    monitoringZoneId: "roundabout-1",
     trackId: "91630000-0000-0000-0000-000000000000",
     type: "normal-driving",
     warningLevel: 0,
@@ -35,6 +37,7 @@ export const detectedObjects = [
     description: "Normal",
   },
   {
+    monitoringZoneId: "roundabout-1",
     trackId: "b6630000-0000-0000-0000-000000000000",
     type: "normal-driving",
     warningLevel: 0,
@@ -46,6 +49,7 @@ export const detectedObjects = [
     description: "Normal",
   },
   {
+    monitoringZoneId: "roundabout-2",
     trackId: "f7263000-0000-0000-0000-000000000000",
     type: "wrong-way-level-2",
     warningLevel: 2,
@@ -57,6 +61,7 @@ export const detectedObjects = [
     description: "Wrong-way driving detected",
   },
   {
+    monitoringZoneId: "roundabout-2",
     trackId: "ped-20300000-0000-0000-0000-000000000000",
     type: "pedestrian-entered",
     warningLevel: 0,
@@ -72,6 +77,7 @@ export const detectedObjects = [
 export const realtimeEvents = [
   {
     id: "EVT-20260727-004",
+    monitoringZoneId: "roundabout-2",
     type: "wrong-way-level-2",
     title: "역주행 2차 감지",
     message: "Z455 구역에서 비정상 이탈 방향 객체 감지",
@@ -80,6 +86,7 @@ export const realtimeEvents = [
   },
   {
     id: "EVT-20260727-003",
+    monitoringZoneId: "roundabout-2",
     type: "pedestrian-entered",
     title: "보행자 진입",
     message: "회전교차로 내부 보행자 객체 감지",
@@ -88,6 +95,7 @@ export const realtimeEvents = [
   },
   {
     id: "EVT-20260727-002",
+    monitoringZoneId: "roundabout-1",
     type: "normal-driving",
     title: "정상 통과",
     message: "Z469 구역 차량 통과 상태 갱신",
@@ -96,6 +104,7 @@ export const realtimeEvents = [
   },
   {
     id: "EVT-20260727-001",
+    monitoringZoneId: "roundabout-1",
     type: "situation-ended",
     title: "상황 종료",
     message: "이전 역주행 이벤트 정상 복귀 처리",
@@ -170,9 +179,32 @@ export const zoneStatistics = [
   { zone: "Z469", wrongWay: 1, vehicles: 812 },
 ];
 
-export const deviceGroups = [
+// 관제 구역 단위로 CCTV, 외부 Lanelet 코드, 장비 상태를 묶는다.
+// cameras 배열에 항목을 추가하면 대시보드의 CCTV 영역도 별도 코드 수정 없이 늘어난다.
+export const monitoringZones = [
   {
-    zone: "회전교차로 1",
+    id: "roundabout-1",
+    name: "회전교차로 1",
+    source: "lidar-pc-01",
+    laneletZoneIds: ["Z469", "Z170", "Z274"],
+    cameras: [
+      {
+        id: "CCTV-01",
+        label: "회전교차로 1 CCTV",
+        location: "진입로 및 회전교차로",
+        status: "online",
+      },
+    ],
+    snapshot: {
+      status: "normal-driving",
+      totalObjects: 3,
+      movingVehicleCount: 3,
+      normalMovingVehicleCount: 3,
+      wrongWayCount: 0,
+      pedestrianCount: 0,
+      processingTimeMs: 7.842,
+      source: "lidar-pc-01",
+    },
     devices: [
       {
         name: "LIDAR-PC-01",
@@ -191,17 +223,78 @@ export const deviceGroups = [
         lastSeen: "1분 전",
       },
       {
-        name: "VMS-01",
-        type: "전광판",
+        name: "CCTV-01",
+        type: "CCTV",
+        status: "online",
+        health: "정상",
+        ip: "영상 연동 예정",
+        lastSeen: "방금 전",
+      },
+      {
+        name: "SPEAKER-01-1",
+        type: "스피커 1",
+        status: "online",
+        health: "제어 대기",
+        ip: "제어보드 연동",
+        lastSeen: "1분 전",
+      },
+      {
+        name: "SPEAKER-01-2",
+        type: "스피커 2",
+        status: "online",
+        health: "제어 대기",
+        ip: "제어보드 연동",
+        lastSeen: "1분 전",
+      },
+      {
+        name: "VMS-01-1",
+        type: "전광판 1",
         status: "warning",
         health: "점검 필요",
         ip: "제어보드 연동",
         lastSeen: "5분 전",
       },
+      {
+        name: "VMS-01-2",
+        type: "전광판 2",
+        status: "online",
+        health: "제어 대기",
+        ip: "제어보드 연동",
+        lastSeen: "1분 전",
+      },
+      {
+        name: "BARRIER-01",
+        type: "차단기",
+        status: "online",
+        health: "제어 대기",
+        ip: "제어보드 연동",
+        lastSeen: "1분 전",
+      },
     ],
   },
   {
-    zone: "회전교차로 2",
+    id: "roundabout-2",
+    name: "회전교차로 2",
+    source: "lidar-pc-02",
+    laneletZoneIds: ["Z455", "Z261", "Z327"],
+    cameras: [
+      {
+        id: "CCTV-02",
+        label: "회전교차로 2 CCTV",
+        location: "진입로 및 차단기",
+        status: "online",
+      },
+    ],
+    snapshot: {
+      status: "wrong-way-level-2",
+      totalObjects: 2,
+      movingVehicleCount: 1,
+      normalMovingVehicleCount: 0,
+      wrongWayCount: 1,
+      pedestrianCount: 1,
+      processingTimeMs: 8.518,
+      source: "lidar-pc-02",
+    },
     devices: [
       {
         name: "LIDAR-PC-02",
@@ -219,6 +312,28 @@ export const deviceGroups = [
         ip: "대기",
         lastSeen: "미연결",
       },
+      {
+        name: "CCTV-02",
+        type: "CCTV",
+        status: "online",
+        health: "정상",
+        ip: "영상 연동 예정",
+        lastSeen: "방금 전",
+      },
+      ...["스피커 1", "스피커 2", "전광판 1", "전광판 2", "차단기"].map((type, index) => ({
+        name: `ZONE-02-CONTROL-${index + 1}`,
+        type,
+        status: "offline",
+        health: "제어보드 연결 전",
+        ip: "제어보드 연동",
+        lastSeen: "미연결",
+      })),
     ],
   },
 ];
+
+// 기존 장비 페이지는 동일한 관제 구역 데이터를 화면 형식에 맞춰 재사용한다.
+export const deviceGroups = monitoringZones.map((zone) => ({
+  zone: zone.name,
+  devices: zone.devices,
+}));
