@@ -28,7 +28,7 @@ async function receiveWrongWay(req, res) {
 
     res
       .status(error.statusCode || 500)
-      .json(createWrongwayErrorResponse(error, "역주행 데이터 수신 처리 중 오류가 발생했습니다."));
+      .json(createWrongwayErrorResponse(error, "Failed to process wrongway payload."));
   }
 }
 
@@ -49,7 +49,7 @@ async function sendNormalDrivingTest(req, res) {
   } catch (error) {
     res
       .status(error.statusCode || 500)
-      .json(createWrongwayErrorResponse(error, "정주행 테스트 데이터 전송 중 오류가 발생했습니다."));
+      .json(createWrongwayErrorResponse(error, "Failed to send normal driving test payload."));
   }
 }
 
@@ -72,7 +72,7 @@ async function sendWrongWayLevel1Test(req, res) {
   } catch (error) {
     res
       .status(error.statusCode || 500)
-      .json(createWrongwayErrorResponse(error, "역주행 1차 테스트 데이터 전송 중 오류가 발생했습니다."));
+      .json(createWrongwayErrorResponse(error, "Failed to send wrongway level 1 test payload."));
   }
 }
 

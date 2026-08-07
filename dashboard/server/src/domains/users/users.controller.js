@@ -1,6 +1,12 @@
 const usersService = require("./users.service");
 const { logger } = require("../../utils/logger");
 
+function getPublicMessage(error, fallbackMessage) {
+  return error?.statusCode && error.statusCode < 500
+    ? error.message
+    : fallbackMessage;
+}
+
 async function getMe(req, res) {
   try {
     const user = await usersService.getMyProfile({
@@ -21,7 +27,7 @@ async function getMe(req, res) {
 
     res.status(error.statusCode || 500).json({
       ok: false,
-      message: error.message || "Failed to fetch current user profile.",
+      message: getPublicMessage(error, "Failed to fetch current user profile."),
     });
   }
 }
@@ -45,7 +51,7 @@ async function getUsers(req, res) {
 
     res.status(error.statusCode || 500).json({
       ok: false,
-      message: error.message || "Failed to fetch users list.",
+      message: getPublicMessage(error, "Failed to fetch users list."),
     });
   }
 }
@@ -71,7 +77,7 @@ async function getUserById(req, res) {
 
     res.status(error.statusCode || 500).json({
       ok: false,
-      message: error.message || "Failed to fetch user detail.",
+      message: getPublicMessage(error, "Failed to fetch user detail."),
     });
   }
 }
@@ -101,7 +107,7 @@ async function createUser(req, res) {
 
     res.status(error.statusCode || 500).json({
       ok: false,
-      message: error.message || "Failed to create user.",
+      message: getPublicMessage(error, "Failed to create user."),
     });
   }
 }
@@ -114,6 +120,7 @@ async function updateUser(req, res) {
       name: req.body?.name,
       role: req.body?.role,
       isActive: req.body?.isActive,
+      requesterId: req.user.id,
     });
 
     res.status(200).json({
@@ -131,7 +138,7 @@ async function updateUser(req, res) {
 
     res.status(error.statusCode || 500).json({
       ok: false,
-      message: error.message || "Failed to update user.",
+      message: getPublicMessage(error, "Failed to update user."),
     });
   }
 }
@@ -140,6 +147,7 @@ async function deactivateUser(req, res) {
   try {
     const user = await usersService.deactivateUser({
       id: req.params.id,
+      requesterId: req.user.id,
     });
 
     res.status(200).json({
@@ -157,7 +165,7 @@ async function deactivateUser(req, res) {
 
     res.status(error.statusCode || 500).json({
       ok: false,
-      message: error.message || "Failed to deactivate user.",
+      message: getPublicMessage(error, "Failed to deactivate user."),
     });
   }
 }
@@ -184,7 +192,7 @@ async function updateUserPassword(req, res) {
 
     res.status(error.statusCode || 500).json({
       ok: false,
-      message: error.message || "Failed to update user password.",
+      message: getPublicMessage(error, "Failed to update user password."),
     });
   }
 }

@@ -6,6 +6,7 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  // 대시보드 데모 데이터에 필요한 기본 현장과 구역 구조를 시드합니다.
   const site = await prisma.site.upsert({
     where: { id: "site-wolchulsan-rest-area" },
     update: {},
@@ -89,15 +90,17 @@ async function main() {
     });
   }
 
+  // 개발 환경에서 로그인 API를 테스트할 수 있도록 기본 관리자 계정을 생성한다.
+
+  // 평문 비밀번호 "password"를 bcrypt로 해시 처리한다.
+  // 두 번째 인자 10은 salt rounds 값으로, 해시 연산 강도를 의미한다.
   const passwordHash = await bcrypt.hash("password", 10);
 
+  // seed를 다시 실행해도 기존 admin 계정 상태를 덮어쓰지 않도록 한다.
   await prisma.user.upsert({
     where: { userId: "admin" },
-    update: {
-      name: "관리자",
-      role: "SUPER_ADMIN",
-      isActive: true,
-    },
+    // admin 사용자가 이미 존재하면 운영 중 변경된 권한/활성 상태를 유지한다.
+    update: {},
     create: {
       userId: "admin",
       name: "관리자",
@@ -117,3 +120,4 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
+

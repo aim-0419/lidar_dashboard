@@ -8,6 +8,7 @@ function normalizeRole(role) {
   return String(role || "").trim().toUpperCase();
 }
 
+// accessToken을 검증하고 인증된 사용자 정보를 req.user에 저장합니다.
 function authenticateToken(req, res, next) {
   const authorizationHeader = req.headers.authorization || "";
 
@@ -59,6 +60,7 @@ function authenticateToken(req, res, next) {
           userId: true,
           role: true,
           isActive: true,
+          sessionVersion: true,
         },
       });
 
@@ -76,10 +78,27 @@ function authenticateToken(req, res, next) {
         });
       }
 
+      if (typeof decoded.sessionVersion !== "number" || decoded.sessionVersion !== user.sessionVersion) {
+        logger.warn("authentication failed: session version mismatch", {
+          path: req.originalUrl,
+          method: req.method,
+          userId: decoded.userId,
+          userDbId: decoded.id,
+          tokenSessionVersion: decoded.sessionVersion,
+          currentSessionVersion: user.sessionVersion,
+        });
+
+        return res.status(401).json({
+          ok: false,
+          message: "유효하지 않은 토큰입니다.",
+        });
+      }
+
       req.user = {
         id: user.id,
         userId: user.userId,
         role: user.role,
+        sessionVersion: user.sessionVersion,
       };
 
       logger.info("authentication succeeded", {
@@ -87,6 +106,7 @@ function authenticateToken(req, res, next) {
         method: req.method,
         userId: req.user.userId,
         role: req.user.role,
+        sessionVersion: req.user.sessionVersion,
       });
 
       next();
@@ -105,6 +125,7 @@ function authenticateToken(req, res, next) {
   });
 }
 
+// 인증 이후 특정 권한이 필요한 라우트 접근을 제한합니다.
 function requireRole(...roles) {
   const allowedRoles = roles.map(normalizeRole).filter(Boolean);
 

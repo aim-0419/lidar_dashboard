@@ -148,9 +148,9 @@ async function createUser({ userId, name, password, role, isActive }) {
   }
 }
 
-async function updateUser({ id, userId, name, role, isActive }) {
-  await findUserRecordById(id);
-
+async function updateUser({ id, userId, name, role, isActive, requesterId }) {
+  const existingUser = await findUserRecordById(id);
+  const isSelfUpdate = requesterId === id;
   const data = {};
 
   if (typeof userId === "string") {
@@ -171,11 +171,22 @@ async function updateUser({ id, userId, name, role, isActive }) {
     if (role.trim() === "") {
       throw createHttpError(400, "role cannot be empty.");
     }
-    data.role = normalizeRoleInput(role);
+
+    const nextRole = normalizeRoleInput(role);
+
+    if (isSelfUpdate && nextRole !== existingUser.role) {
+      throw createHttpError(403, "You cannot change your own role.");
+    }
+
+    data.role = nextRole;
   }
 
   const nextIsActive = parseOptionalBoolean(isActive);
   if (typeof nextIsActive === "boolean") {
+    if (isSelfUpdate && nextIsActive === false) {
+      throw createHttpError(403, "You cannot deactivate your own account.");
+    }
+
     data.isActive = nextIsActive;
   }
 
@@ -205,8 +216,12 @@ async function updateUser({ id, userId, name, role, isActive }) {
   }
 }
 
-async function deactivateUser({ id }) {
+async function deactivateUser({ id, requesterId }) {
   await findUserRecordById(id);
+
+  if (requesterId === id) {
+    throw createHttpError(403, "You cannot deactivate your own account.");
+  }
 
   const [, user] = await prisma.$transaction([
     prisma.refreshToken.updateMany({
@@ -222,6 +237,9 @@ async function deactivateUser({ id }) {
       where: { id },
       data: {
         isActive: false,
+        sessionVersion: {
+          increment: 1,
+        },
       },
       select: {
         id: true,
@@ -262,6 +280,9 @@ async function updateUserPassword({ id, password }) {
       where: { id },
       data: {
         passwordHash,
+        sessionVersion: {
+          increment: 1,
+        },
       },
       select: {
         id: true,

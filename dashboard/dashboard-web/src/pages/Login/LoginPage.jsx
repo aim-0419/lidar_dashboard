@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useLanguage } from "../../context/LanguageContext";
 
+// 사용자 로그인 정보를 받아 백엔드 로그인 흐름을 시작합니다.
 export default function LoginPage() {
   const { login, isLoggedIn, isInitializing } = useAuth();
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 로그인 성공 후 원래 요청했던 화면으로 다시 이동할 경로입니다.
   const redirectPath = location.state?.from?.pathname || "/";
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
+      // 로그인에 성공하면 AuthContext가 accessToken과 현재 사용자 정보를 저장합니다.
       await login({
         userId: form.userId.trim(),
         password: form.password,

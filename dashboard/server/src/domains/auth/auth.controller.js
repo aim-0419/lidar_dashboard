@@ -39,15 +39,23 @@ function clearRefreshTokenCookie(res) {
   });
 }
 
+function getPublicMessage(error, fallbackMessage) {
+  return error?.statusCode && error.statusCode < 500
+    ? error.message
+    : fallbackMessage;
+}
+
 async function login(req, res) {
   try {
     logger.info("login request accepted by controller", {
       userId: req.body?.userId,
+      ipAddress: req.ip,
     });
 
     const result = await authService.login({
       userId: req.body?.userId,
       password: req.body?.password,
+      ipAddress: req.ip,
     });
 
     setRefreshTokenCookie(res, result.refreshToken);
@@ -60,15 +68,14 @@ async function login(req, res) {
   } catch (error) {
     logger.warn("login request failed in controller", {
       userId: req.body?.userId,
+      ipAddress: req.ip,
       statusCode: error.statusCode,
       message: error.message,
     });
 
     res.status(error.statusCode || 500).json({
       ok: false,
-      message: error.statusCode === 401
-        ? error.message
-        : "로그인 처리 중 오류가 발생했습니다.",
+      message: getPublicMessage(error, "로그인 처리 중 오류가 발생했습니다."),
     });
   }
 }
@@ -85,11 +92,13 @@ async function refresh(req, res) {
       message: error.message,
     });
 
+    if (error.statusCode === 401) {
+      clearRefreshTokenCookie(res);
+    }
+
     res.status(error.statusCode || 500).json({
       ok: false,
-      message: error.statusCode === 401
-        ? error.message
-        : "토큰 재발급 처리 중 오류가 발생했습니다.",
+      message: getPublicMessage(error, "토큰 재발급 처리 중 오류가 발생했습니다."),
     });
   }
 }
@@ -112,7 +121,7 @@ async function logout(req, res) {
 
     res.status(error.statusCode || 500).json({
       ok: false,
-      message: "로그아웃 처리 중 오류가 발생했습니다.",
+      message: getPublicMessage(error, "로그아웃 처리 중 오류가 발생했습니다."),
     });
   }
 }
@@ -136,7 +145,7 @@ async function me(req, res) {
 
     res.status(error.statusCode || 500).json({
       ok: false,
-      message: error.message || "내 정보 조회 중 오류가 발생했습니다.",
+      message: getPublicMessage(error, "내 정보 조회 중 오류가 발생했습니다."),
     });
   }
 }

@@ -1,14 +1,11 @@
 import axios from "axios";
 import { API_BASE, apiUrl } from "./config";
 
-const ACCESS_TOKEN_KEY = "auth.accessToken";
-
 let unauthorizedHandler = null;
 let refreshPromise = null;
-let accessToken = typeof window !== "undefined"
-  ? window.localStorage.getItem(ACCESS_TOKEN_KEY) || ""
-  : "";
+let accessToken = "";
 
+// Axios 에러 객체를 UI에서 다루기 쉬운 형태로 정리합니다.
 function normalizeError(error, fallbackMessage) {
   const message =
     error?.response?.data?.message ||
@@ -27,18 +24,8 @@ export function getAccessToken() {
 }
 
 export function setAccessToken(token) {
+  // accessToken은 브라우저 저장소 대신 메모리 변수에만 유지합니다.
   accessToken = token || "";
-
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  if (accessToken) {
-    window.localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-    return;
-  }
-
-  window.localStorage.removeItem(ACCESS_TOKEN_KEY);
 }
 
 export function clearAccessToken() {
@@ -57,6 +44,7 @@ const http = axios.create({
   },
 });
 
+// 기존 accessToken이 없거나 만료되면 refresh cookie로 새 accessToken을 발급받습니다.
 async function requestTokenRefresh() {
   const response = await axios.post(
     apiUrl("/api/auth/refresh"),
@@ -83,6 +71,7 @@ http.interceptors.request.use((config) => {
   const nextConfig = { ...config };
   nextConfig.headers = nextConfig.headers || {};
 
+  // 현재 메모리에 올라와 있는 accessToken을 Authorization 헤더에 붙입니다.
   if (accessToken) {
     nextConfig.headers.Authorization = `Bearer ${accessToken}`;
   }
@@ -107,6 +96,7 @@ http.interceptors.response.use(
     originalRequest._retry = true;
 
     try {
+      // 여러 요청이 동시에 401이어도 refresh 요청은 한 번만 보내고 결과를 공유합니다.
       if (!refreshPromise) {
         refreshPromise = requestTokenRefresh().finally(() => {
           refreshPromise = null;
@@ -235,6 +225,7 @@ export async function deactivateUserRequest(id) {
 }
 
 export async function initializeAccessToken() {
+  // 새로고침 후 메모리 토큰이 비어 있으면 refresh cookie로 다시 복구합니다.
   if (accessToken) {
     return accessToken;
   }

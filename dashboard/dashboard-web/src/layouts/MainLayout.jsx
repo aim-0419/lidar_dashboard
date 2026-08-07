@@ -3,11 +3,13 @@ import "./mainLayout.css";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 
+// 보호된 대시보드 화면에서 공통으로 사용하는 사이드바 레이아웃입니다.
 export default function MainLayout() {
   const { t } = useLanguage();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  // 현재 세션을 종료하고 로그인 페이지로 이동합니다.
   async function handleLogout() {
     await logout();
     navigate("/login", { replace: true });

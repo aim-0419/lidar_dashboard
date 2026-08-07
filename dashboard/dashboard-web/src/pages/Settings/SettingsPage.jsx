@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bell, Globe, Monitor, Shield, UserCog, UserPlus, KeyRound, UserX, RefreshCw } from "lucide-react";
 import { Card } from "../../shared/components/Card";
 import { useAuth } from "../../context/AuthContext";
@@ -30,6 +30,7 @@ const initialPasswordForm = {
   password: "",
 };
 
+// 설정 placeholder 섹션과 사용자 관리 패널을 함께 관리합니다.
 export default function SettingsPage() {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState("users");
@@ -65,6 +66,7 @@ export default function SettingsPage() {
       return;
     }
 
+    // 사용자 관리 섹션이 활성화되면 최신 사용자 목록을 불러옵니다.
     void loadUsers();
   }, [activeSection, isSuperAdmin]);
 
@@ -73,6 +75,7 @@ export default function SettingsPage() {
       return;
     }
 
+    // 선택된 사용자가 바뀌면 해당 사용자 상세 정보를 다시 불러옵니다.
     void loadUserDetail(selectedUserId);
   }, [activeSection, isSuperAdmin, selectedUserId]);
 
