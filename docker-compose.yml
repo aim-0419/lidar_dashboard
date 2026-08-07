@@ -58,6 +58,7 @@ services:
   frontend:
     build:
       context: ./dashboard/dashboard-web
+      dockerfile: Dockerfile.dev
     env_file:
       - .env
     environment:
@@ -69,6 +70,13 @@ services:
       VITE_API_BASE_URL: http://${PUBLIC_HOST:-localhost}:${DASHBOARD_PORT:-5000}
       VITE_WS_BASE_URL: ws://${PUBLIC_HOST:-localhost}:${DASHBOARD_PORT:-5000}
       VITE_DETECTOR_BASE_URL: http://${PUBLIC_HOST:-localhost}:${DETECTOR_PORT:-8888}
+      # Windows/macOS의 Docker bind mount에서도 Vite가 파일 변경을 안정적으로 감지하도록 polling을 사용합니다.
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      # 로컬 프론트엔드 코드를 컨테이너에 연결하여 JSX/CSS 변경을 즉시 반영합니다.
+      - ./dashboard/dashboard-web:/app
+      # 호스트의 node_modules가 컨테이너용 의존성을 덮어쓰지 않도록 별도 볼륨을 사용합니다.
+      - frontend_node_modules:/app/node_modules
     ports:
       # 로컬 PC에서 프론트엔드 화면에 접근하기 위한 포트 매핑입니다.
       - "${FRONTEND_PORT:-5173}:5173"
@@ -103,3 +111,5 @@ services:
 volumes:
   # PostgreSQL 데이터 저장용 named volume입니다.
   lidar_dashboard_db_postgres_data:
+  # 프론트엔드 컨테이너 전용 Node.js 의존성 볼륨입니다.
+  frontend_node_modules:
