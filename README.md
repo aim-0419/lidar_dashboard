@@ -51,6 +51,13 @@ DATABASE_URL=postgresql://lidar_dashboard_user:본인_로컬_DB_비밀번호@loc
 docker compose up --build
 ```
 
+프론트엔드는 개발용 `Dockerfile.dev`와 소스 코드 볼륨을 사용합니다. 컨테이너 실행 후 `dashboard/dashboard-web/src`의 JSX/CSS를 수정하면 Vite HMR을 통해 `http://localhost:5173` 화면에 즉시 반영됩니다.
+
+- 일반 소스 수정: 컨테이너 재빌드 불필요
+- `package.json` 또는 `package-lock.json` 변경: `docker compose exec frontend npm install` 실행 후 `docker compose restart frontend`
+- 변경 감지가 느린 Windows/macOS 환경: Compose에 설정된 polling 방식으로 감지
+- 다른 개발자의 수정사항: Docker HMR이 아니라 Git push/pull 이후 각자 로컬 화면에 반영
+
 기본 실행 서비스:
 
 - PostgreSQL DB
