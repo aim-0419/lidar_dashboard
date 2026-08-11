@@ -139,6 +139,6 @@ dashboard/server
 현재 조선대 측 라이다 PC의 최신 전송 기준은 상위 스냅샷과 `objects` 배열을 포함한 다중 객체 JSON입니다.
 
 - 실제 수신부는 adapter 계층으로 분리합니다.
-- 현재 adapter는 단일 객체 중심이므로 다중 객체 적용 시 수정합니다.
+- adapter는 상위 snapshot과 `objects` 배열을 객체별 내부 이벤트로 변환합니다.
 - 프론트 리디자인은 `operationsDashboardData.js` mock을 사용하며, 실제 API·Redis·WebSocket 연결 상태와 구분합니다.
 - mock payload는 개발용 데이터임을 코드와 문서에 명시합니다.

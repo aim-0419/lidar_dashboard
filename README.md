@@ -164,8 +164,27 @@ POST /api/wrongway/test/normal
 POST /api/wrongway/test/normal-stream/start
 POST /api/wrongway/test/normal-stream/stop
 GET  /api/wrongway/test/normal-stream/status
-POST /api/wrongway/test/wrong-way-level-1
+POST /api/wrongway/test/wrong-way
+POST /api/wrongway/test/mixed-snapshot
 ```
+
+### 다중 객체 실제 시나리오
+
+다른 PC에서 서버 내부망 IP로 실제 `POST /api/wrongway` 요청을 1초마다 전송합니다.
+
+```bash
+npm run test:lidar-scenario -- --base-url http://192.168.0.60:5000
+```
+
+`--base-url`을 생략하면 루트 `.env`의 `WRONGWAY_TEST_BASE_URL`을 사용하고, 값이 없으면 `http://localhost:5000`을 사용합니다.
+
+빠른 로컬 검증:
+
+```bash
+npm run test:lidar-scenario -- --base-url http://localhost:5000 --interval-ms 10
+```
+
+시나리오는 정주행 차량의 순차 진입, 여러 정주행 차량과 역주행 차량의 동시 감지, 역주행 차량 2대 동시 감지, 개별 상황 종료, 전체 객체 이탈 순으로 진행됩니다. 같은 차량은 시나리오 동안 같은 `track_id`를 유지하고 실행할 때마다 새로운 ID를 사용합니다.
 
 로컬 스크립트 실행:
 
@@ -234,8 +253,8 @@ copy scripts\wrongway-test.config.example.json scripts\wrongway-test.config.json
 
 ```txt
 정주행 전송
-역주행 1차 1회
-역주행 1차 중복 1회
+역주행 1회
+동일 역주행 상태 중복 1회
 10초 대기
 정주행 재전송
 ```
@@ -272,7 +291,7 @@ npm run test:wrongway-samples -- --random-track-ids --normal-vehicles 5 --sample
 
 위 명령은 정주행 차량 5대를 만들고, 각 차량을 같은 `track_id`로 3회씩 반복 전송합니다. 같은 차량의 반복 데이터는 `vehicle_tracks`에서 upsert되고, 차량 객체가 다르면 새 row로 생성됩니다.
 
-역주행 1차만 전송:
+역주행만 전송:
 
 ```bash
 npm run test:wrongway-samples -- --scenario wrongway --wrongway-track-id laptop-wrongway-001
@@ -306,7 +325,7 @@ npm run test:wrongway-samples -- --scenario wrongway --wrongway-track-id laptop-
 - `scripts/wrongway-test.config.json`은 로컬 테스트용 파일이라 Git에 올리지 않습니다.
 - 공유용 기본 형식은 `scripts/wrongway-test.config.example.json`만 수정합니다.
 - 정주행 데이터는 `traffic_events`에 매번 쌓지 않고 `vehicle_tracks`에 upsert됩니다.
-- 역주행 1차 데이터는 같은 `track_id`면 중복 이벤트로 판단해 `traffic_events`에 새로 저장하지 않습니다.
+- 역주행 데이터는 같은 라이다 PC와 `track_id`의 상태가 바뀌지 않으면 `traffic_events`를 중복 생성하지 않습니다.
 
 스크립트 동작:
 
@@ -314,8 +333,8 @@ npm run test:wrongway-samples -- --scenario wrongway --wrongway-track-id laptop-
 - `--random-track-ids` 모드에서는 실행마다 `runId` 기반의 새로운 차량 객체 ID 생성
 - `--normal-vehicles` 옵션으로 여러 정주행 차량 객체 생성
 - `--samples-per-vehicle` 옵션으로 같은 차량 객체를 여러 번 반복 전송
-- 역주행 1차 데이터 1회 전송
-- 기본값에서는 같은 역주행 1차 데이터 재전송으로 중복 방지 확인
+- 역주행 데이터 1회 전송
+- 기본값에서는 같은 역주행 상태 재전송으로 중복 방지 확인
 - 역주행 이후 10초 대기 후 정주행 데이터 10회 재전송
 
 DBeaver에서 확인할 테이블:
@@ -324,6 +343,8 @@ DBeaver에서 확인할 테이블:
 SELECT * FROM vehicle_tracks;
 SELECT * FROM traffic_events;
 SELECT * FROM event_logs;
+SELECT * FROM safety_incidents;
+SELECT * FROM daily_traffic_stats;
 ```
 
 ## 컨테이너 관리

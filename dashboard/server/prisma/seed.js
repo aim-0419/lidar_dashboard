@@ -80,9 +80,52 @@ async function main() {
         name: device.name,
         deviceType: device.deviceType,
         installedLocation: device.installedLocation,
+        protocolDeviceId: null,
       },
       create: {
         ...device,
+        status: "UNKNOWN",
+        healthStatus: "UNKNOWN",
+      },
+    });
+  }
+
+  const controlBoard1 = await prisma.device.findUnique({ where: { deviceCode: "CONTROL-BOARD-01" } });
+  const controlBoard2 = await prisma.device.findUnique({ where: { deviceCode: "CONTROL-BOARD-02" } });
+
+  // 물리 장비는 DB의 device_code로만 식별한다.
+  // 프로토콜 바이트 주소는 하드웨어 규격 확정 후 protocolDeviceId에 별도로 매핑한다.
+  const controlledDevices = [
+    { zoneId: roundabout1.id, controllerId: controlBoard1.id, prefix: "ROUNDABOUT-01", location: "회전교차로 1" },
+    { zoneId: roundabout2.id, controllerId: controlBoard2.id, prefix: "ROUNDABOUT-02", location: "회전교차로 2" },
+  ].flatMap((group) => [
+    { ...group, suffix: "SPEAKER-01", name: "스피커 1", deviceType: "SPEAKER" },
+    { ...group, suffix: "SPEAKER-02", name: "스피커 2", deviceType: "SPEAKER" },
+    { ...group, suffix: "DISPLAY-01", name: "전광판 1", deviceType: "DISPLAY" },
+    { ...group, suffix: "DISPLAY-02", name: "전광판 2", deviceType: "DISPLAY" },
+    { ...group, suffix: "BARRIER-01", name: "차단기 1", deviceType: "BARRIER" },
+  ]);
+
+  for (const device of controlledDevices) {
+    const deviceCode = `${device.prefix}-${device.suffix}`;
+    await prisma.device.upsert({
+      where: { deviceCode },
+      update: {
+        zoneId: device.zoneId,
+        controllerId: device.controllerId,
+        name: `${device.location} ${device.name}`,
+        deviceType: device.deviceType,
+        protocolDeviceId: null,
+        installedLocation: device.location,
+      },
+      create: {
+        zoneId: device.zoneId,
+        controllerId: device.controllerId,
+        deviceCode,
+        name: `${device.location} ${device.name}`,
+        deviceType: device.deviceType,
+        protocolDeviceId: null,
+        installedLocation: device.location,
         status: "UNKNOWN",
         healthStatus: "UNKNOWN",
       },
