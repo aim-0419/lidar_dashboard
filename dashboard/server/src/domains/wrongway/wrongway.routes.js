@@ -10,6 +10,7 @@ router.post("/wrongway/test/normal", controller.sendNormalDrivingTest);
 router.post("/wrongway/test/normal-stream/start", controller.startNormalDrivingStream);
 router.post("/wrongway/test/normal-stream/stop", controller.stopNormalDrivingStream);
 router.get("/wrongway/test/normal-stream/status", controller.getNormalDrivingStreamStatus);
-router.post("/wrongway/test/wrong-way-level-1", controller.sendWrongWayLevel1Test);
+router.post("/wrongway/test/wrong-way", controller.sendWrongWayTest);
+router.post("/wrongway/test/mixed-snapshot", controller.sendWrongWayTest);
 
 module.exports = router;

@@ -34,6 +34,20 @@ function createWrongwayTestSendResponse({ payload, result }) {
   };
 }
 
+function createWrongwayBatchResponse({ snapshot, summary, results, warnings = [] }) {
+  // 한 HTTP snapshot 안의 여러 객체가 각각 어떻게 처리됐는지 한 응답으로 묶는다.
+  return {
+    ok: true,
+    source: snapshot.source,
+    status: snapshot.status,
+    occurredAt: snapshot.timestamp || null,
+    receivedAt: snapshot.receivedAt,
+    summary,
+    warnings,
+    results,
+  };
+}
+
 function createWrongwayErrorResponse(error, fallbackMessage) {
   // controller의 실패 응답도 같은 형태로 맞춰 Swagger와 실제 응답이 갈라지지 않게 한다.
   return {
@@ -46,5 +60,6 @@ function createWrongwayErrorResponse(error, fallbackMessage) {
 module.exports = {
   createWrongwayErrorResponse,
   createWrongwayReceiveResponse,
+  createWrongwayBatchResponse,
   createWrongwayTestSendResponse,
 };
