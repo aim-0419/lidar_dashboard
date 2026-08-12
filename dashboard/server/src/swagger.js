@@ -1,4 +1,4 @@
-const swaggerSpec = {
+﻿const swaggerSpec = {
   openapi: "3.0.0",
   info: {
     title: "Lidar Dashboard API",
@@ -21,7 +21,7 @@ const swaggerSpec = {
     { name: "Devices", description: "장비 목록/상세/상태 조회" },
     { name: "Dashboard", description: "대시보드 상태와 로그 조회" },
     { name: "Control", description: "차단기와 전광판 제어" },
-    { name: "Control Board", description: "통합제어보드 이더넷 TCP 명령 전송" },
+    { name: "Control Board", description: "통합제어보드 원격 TCP 명령 전송" },
     { name: "Wrongway", description: "역주행 감지 이벤트" },
     { name: "External Ingest", description: "라이다 PC와 통합 제어보드 외부 이벤트 수신" },
     { name: "Demo", description: "감지 데모 제어" },
@@ -108,14 +108,14 @@ const swaggerSpec = {
             },
           },
           401: {
-            description: "리프레시 토큰이 없거나 유효하지 않음",
+            description: "refreshToken이 없거나 유효하지 않음",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "유효하지 않은 리프레시 토큰입니다." },
+                    message: { type: "string", example: "유효하지 않은 refresh token입니다." },
                   },
                 },
               },
@@ -192,7 +192,7 @@ const swaggerSpec = {
       post: {
         tags: ["Auth"],
         summary: "로그아웃",
-        description: "HttpOnly cookie에 저장된 refreshToken을 폐기하고 쿠키를 삭제합니다.",
+        description: "HttpOnly cookie에 저장된 refreshToken을 폐기하고 쿠키를 제거합니다.",
         responses: {
           200: {
             description: "로그아웃 성공",
@@ -294,12 +294,12 @@ const swaggerSpec = {
     "/api/users": {
       get: {
         tags: ["Users"],
-        summary: "Get users list",
-        description: "Returns the list of users for administrators.",
+        summary: "사용자 목록 조회",
+        description: "관리자가 사용자 목록을 조회합니다.",
         security: [{ bearerAuth: [] }],
         responses: {
           200: {
-            description: "Users list fetched successfully",
+            description: "사용자 목록 조회 성공",
             content: {
               "application/json": {
                 schema: {
@@ -329,28 +329,28 @@ const swaggerSpec = {
             },
           },
           401: {
-            description: "Authentication failed",
+            description: "인증 실패",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "Authentication is required." },
+                    message: { type: "string", example: "인증이 필요합니다." },
                   },
                 },
               },
             },
           },
           403: {
-            description: "Insufficient permission",
+            description: "권한 없음",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "Permission denied." },
+                    message: { type: "string", example: "권한이 없습니다." },
                   },
                 },
               },
@@ -360,8 +360,8 @@ const swaggerSpec = {
       },
       post: {
         tags: ["Users"],
-        summary: "Create user",
-        description: "Creates a new user for administrators.",
+        summary: "사용자 생성",
+        description: "관리자가 새 사용자를 생성합니다.",
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
@@ -383,7 +383,7 @@ const swaggerSpec = {
         },
         responses: {
           201: {
-            description: "User created successfully",
+            description: "사용자 생성 성공",
             content: {
               "application/json": {
                 schema: {
@@ -409,28 +409,28 @@ const swaggerSpec = {
             },
           },
           400: {
-            description: "Invalid request body",
+            description: "잘못된 요청 본문",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "userId, name, and password are required." },
+                    message: { type: "string", example: "userId, name, password는 필수입니다." },
                   },
                 },
               },
             },
           },
           409: {
-            description: "User ID already exists",
+            description: "이미 존재하는 사용자 ID",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "User ID already exists." },
+                    message: { type: "string", example: "이미 존재하는 사용자 ID입니다." },
                   },
                 },
               },
@@ -442,8 +442,8 @@ const swaggerSpec = {
     "/api/users/{id}": {
       get: {
         tags: ["Users"],
-        summary: "Get user detail",
-        description: "Returns a single user detail for administrators.",
+        summary: "사용자 상세 조회",
+        description: "관리자가 사용자 상세 정보를 조회합니다.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -456,7 +456,7 @@ const swaggerSpec = {
         ],
         responses: {
           200: {
-            description: "User detail fetched successfully",
+            description: "사용자 상세 조회 성공",
             content: {
               "application/json": {
                 schema: {
@@ -482,42 +482,42 @@ const swaggerSpec = {
             },
           },
           401: {
-            description: "Authentication failed",
+            description: "인증 실패",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "Authentication is required." },
+                    message: { type: "string", example: "인증이 필요합니다." },
                   },
                 },
               },
             },
           },
           403: {
-            description: "Insufficient permission",
+            description: "권한 없음",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "Permission denied." },
+                    message: { type: "string", example: "권한이 없습니다." },
                   },
                 },
               },
             },
           },
           404: {
-            description: "User not found",
+            description: "사용자를 찾을 수 없음",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "User not found." },
+                    message: { type: "string", example: "사용자를 찾을 수 없습니다." },
                   },
                 },
               },
@@ -527,8 +527,8 @@ const swaggerSpec = {
       },
       patch: {
         tags: ["Users"],
-        summary: "Update user",
-        description: "Updates a user for administrators.",
+        summary: "사용자 수정",
+        description: "관리자가 사용자 정보를 수정합니다.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -557,7 +557,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "User updated successfully",
+            description: "사용자 수정 성공",
             content: {
               "application/json": {
                 schema: {
@@ -583,42 +583,42 @@ const swaggerSpec = {
             },
           },
           400: {
-            description: "Invalid request body",
+            description: "잘못된 요청 본문",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "At least one field is required to update the user." },
+                    message: { type: "string", example: "수정할 필드를 하나 이상 입력해야 합니다." },
                   },
                 },
               },
             },
           },
           404: {
-            description: "User not found",
+            description: "사용자를 찾을 수 없음",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "User not found." },
+                    message: { type: "string", example: "사용자를 찾을 수 없습니다." },
                   },
                 },
               },
             },
           },
           409: {
-            description: "User ID already exists",
+            description: "이미 존재하는 사용자 ID",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "User ID already exists." },
+                    message: { type: "string", example: "이미 존재하는 사용자 ID입니다." },
                   },
                 },
               },
@@ -628,8 +628,8 @@ const swaggerSpec = {
       },
       delete: {
         tags: ["Users"],
-        summary: "Deactivate user",
-        description: "Deactivates a user for administrators.",
+        summary: "사용자 삭제/비활성화",
+        description: "관리자가 사용자를 비활성화합니다.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -642,7 +642,7 @@ const swaggerSpec = {
         ],
         responses: {
           200: {
-            description: "User deactivated successfully",
+            description: "사용자 비활성화 성공",
             content: {
               "application/json": {
                 schema: {
@@ -668,14 +668,14 @@ const swaggerSpec = {
             },
           },
           404: {
-            description: "User not found",
+            description: "사용자를 찾을 수 없음",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "User not found." },
+                    message: { type: "string", example: "사용자를 찾을 수 없습니다." },
                   },
                 },
               },
@@ -687,8 +687,8 @@ const swaggerSpec = {
     "/api/users/{id}/password": {
       patch: {
         tags: ["Users"],
-        summary: "Update user password",
-        description: "Changes or resets a user password for administrators.",
+        summary: "비밀번호 변경/초기화",
+        description: "관리자가 사용자 비밀번호를 변경하거나 초기화합니다.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -715,7 +715,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "User password updated successfully",
+            description: "비밀번호 변경 성공",
             content: {
               "application/json": {
                 schema: {
@@ -741,28 +741,28 @@ const swaggerSpec = {
             },
           },
           400: {
-            description: "Invalid request body",
+            description: "잘못된 요청 본문",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "password is required." },
+                    message: { type: "string", example: "password는 필수입니다." },
                   },
                 },
               },
             },
           },
           404: {
-            description: "User not found",
+            description: "사용자를 찾을 수 없음",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "User not found." },
+                    message: { type: "string", example: "사용자를 찾을 수 없습니다." },
                   },
                 },
               },
@@ -776,7 +776,7 @@ const swaggerSpec = {
         tags: ["Database"],
         summary: "DB 연결 상태 확인",
         description:
-          "Prisma가 PostgreSQL에 접속할 수 있는지 확인하고, 기본 테이블별 데이터 수를 반환합니다. 마이그레이션과 seed 적용 여부를 Swagger에서 빠르게 점검하기 위한 API입니다.",
+          "Prisma가 PostgreSQL에 정상 연결되는지 확인하고, 기본 테이블 상태를 함께 반환합니다. 마이그레이션과 seed 적용 여부를 Swagger에서 빠르게 확인하기 위한 API입니다.",
         responses: {
           200: {
             description: "DB 연결 및 기본 테이블 조회 성공",
@@ -802,7 +802,7 @@ const swaggerSpec = {
         tags: ["Sites"],
         summary: "현장 목록 조회",
         description:
-          "등록된 현장 목록을 생성순으로 반환합니다. 각 현장에 속한 구역 수와 장비 수를 함께 제공합니다.",
+          "등록된 현장 목록을 반환합니다. 각 현장에 속한 구역과 장비 요약 정보를 함께 제공합니다.",
         security: [{ bearerAuth: [] }],
         responses: {
           200: {
@@ -887,7 +887,7 @@ const swaggerSpec = {
       get: {
         tags: ["Zones"],
         summary: "구역 목록 조회",
-        description: "등록된 전체 구역 목록을 생성순으로 반환합니다. 각 구역의 소속 현장 요약과 장비 수를 함께 제공합니다.",
+        description: "등록된 전체 구역 목록을 반환합니다. 각 구역의 소속 현장 요약과 장비 정보를 함께 제공합니다.",
         security: [{ bearerAuth: [] }],
         responses: {
           200: {
@@ -956,7 +956,7 @@ const swaggerSpec = {
       get: {
         tags: ["Zones"],
         summary: "현장별 구역 조회",
-        description: "특정 현장에 속한 구역 목록을 생성순으로 반환합니다.",
+        description: "특정 현장에 속한 구역 목록을 반환합니다.",
         parameters: [
           {
             name: "siteId",
@@ -985,7 +985,7 @@ const swaggerSpec = {
             },
           },
           503: {
-            description: "구역 목록 조회 실패",
+            description: "현장별 구역 조회 실패",
             content: {
               "application/json": {
                 schema: { type: "object", additionalProperties: true },
@@ -999,7 +999,7 @@ const swaggerSpec = {
       get: {
         tags: ["Devices"],
         summary: "장비 목록 조회",
-        description: "등록된 전체 장비 목록을 생성순으로 반환합니다. 각 장비의 소속 구역/현장 요약을 함께 제공합니다.",
+        description: "등록된 전체 장비 목록을 반환합니다. 각 장비의 소속 구역과 현장 요약 정보를 함께 제공합니다.",
         security: [{ bearerAuth: [] }],
         responses: {
           200: {
@@ -1025,7 +1025,7 @@ const swaggerSpec = {
       get: {
         tags: ["Devices"],
         summary: "장비 상세 조회",
-        description: "장비 하나의 상세 정보를 반환합니다. 소속 구역/현장 요약을 함께 제공합니다.",
+        description: "장비 하나의 상세 정보를 반환합니다. 소속 구역과 현장 요약 정보를 함께 제공합니다.",
         parameters: [
           {
             name: "id",
@@ -1068,7 +1068,7 @@ const swaggerSpec = {
       get: {
         tags: ["Devices"],
         summary: "장비 상태 조회",
-        description: "장비 하나의 상태와 헬스 상태만 좁게 반환합니다.",
+        description: "장비 하나의 상태 정보만 간단하게 반환합니다.",
         parameters: [
           {
             name: "id",
@@ -1111,7 +1111,7 @@ const swaggerSpec = {
       get: {
         tags: ["Devices"],
         summary: "구역별 장비 조회",
-        description: "특정 구역에 속한 장비 목록을 생성순으로 반환합니다.",
+        description: "특정 구역에 속한 장비 목록을 반환합니다.",
         parameters: [
           {
             name: "zoneId",
@@ -1140,10 +1140,108 @@ const swaggerSpec = {
             },
           },
           503: {
-            description: "장비 목록 조회 실패",
+            description: "구역별 장비 조회 실패",
             content: {
               "application/json": {
                 schema: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/statistics/summary": {
+      get: {
+        tags: ["Dashboard"],
+        summary: "통계 요약 조회",
+        description: "선택한 기간의 누적 교통 통계를 조회합니다.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "period",
+            in: "query",
+            required: false,
+            schema: {
+              type: "string",
+              enum: ["daily", "weekly", "monthly"],
+              default: "daily",
+            },
+            example: "daily",
+          },
+          {
+            name: "siteId",
+            in: "query",
+            required: false,
+            schema: { type: "string" },
+            example: "site-wolchulsan-rest-area",
+          },
+          {
+            name: "zoneId",
+            in: "query",
+            required: false,
+            schema: { type: "string" },
+            example: "cmzone123",
+          },
+        ],
+        responses: {
+          200: {
+            description: "통계 요약 조회 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    period: { type: "string", example: "daily" },
+                    range: {
+                      type: "object",
+                      properties: {
+                        startAt: { type: "string", format: "date-time" },
+                        endAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                    summary: {
+                      type: "object",
+                      properties: {
+                        totalVehicles: { type: "integer", example: 24 },
+                        wrongWayEvents: { type: "integer", example: 0 },
+                        wrongWayRate: { type: "number", example: 0 },
+                        pedestrianCount: { type: "integer", example: 0 },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: "잘못된 query parameter",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: {
+                      type: "string",
+                      example: "period must be one of daily, weekly, or monthly.",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "인증 실패",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "인증이 필요합니다." },
+                  },
+                },
               },
             },
           },
@@ -1154,9 +1252,10 @@ const swaggerSpec = {
       get: {
         tags: ["Dashboard"],
         summary: "현재 대시보드 상태 조회",
+        description: "메모리에 저장된 현재 대시보드 상태 정보를 조회합니다.",
         responses: {
           200: {
-            description: "메모리에 저장된 현재 대시보드 상태",
+            description: "현재 대시보드 상태 조회 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/DashboardState" },
@@ -1170,9 +1269,10 @@ const swaggerSpec = {
       get: {
         tags: ["Dashboard"],
         summary: "최근 대시보드 로그 조회",
+        description: "메모리에 저장된 최근 대시보드 로그 목록을 조회합니다.",
         responses: {
           200: {
-            description: "최근 로그 목록",
+            description: "최근 대시보드 로그 조회 성공",
             content: {
               "application/json": {
                 schema: {
@@ -1189,9 +1289,10 @@ const swaggerSpec = {
       post: {
         tags: ["Control"],
         summary: "차단기 열기",
+        description: "차단기 열기 명령을 전송합니다.",
         responses: {
           200: {
-            description: "차단기 열기 명령 접수",
+            description: "차단기 열기 명령 접수 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/GateResponse" },
@@ -1205,9 +1306,10 @@ const swaggerSpec = {
       post: {
         tags: ["Control"],
         summary: "차단기 닫기",
+        description: "차단기 닫기 명령을 전송합니다.",
         responses: {
           200: {
-            description: "차단기 닫기 명령 접수",
+            description: "차단기 닫기 명령 접수 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/GateResponse" },
@@ -1221,6 +1323,7 @@ const swaggerSpec = {
       post: {
         tags: ["Control"],
         summary: "전광판 문구 전송",
+        description: "전광판에 표시할 문구를 전송합니다.",
         requestBody: {
           required: false,
           content: {
@@ -1231,7 +1334,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "전광판 문구 접수",
+            description: "전광판 문구 전송 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/VmsResponse" },
@@ -1246,10 +1349,10 @@ const swaggerSpec = {
         tags: ["Control"],
         summary: "제어 상태 조회",
         description:
-          "현장 연동 테스트 중 차단기, 전광판, 라이다 표시 상태를 한 번에 확인하기 위한 API입니다. 현재는 DB 없이 메모리 상태를 반환합니다.",
+          "차단기, 전광판, 경광등 등 현재 제어 상태를 조회합니다. 현재는 DB가 아닌 메모리 상태를 기준으로 반환합니다.",
         responses: {
           200: {
-            description: "현재 제어 상태",
+            description: "현재 제어 상태 조회 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ControlStatusResponse" },
@@ -1262,9 +1365,9 @@ const swaggerSpec = {
     "/api/control-board/commands": {
       post: {
         tags: ["Control Board"],
-        summary: "통합제어보드 TCP 명령 전송",
+        summary: "통합제어보드 명령 전송",
         description:
-          "대시보드 서버가 RS-485 10바이트 프로토콜 프레임을 생성한 뒤, 이더넷 TCP 소켓으로 통합제어보드에 전송합니다. dryRun이 true이면 실제 TCP 전송 없이 패킷 생성과 CRC-8 계산만 확인합니다.",
+          "대시보드 서버가 통합제어보드로 TCP 명령을 전송합니다. dryRun이 true이면 실제 전송 없이 프레임 생성과 검증만 수행합니다.",
         requestBody: {
           required: true,
           content: {
@@ -1276,7 +1379,7 @@ const swaggerSpec = {
         security: [{ bearerAuth: [] }],
         responses: {
           200: {
-            description: "통합제어보드 명령 처리 결과",
+            description: "통합제어보드 명령 전송 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ControlBoardCommandResponse" },
@@ -1284,7 +1387,7 @@ const swaggerSpec = {
             },
           },
           400: {
-            description: "요청값 또는 통합제어보드 접속 설정 오류",
+            description: "잘못된 요청 또는 통합제어보드 설정 오류",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -1304,6 +1407,7 @@ const swaggerSpec = {
       get: {
         tags: ["Control Board"],
         summary: "최근 통합제어보드 명령 목록 조회",
+        description: "최근 전송된 통합제어보드 명령 목록을 조회합니다.",
         parameters: [
           {
             name: "limit",
@@ -1314,7 +1418,7 @@ const swaggerSpec = {
         ],
         responses: {
           200: {
-            description: "최근 명령 목록",
+            description: "최근 통합제어보드 명령 목록 조회 성공",
             content: {
               "application/json": {
                 schema: {
@@ -1337,6 +1441,7 @@ const swaggerSpec = {
       get: {
         tags: ["Control Board"],
         summary: "통합제어보드 명령 결과 조회",
+        description: "명령 ID 기준으로 통합제어보드 명령 결과를 조회합니다.",
         parameters: [
           {
             name: "id",
@@ -1348,7 +1453,7 @@ const swaggerSpec = {
         security: [{ bearerAuth: [] }],
         responses: {
           200: {
-            description: "명령 상세 결과",
+            description: "통합제어보드 명령 결과 조회 성공",
             content: {
               "application/json": {
                 schema: {
@@ -1362,7 +1467,7 @@ const swaggerSpec = {
             },
           },
           404: {
-            description: "명령 ID를 찾을 수 없음",
+            description: "해당 명령 ID를 찾을 수 없음",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -1375,9 +1480,9 @@ const swaggerSpec = {
     "/api/wrongway": {
       post: {
         tags: ["Wrongway"],
-        summary: "라이다 정주행/역주행 이벤트 수신",
+        summary: "라이다 역주행/정주행 이벤트 수신",
         description:
-          "라이다 PC가 보내는 공식 수신 API입니다. normal-driving은 VehicleTrack upsert로 최신 상태만 갱신하고, wrong-way-level-1은 TrafficEvent/EventLog에 저장합니다.",
+          "라이다 PC에서 전송한 이벤트 payload를 수신합니다. normal-driving은 VehicleTrack을 갱신하고, wrong-way-level-1은 TrafficEvent와 EventLog를 함께 저장합니다.",
         requestBody: {
           required: false,
           content: {
@@ -1388,7 +1493,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "정주행 track 갱신 또는 중복/미구현 이벤트 처리 완료",
+            description: "정주행 track 갱신 또는 중복/미대상 이벤트 처리 완료",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/WrongwayReceiveResult" },
@@ -1425,9 +1530,9 @@ const swaggerSpec = {
     "/api/wrongway/test-payloads": {
       get: {
         tags: ["Wrongway"],
-        summary: "라이다 테스트 payload와 API URL 조회",
+        summary: "테스트 payload 및 API URL 조회",
         description:
-          "정주행/역주행 테스트 payload와 Swagger 테스트용 API URL을 한 번에 확인합니다.",
+          "역주행/정주행 테스트용 payload 예시와 Swagger 테스트용 API URL 목록을 조회합니다.",
         responses: {
           200: {
             description: "테스트 payload 조회 성공",
@@ -1443,9 +1548,10 @@ const swaggerSpec = {
     "/api/wrongway/test/normal": {
       post: {
         tags: ["Wrongway"],
+        security: [{ bearerAuth: [] }],
         summary: "정주행 테스트 데이터 1회 전송",
         description:
-          "정주행 payload를 1회 생성해 기존 /api/wrongway 처리 흐름으로 보냅니다. VehicleTrack upsert 동작을 단건으로 확인할 때 사용합니다.",
+          "정주행 payload를 1회 생성해 기존 /api/wrongway 처리 흐름으로 전송합니다. VehicleTrack upsert 동작을 확인할 때 사용합니다.",
         requestBody: {
           required: false,
           content: {
@@ -1469,9 +1575,10 @@ const swaggerSpec = {
     "/api/wrongway/test/normal-stream/start": {
       post: {
         tags: ["Wrongway"],
+        security: [{ bearerAuth: [] }],
         summary: "정주행 테스트 데이터 1초 간격 전송 시작",
         description:
-          "서버 내부에서 1초마다 normal-driving payload를 생성해 기존 /api/wrongway 처리 흐름으로 보냅니다. 같은 track_id를 반복 전송해 VehicleTrack upsert를 확인합니다.",
+          "서버 내부에서 1초마다 normal-driving payload를 생성해 기존 /api/wrongway 처리 흐름으로 전송합니다. 같은 track_id를 반복 전송해 VehicleTrack upsert 동작을 확인할 때 사용합니다.",
         requestBody: {
           required: false,
           content: {
@@ -1495,10 +1602,12 @@ const swaggerSpec = {
     "/api/wrongway/test/normal-stream/stop": {
       post: {
         tags: ["Wrongway"],
+        security: [{ bearerAuth: [] }],
         summary: "정주행 테스트 데이터 1초 간격 전송 중지",
+        description: "실행 중인 정주행 테스트 스트림 전송을 중지합니다.",
         responses: {
           200: {
-            description: "정주행 테스트 스트림 중지",
+            description: "정주행 테스트 스트림 중지 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/NormalDrivingStreamStatus" },
@@ -1511,10 +1620,12 @@ const swaggerSpec = {
     "/api/wrongway/test/normal-stream/status": {
       get: {
         tags: ["Wrongway"],
+        security: [{ bearerAuth: [] }],
         summary: "정주행 테스트 스트림 상태 조회",
+        description: "현재 정주행 테스트 스트림이 실행 중인지 상태를 조회합니다.",
         responses: {
           200: {
-            description: "정주행 테스트 스트림 상태",
+            description: "정주행 테스트 스트림 상태 조회 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/NormalDrivingStreamStatus" },
@@ -1527,9 +1638,10 @@ const swaggerSpec = {
     "/api/wrongway/test/wrong-way-level-1": {
       post: {
         tags: ["Wrongway"],
+        security: [{ bearerAuth: [] }],
         summary: "역주행 1차 테스트 데이터 1회 전송",
         description:
-          "역주행 1차 payload를 1회 생성해 기존 /api/wrongway 처리 흐름으로 보냅니다. TrafficEvent 저장과 동일 track_id 중복 방지를 확인합니다.",
+          "역주행 1차 payload를 1회 생성해 기존 /api/wrongway 처리 흐름으로 전송합니다. TrafficEvent 저장과 동일 track_id 중복 방지 동작을 확인할 때 사용합니다.",
         requestBody: {
           required: false,
           content: {
@@ -1548,7 +1660,7 @@ const swaggerSpec = {
             },
           },
           201: {
-            description: "역주행 1차 이벤트 신규 저장",
+            description: "역주행 1차 이벤트 신규 저장 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/WrongwayTestSendResponse" },
@@ -1562,7 +1674,7 @@ const swaggerSpec = {
       post: {
         tags: ["External Ingest"],
         summary: "라이다 PC 실제 HTTP 이벤트 수신",
-        description: "현장 라이다 PC가 실제 역주행 감지 JSON을 전송할 때 사용하는 API입니다. 수신된 원본 데이터는 현장 연동 확인을 위해 rawPayload로 함께 반환됩니다.",
+        description: "현장 라이다 PC가 실제로 전송하는 JSON payload를 수신하는 API입니다. 수신한 원본 데이터는 현장 연동 확인을 위해 rawPayload로 함께 반환합니다.",
         requestBody: {
           required: false,
           content: {
@@ -1573,7 +1685,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "라이다 실제 이벤트 수신 완료",
+            description: "라이다 실제 이벤트 수신 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ExternalIngestResponse" },
@@ -1587,7 +1699,7 @@ const swaggerSpec = {
       post: {
         tags: ["External Ingest"],
         summary: "라이다 PC mock HTTP 이벤트 수신",
-        description: "개발자 또는 Swagger/curl 테스트에서 라이다 수신 흐름을 확인하기 위한 mock API입니다. 실제 라이다 PC 연동은 /api/ingest/lidar를 사용합니다.",
+        description: "개발 환경이나 Swagger, curl 테스트에서 라이다 수신 흐름을 확인하기 위한 mock API입니다. 실제 라이다 PC 연동 시에는 /api/ingest/lidar를 사용합니다.",
         requestBody: {
           required: false,
           content: {
@@ -1598,7 +1710,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "라이다 외부 이벤트 수신 완료",
+            description: "라이다 mock 이벤트 수신 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ExternalIngestResponse" },
@@ -1611,9 +1723,9 @@ const swaggerSpec = {
     "/api/ingest/control-board": {
       post: {
         tags: ["External Ingest"],
-        summary: "통합 제어보드 실제 HTTP 패킷 수신",
+        summary: "통합제어보드 실제 HTTP 패킷 수신",
         description:
-          "통합 제어보드 또는 중간 브릿지 프로그램이 실제 패킷을 HTTP JSON으로 넘길 때 사용하는 API입니다. RS-485 직접 연결이 확정되기 전까지 실제 수신 진입점으로 유지하고, 내부에서는 mock과 같은 parser/adapter 흐름을 사용합니다.",
+          "통합제어보드 또는 중간 브리지 프로그램이 실제 패킷을 HTTP JSON 형태로 전달할 때 사용하는 API입니다. 내부에서는 mock과 동일한 parser와 adapter 흐름을 사용합니다.",
         requestBody: {
           required: false,
           content: {
@@ -1624,7 +1736,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "통합 제어보드 실제 패킷 수신 완료",
+            description: "통합제어보드 실제 패킷 수신 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ExternalIngestResponse" },
@@ -1637,8 +1749,8 @@ const swaggerSpec = {
     "/api/ingest/control-board/mock": {
       post: {
         tags: ["External Ingest"],
-        summary: "통합 제어보드 mock 패킷 수신",
-        description: "RS-485 10바이트 패킷 adapter 흐름을 HTTP로 먼저 테스트하기 위한 API입니다. packet이 있으면 Byte 1~6 기준 CRC-8/SMBUS를 계산해 Byte 7 값과 비교합니다.",
+        summary: "통합제어보드 mock 패킷 수신",
+        description: "RS-485 10바이트 패킷 adapter 흐름을 HTTP로 먼저 테스트하기 위한 API입니다. packet 값이 있으면 Byte 1~6 기준 CRC-8/SMBUS를 계산해 Byte 7과 비교합니다.",
         requestBody: {
           required: false,
           content: {
@@ -1649,7 +1761,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "통합 제어보드 mock 패킷 수신 완료",
+            description: "통합제어보드 mock 패킷 수신 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ExternalIngestResponse" },
@@ -1662,8 +1774,8 @@ const swaggerSpec = {
     "/api/ingest/control-board/serial/test": {
       post: {
         tags: ["External Ingest"],
-        summary: "통합 제어보드 serial reader 테스트",
-        description: "실제 COM 포트를 열거나 serialport 의존성을 추가하지 않고, 현장 테스트에 필요한 포트/보드레이트/샘플 패킷 입력 형태만 확인합니다.",
+        summary: "통합제어보드 시리얼 리더 테스트",
+        description: "실제 COM 포트를 열거나 serialport 의존성을 추가하지 않고, 현장 테스트에 필요한 포트와 보드레이트, 샘플 패킷 입력 형태만 확인하는 API입니다.",
         requestBody: {
           required: false,
           content: {
@@ -1674,7 +1786,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "serial reader 테스트 요청 접수",
+            description: "시리얼 리더 테스트 요청 접수 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ControlBoardSerialTestResponse" },
@@ -1688,6 +1800,7 @@ const swaggerSpec = {
       get: {
         tags: ["External Ingest"],
         summary: "최근 외부 수신 이벤트 조회",
+        description: "최근 수신된 외부 연동 이벤트 목록을 조회합니다.",
         parameters: [
           {
             name: "limit",
@@ -1698,7 +1811,7 @@ const swaggerSpec = {
         ],
         responses: {
           200: {
-            description: "최근 외부 수신 이벤트 목록",
+            description: "최근 외부 수신 이벤트 목록 조회 성공",
             content: {
               "application/json": {
                 schema: {
@@ -1716,10 +1829,10 @@ const swaggerSpec = {
         tags: ["External Ingest"],
         summary: "외부 수신 상태 조회",
         description:
-          "라이다 PC와 통합 제어보드에서 최근 수신된 이벤트를 기준으로 마지막 수신 시각, 최근 오류 패킷 수, 최근 오류 이벤트를 요약합니다. 현장 테스트에서 수신 여부를 빠르게 확인하기 위한 API입니다.",
+          "라이다 PC와 통합제어보드에서 최근 수신된 이벤트를 기준으로 마지막 수신 시각, 최근 오류 패킷 수, 최근 오류 이벤트를 요약해 반환합니다.",
         responses: {
           200: {
-            description: "외부 수신 상태 요약",
+            description: "외부 수신 상태 조회 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/IngestStatusResponse" },
@@ -1732,7 +1845,8 @@ const swaggerSpec = {
     "/api/demo/start": {
       post: {
         tags: ["Demo"],
-        summary: "감지 데모 시작",
+        summary: "데모 시작",
+        description: "데모 상태를 시작하고 테스트용 데이터를 초기화하거나 재생합니다.",
         requestBody: {
           required: false,
           content: {
@@ -1746,7 +1860,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "감지 데모 시작 완료",
+            description: "데모 시작 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/DemoResponse" },
@@ -1754,7 +1868,7 @@ const swaggerSpec = {
             },
           },
           500: {
-            description: "감지 데모 시작 실패",
+            description: "데모 시작 실패",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -1767,7 +1881,8 @@ const swaggerSpec = {
     "/api/demo/reset": {
       post: {
         tags: ["Demo"],
-        summary: "감지 데모 초기화",
+        summary: "데모 초기화",
+        description: "현재 데모 상태를 초기화하고 기본 상태로 되돌립니다.",
         requestBody: {
           required: false,
           content: {
@@ -1781,7 +1896,7 @@ const swaggerSpec = {
         },
         responses: {
           200: {
-            description: "감지 데모 초기화 완료",
+            description: "데모 초기화 성공",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/DemoResponse" },
@@ -1789,7 +1904,7 @@ const swaggerSpec = {
             },
           },
           500: {
-            description: "감지 데모 초기화 실패",
+            description: "데모 초기화 실패",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -1850,7 +1965,8 @@ const swaggerSpec = {
             example: "아이디 또는 비밀번호가 올바르지 않습니다.",
           },
         },
-      },      DatabaseHealthResponse: {
+      },
+      DatabaseHealthResponse: {
         type: "object",
         properties: {
           ok: { type: "boolean", example: true },
@@ -1984,19 +2100,19 @@ const swaggerSpec = {
               "situation_ended",
             ],
             example: "STAGE_1_ON",
-            description: "통합제어보드로 보낼 명령 유형입니다. 별칭은 내부에서 PDF 프로토콜 명령으로 변환합니다.",
+            description: "통합제어보드로 전송할 명령 유형입니다. 내부에서 프로토콜 명령값으로 변환됩니다.",
           },
           zoneId: { type: "string", example: "zone-1" },
           reason: { type: "string", example: "wrong-way-level-1" },
           host: {
             type: "string",
             example: "192.168.0.10",
-            description: ".env의 CONTROL_BOARD_HOST 대신 임시 테스트 IP를 지정할 때 사용합니다.",
+            description: ".env의 CONTROL_BOARD_HOST 대신 일시적으로 테스트 IP를 지정할 때 사용합니다.",
           },
           port: {
             type: "integer",
             example: 5000,
-            description: ".env의 CONTROL_BOARD_PORT 대신 임시 테스트 port를 지정할 때 사용합니다.",
+            description: ".env의 CONTROL_BOARD_PORT 대신 일시적으로 테스트 port를 지정할 때 사용합니다.",
           },
           timeoutMs: { type: "integer", example: 3000 },
           dryRun: {
@@ -2170,7 +2286,7 @@ const swaggerSpec = {
           message: { type: "string", example: "라이다 역주행 감지 이벤트 수신" },
           externalOccurredAt: {
             type: "string",
-            description: "외부 장비가 보낸 원본 시간 값입니다. 잘못된 형식이어도 데이터 확인을 위해 그대로 보관합니다.",
+            description: "외부 장비가 보낸 원본 시각 값입니다. 잘못된 형식 여부 확인을 위해 그대로 보관합니다.",
             nullable: true,
             example: "2026-06-22T10:15:30+09:00",
           },
@@ -2181,18 +2297,18 @@ const swaggerSpec = {
             type: "integer",
             nullable: true,
             example: -120,
-            description: "외부 장비 시간과 백엔드 수신 시간의 차이입니다. 외부 장비 시간 - 백엔드 수신 시간 기준이며 단위는 ms입니다.",
+            description: "외부 장비 시각과 백엔드 수신 시각의 차이입니다. 외부 장비 시각 - 백엔드 수신 시각 기준이며 단위는 ms입니다.",
           },
           confidence: { type: "number", example: 0.92 },
           rawPayload: {
             type: "object",
             additionalProperties: true,
-            description: "현장 연동 테스트에서 실제 수신 데이터 형식을 확인하기 위한 원본 payload입니다. 운영 전에는 노출/저장 범위를 다시 제한해야 합니다.",
+            description: "현장 연동 테스트에서 실제 수신 데이터 형식을 확인하기 위한 원본 payload입니다. 운영 전에는 노출 범위를 다시 제한해야 합니다.",
           },
           rawSummary: {
             type: "object",
             additionalProperties: true,
-            description: "원본 payload의 필드 목록, 크기, 제어보드 패킷 파싱 결과, CRC 검증 결과를 담는 진단 정보입니다.",
+            description: "원본 payload의 필드 목록, 크기, 제어보드 패킷 파싱 결과, CRC 검증 결과 등을 담는 진단 정보입니다.",
           },
         },
       },
@@ -2307,4 +2423,34 @@ const swaggerSpec = {
 };
 
 module.exports = swaggerSpec;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

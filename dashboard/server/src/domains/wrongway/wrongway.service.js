@@ -41,6 +41,50 @@ function toDateOrNull(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function toStartOfDay(date) {
+  const nextDate = new Date(date);
+  nextDate.setHours(0, 0, 0, 0);
+  return nextDate;
+}
+
+async function incrementHourlyTrafficStatistic({ occurredAt, siteId = null, zoneId = null }) {
+  const baseDate = toDateOrNull(occurredAt) || new Date();
+  const statDate = toStartOfDay(baseDate);
+  const hourSlot = baseDate.getHours();
+
+  const existingStatistic = await prisma.trafficStatistic.findFirst({
+    where: {
+      statDate,
+      hourSlot,
+      periodType: "hourly",
+      siteId,
+      zoneId,
+    },
+  });
+
+  if (existingStatistic) {
+    return prisma.trafficStatistic.update({
+      where: { id: existingStatistic.id },
+      data: {
+        totalVehicles: {
+          increment: 1,
+        },
+      },
+    });
+  }
+
+  return prisma.trafficStatistic.create({
+    data: {
+      statDate,
+      hourSlot,
+      periodType: "hourly",
+      siteId,
+      zoneId,
+      totalVehicles: 1,
+    },
+  });
+}
+
 function toKstIsoString(date = new Date()) {
   // 라이다 PC 예시가 +09:00 KST ISO 문자열이라 테스트 payload도 같은 형태로 맞춘다.
   const kstDate = new Date(date.getTime() + 9 * 60 * 60 * 1000);
@@ -126,8 +170,13 @@ async function countNormalDrivingTracks() {
 }
 
 async function upsertVehicleTrack(event, zone) {
-  // 정주행 payload는 1초마다 반복될 수 있으므로, track_id 기준으로 새 행을 계속 만들지 않고 최신 상태만 갱신한다.
-  return prisma.vehicleTrack.upsert({
+ // 정주행 payload는 반복 수신될 수 있으므로, 같은 track_id가 이미 존재하는지 먼저 확인한 뒤 새 차량일 때만 통계에 반영한다.
+  const existingVehicleTrack = await prisma.vehicleTrack.findUnique({
+    where: { trackId: event.trackId },
+    select: { id: true },
+  });
+
+  const vehicleTrack = await prisma.vehicleTrack.upsert({
     where: { trackId: event.trackId },
     update: {
       zoneId: zone?.id || null,
@@ -150,6 +199,16 @@ async function upsertVehicleTrack(event, zone) {
       rawPayload: event.rawPayload,
     },
   });
+
+  if (!existingVehicleTrack) {
+    await incrementHourlyTrafficStatistic({
+      occurredAt: event.occurredAt || event.receivedAt,
+      siteId: zone?.siteId || null,
+      zoneId: zone?.id || null,
+    });
+  }
+
+  return vehicleTrack;
 }
 
 async function updateTrackNormalCount(vehicleTrackId, normalMovingVehicleCount) {
