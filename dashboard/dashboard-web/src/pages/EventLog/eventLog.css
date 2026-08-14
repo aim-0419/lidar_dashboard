@@ -24,6 +24,39 @@
   margin-top: 14px;
 }
 
+.event-total {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.event-advanced-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.event-advanced-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.event-advanced-filters input,
+.event-advanced-filters select {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #334155;
+}
+
 .event-search {
   display: flex;
   gap: 8px;
@@ -113,6 +146,16 @@
   background: #f8fafc;
 }
 
+.event-table-message {
+  height: 160px;
+  color: #64748b;
+  text-align: center !important;
+}
+
+.event-table-message.error {
+  color: #b91c1c;
+}
+
 .event-type-badge {
   display: inline-flex;
   border-radius: 999px;
@@ -123,10 +166,37 @@
   font-weight: 900;
 }
 
-.event-type-badge.wrong-way-level-1,
-.event-type-badge.wrong-way-level-2 {
+.event-type-badge.wrong-way {
   background: #fee2e2;
   color: #b91c1c;
+}
+
+.event-pagination {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  align-items: center;
+  padding: 14px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.event-pagination button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+}
+
+.event-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 
 .event-type-badge.pedestrian-entered {
@@ -152,8 +222,7 @@
   font-weight: 900;
 }
 
-.event-thumbnail.wrong-way-level-1,
-.event-thumbnail.wrong-way-level-2 {
+.event-thumbnail.wrong-way {
   background:
     linear-gradient(135deg, rgba(220, 38, 38, 0.28), rgba(15, 23, 42, 0.08)),
     repeating-linear-gradient(90deg, #0f172a 0 18px, #172033 18px 36px);
@@ -226,5 +295,15 @@
   .event-detail {
     position: static;
     margin-top: 14px;
+  }
+
+  .event-advanced-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .event-advanced-filters {
+    grid-template-columns: 1fr;
   }
 }
