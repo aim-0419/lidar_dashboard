@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { apiUrl, WS_BASE } from "../../shared/api/config";
+import { fetchWebSocketTicket } from "../../shared/api/http";
 import { ZoneLiveView } from "../../features/dashboard/components/ZoneLiveView";
 import {
   detectedObjects,
@@ -72,31 +73,58 @@ export default function DashboardPage() {
   }, []);
 
   // 기존 WebSocket 이벤트는 유지해서 백엔드 실시간 이벤트 연결 시 화면에 바로 반영되게 둔다.
+  // 대시보드 진입 시 websocket 티켓을 먼저 발급받고, 그 티켓으로 실시간 연결을 시작한다. 
   useEffect(() => {
-    const ws = new WebSocket(WS_BASE);
+    let ws = null;
+    let isMounted = true;
 
-    ws.onmessage = (event) => {
+    // http로 받은 1회용 티켓을 query string에 담아 websocket 연결을 생성한다. 
+    async function connectWebSocket() {
       try {
-        const message = JSON.parse(event.data);
-        if (message.type === "state" && message.payload) {
-          setLatestSnapshot((prev) => ({ ...prev, ...message.payload }));
+        const ticketResponse = await fetchWebSocketTicket();
+
+        if (!isMounted || !ticketResponse?.ticket) {
+          return;
         }
-        if (message.type === "dashboard-event" && modalEnabledRef.current) {
-          setActiveEvent({
-            id: message.payload?.id || "LIVE-EVENT",
-            type: message.payload?.type || "wrong-way-level-1",
-            title: message.payload?.title || "실시간 이벤트",
-            message: message.payload?.subMessage || message.payload?.message || "실시간 이벤트 수신",
-            time: message.payload?.timestamp || "실시간",
-            status: "NEW",
-          });
-        }
+
+        const wsUrl = new URL(WS_BASE);
+        wsUrl.searchParams.set("ticket", ticketResponse.ticket);
+
+        ws = new WebSocket(wsUrl.toString());
+
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            if (message.type === "state" && message.payload) {
+              setLatestSnapshot((prev) => ({ ...prev, ...message.payload }));
+            }
+            if (message.type === "dashboard-event" && modalEnabledRef.current) {
+              setActiveEvent({
+                id: message.payload?.id || "LIVE-EVENT",
+                type: message.payload?.type || "wrong-way-level-1",
+                title: message.payload?.title || "실시간 이벤트",
+                message: message.payload?.subMessage || message.payload?.message || "실시간 이벤트 수신",
+                time: message.payload?.timestamp || "실시간",
+                status: "NEW",
+              });
+            }
+          } catch {
+            // 화면 수신용 WS이므로 잘못된 메시지는 무시하고 다음 이벤트를 기다린다.
+          }
+        };
       } catch {
-        // 화면 수신용 WS이므로 잘못된 메시지는 무시하고 다음 이벤트를 기다린다.
+        // WebSocket ticket 발급에 실패해도 대시보드 기본 화면은 계속 사용할 수 있게 둡니다.
+      }
+    }
+
+    connectWebSocket();
+
+    return () => {
+      isMounted = false;
+      if (ws) {
+        ws.close();
       }
     };
-
-    return () => ws.close();
   }, []);
 
   const selectedZone = monitoringZones.find((zone) => zone.id === selectedZoneId) || null;

@@ -9,13 +9,18 @@ const { logger } = require("../../utils/logger");
 const INVALID_LOGIN_MESSAGE = "?꾩씠???먮뒗 鍮꾨?踰덊샇媛 ?щ컮瑜댁? ?딆뒿?덈떎.";
 const LOGIN_RATE_LIMIT_MESSAGE = "濡쒓렇???쒕룄媛 ?덈Т 留롮뒿?덈떎. ?좎떆 ???ㅼ떆 ?쒕룄?댁＜?몄슂.";
 const INVALID_REFRESH_TOKEN_MESSAGE = "?좏슚?섏? ?딆? refresh token?낅땲??";
+const INVALID_WS_TICKET_MESSAGE = "Invalid WebSocket ticket.";
 const REFRESH_TOKEN_EXPIRES_IN = "7d";
 const REFRESH_TOKEN_EXPIRES_IN_MS = 7 * 24 * 60 * 60 * 1000;
+const WS_TICKET_EXPIRES_IN = "30s";
+const WS_TICKET_EXPIRES_IN_SECONDS = 30;
 const MAX_LOGIN_FAILURES = 5;
 const LOGIN_BLOCK_DURATION_MS = 15 * 60 * 1000;
 
-// userId + IP 기준 로그인 실패 횟수를 서버 메모리에 임시 저장합니다.
+// userId + IP 기준 로그인 실패 횟수를 서버 메모리에 임시 저장한다.
 const loginAttemptStore = new Map();
+// 이미 사용한 websocket 티켓을 메모리에 잠시 저장해 재사용을 막는다.
+const usedWebSocketTicketStore = new Map();
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -128,6 +133,15 @@ function hashRefreshToken(refreshToken) {
   return crypto.createHash("sha256").update(refreshToken).digest("hex");
 }
 
+// 만료된 WebSocket 티켓 기록은 주기적으로 정리한다. 
+function cleanupUsedWebSocketTickets(nowInSeconds = Math.floor(Date.now() / 1000)) {
+  for (const [ticketId, expiresAt] of usedWebSocketTicketStore.entries()) {
+    if (expiresAt <= nowInSeconds) {
+      usedWebSocketTicketStore.delete(ticketId);
+    }
+  }
+}
+
 function createAccessToken(user) {
   return jwt.sign(
     {
@@ -138,6 +152,22 @@ function createAccessToken(user) {
     },
     config.jwtSecret,
     { expiresIn: "1h" },
+  );
+}
+
+// 로그인된 사용자 전용의 짧은 수명 websocket 접속 티켓을 발급한다. 
+function createWebSocketTicket(user) {
+  return jwt.sign(
+    {
+      type: "ws",
+      id: user.id,
+      userId: user.userId,
+      role: user.role,
+      sessionVersion: user.sessionVersion,
+      jti: crypto.randomUUID(),
+    },
+    config.jwtSecret,
+    { expiresIn: WS_TICKET_EXPIRES_IN },
   );
 }
 
@@ -405,5 +435,122 @@ async function logout({ refreshToken }) {
   return { ok: true };
 }
 
-module.exports = { login, refreshAccessToken, logout, hashRefreshToken };
+// HTTP 인증이 완료된 사용자에게 Websocket 연결용 티켓을 내려준다. 
+async function issueWebSocketTicket({ user }) {
+  if (!user?.id || !user?.userId) {
+    throw createHttpError(401, INVALID_WS_TICKET_MESSAGE);
+  }
+
+  cleanupUsedWebSocketTickets();
+
+  const ticket = createWebSocketTicket(user);
+
+  logger.info("websocket ticket issued", {
+    userId: user.userId,
+    userDbId: user.id,
+    role: normalizeRole(user.role),
+    sessionVersion: user.sessionVersion,
+  });
+
+  return {
+    ok: true,
+    ticket,
+    expiresInSeconds: WS_TICKET_EXPIRES_IN_SECONDS,
+  };
+}
+
+// Websocket 연결 시 전달된 티켓을 검증하고 1회용으로 소모 처리한다. 
+async function verifyAndConsumeWebSocketTicket(ticket) {
+  if (!ticket) {
+    throw createHttpError(401, INVALID_WS_TICKET_MESSAGE);
+  }
+
+  cleanupUsedWebSocketTickets();
+
+  let decoded;
+
+  try {
+    decoded = jwt.verify(ticket, config.jwtSecret);
+  } catch (error) {
+    logger.warn("websocket ticket verification failed: invalid jwt", {
+      message: error.message,
+    });
+    throw createHttpError(401, INVALID_WS_TICKET_MESSAGE);
+  }
+
+  if (decoded?.type !== "ws" || !decoded?.jti || !decoded?.id) {
+    logger.warn("websocket ticket verification failed: malformed payload");
+    throw createHttpError(401, INVALID_WS_TICKET_MESSAGE);
+  }
+
+   
+  if (usedWebSocketTicketStore.has(decoded.jti)) {
+    logger.warn("websocket ticket verification failed: reused ticket", {
+      userDbId: decoded.id,
+      userId: decoded.userId,
+      ticketId: decoded.jti,
+    });
+    throw createHttpError(401, INVALID_WS_TICKET_MESSAGE);
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: decoded.id },
+    select: {
+      id: true,
+      userId: true,
+      role: true,
+      isActive: true,
+      sessionVersion: true,
+    },
+  });
+
+  if (!user || !user.isActive) {
+    logger.warn("websocket ticket verification failed: user unavailable", {
+      userDbId: decoded.id,
+      userId: decoded.userId,
+    });
+    throw createHttpError(401, INVALID_WS_TICKET_MESSAGE);
+  }
+
+  if (typeof decoded.sessionVersion !== "number" || decoded.sessionVersion !== user.sessionVersion) {
+    logger.warn("websocket ticket verification failed: session version mismatch", {
+      userDbId: decoded.id,
+      userId: decoded.userId,
+      tokenSessionVersion: decoded.sessionVersion,
+      currentSessionVersion: user.sessionVersion,
+    });
+    throw createHttpError(401, INVALID_WS_TICKET_MESSAGE);
+  }
+
+  usedWebSocketTicketStore.set(
+    decoded.jti,
+    typeof decoded.exp === "number"
+      ? decoded.exp
+      : Math.floor(Date.now() / 1000) + WS_TICKET_EXPIRES_IN_SECONDS,
+  );
+
+  logger.info("websocket ticket verified successfully", {
+    userDbId: user.id,
+    userId: user.userId,
+    role: normalizeRole(user.role),
+    sessionVersion: user.sessionVersion,
+    ticketId: decoded.jti,
+  });
+
+  return {
+    id: user.id,
+    userId: user.userId,
+    role: user.role,
+    sessionVersion: user.sessionVersion,
+  };
+}
+
+module.exports = {
+  login,
+  refreshAccessToken,
+  logout,
+  hashRefreshToken,
+  issueWebSocketTicket,
+  verifyAndConsumeWebSocketTicket,
+};
 

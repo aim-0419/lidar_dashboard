@@ -200,6 +200,11 @@ export async function loginRequest(credentials) {
   return postJson("/api/auth/login", credentials);
 }
 
+// 대시보드 websocket 연결 전에 사용할 접속 티켓을 요청한다. 
+export async function fetchWebSocketTicket() {
+  return postJson("/api/auth/ws-ticket", {});
+}
+
 export async function fetchUsers() {
   return getJson("/api/users");
 }

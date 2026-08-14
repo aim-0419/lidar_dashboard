@@ -124,6 +124,39 @@ const swaggerSpec = {
         },
       },
     },
+    "/api/auth/ws-ticket": {
+      post: {
+        tags: ["Auth"],
+        summary: "WebSocket ticket issuance",
+        description:
+          "Issues a short-lived WebSocket connection ticket for authenticated users.",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: "WebSocket ticket issued successfully",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/WebSocketTicketResponse" },
+              },
+            },
+          },
+          401: {
+            description: "Authentication failed",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "Authentication is required." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/auth/me": {
       get: {
         tags: ["Auth"],
@@ -1894,6 +1927,14 @@ const swaggerSpec = {
           ok: { type: "boolean", example: true },
           accessToken: { type: "string", example: "jwt_access_token" },
           user: { $ref: "#/components/schemas/LoginUser" },
+        },
+      },
+      WebSocketTicketResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          ticket: { type: "string", example: "jwt_websocket_ticket" },
+          expiresInSeconds: { type: "integer", example: 30 },
         },
       },
       LoginFailResponse: {
