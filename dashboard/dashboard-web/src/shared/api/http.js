@@ -211,6 +211,14 @@ export async function fetchStatisticsSummary(period, options = {}) {
     searchParams.set("period", period);
   }
 
+  if (options.startDate) {
+    searchParams.set("startDate", options.startDate);
+  }
+
+  if (options.endDate) {
+    searchParams.set("endDate", options.endDate);
+  }
+
   if (options.siteId) {
     searchParams.set("siteId", options.siteId);
   }
@@ -221,6 +229,33 @@ export async function fetchStatisticsSummary(period, options = {}) {
 
   const query = searchParams.toString();
   return getJson(`/api/statistics/summary${query ? `?${query}` : ""}`);
+}
+
+export async function fetchTrafficSeries(period, options = {}) {
+  const searchParams = new URLSearchParams();
+
+  if (period) {
+    searchParams.set("period", period);
+  }
+
+  if (options.startDate) {
+    searchParams.set("startDate", options.startDate);
+  }
+
+  if (options.endDate) {
+    searchParams.set("endDate", options.endDate);
+  }
+
+  if (options.siteId) {
+    searchParams.set("siteId", options.siteId);
+  }
+
+  if (options.zoneId) {
+    searchParams.set("zoneId", options.zoneId);
+  }
+
+  const query = searchParams.toString();
+  return getJson(`/api/statistics/traffic-series${query ? `?${query}` : ""}`);
 }
 
 export async function fetchDashboardState() {

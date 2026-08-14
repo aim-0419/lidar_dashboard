@@ -1163,10 +1163,24 @@
             required: false,
             schema: {
               type: "string",
-              enum: ["daily", "weekly", "monthly"],
+              enum: ["daily", "weekly", "monthly", "custom"],
               default: "daily",
             },
             example: "daily",
+          },
+          {
+            name: "startDate",
+            in: "query",
+            required: false,
+            schema: { type: "string", format: "date" },
+            example: "2026-08-01",
+          },
+          {
+            name: "endDate",
+            in: "query",
+            required: false,
+            schema: { type: "string", format: "date" },
+            example: "2026-08-03",
           },
           {
             name: "siteId",
@@ -1193,6 +1207,7 @@
                   properties: {
                     ok: { type: "boolean", example: true },
                     period: { type: "string", example: "daily" },
+                    bucketUnit: { type: "string", example: "hour" },
                     range: {
                       type: "object",
                       properties: {
@@ -1224,7 +1239,148 @@
                     ok: { type: "boolean", example: false },
                     message: {
                       type: "string",
-                      example: "period must be one of daily, weekly, or monthly.",
+                      example: "period must be one of daily, weekly, monthly, or custom.",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "인증 실패",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "인증이 필요합니다." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/statistics/traffic-series": {
+      get: {
+        tags: ["Dashboard"],
+        summary: "기간별 통과 차량 시계열 조회",
+        description:
+          "일별, 주별, 월별, 사용자 지정 기간 기준으로 통과 차량 시계열 데이터를 조회합니다.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "period",
+            in: "query",
+            required: false,
+            schema: {
+              type: "string",
+              enum: ["daily", "weekly", "monthly", "custom"],
+              default: "daily",
+            },
+            example: "daily",
+          },
+          {
+            name: "startDate",
+            in: "query",
+            required: false,
+            schema: { type: "string", format: "date" },
+            example: "2026-08-01",
+            description: "period가 custom일 때 시작 날짜",
+          },
+          {
+            name: "endDate",
+            in: "query",
+            required: false,
+            schema: { type: "string", format: "date" },
+            example: "2026-08-03",
+            description: "period가 custom일 때 종료 날짜",
+          },
+          {
+            name: "siteId",
+            in: "query",
+            required: false,
+            schema: { type: "string" },
+            example: "site-wolchulsan-rest-area",
+          },
+          {
+            name: "zoneId",
+            in: "query",
+            required: false,
+            schema: { type: "string" },
+            example: "cmzone123",
+          },
+        ],
+        responses: {
+          200: {
+            description: "통계 시계열 조회 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    period: { type: "string", example: "custom" },
+                    bucketUnit: { type: "string", example: "day" },
+                    range: {
+                      type: "object",
+                      properties: {
+                        startAt: {
+                          type: "string",
+                          format: "date-time",
+                          example: "2026-08-01T00:00:00.000Z",
+                        },
+                        endAt: {
+                          type: "string",
+                          format: "date-time",
+                          example: "2026-08-04T00:00:00.000Z",
+                        },
+                      },
+                    },
+                    series: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          label: { type: "string", example: "08/01" },
+                          value: { type: "integer", example: 12 },
+                          startAt: {
+                            type: "string",
+                            format: "date-time",
+                            example: "2026-08-01T00:00:00.000Z",
+                          },
+                          endAt: {
+                            type: "string",
+                            format: "date-time",
+                            example: "2026-08-01T23:59:59.000Z",
+                          },
+                        },
+                      },
+                    },
+                    summary: {
+                      type: "object",
+                      properties: {
+                        totalVehicles: { type: "integer", example: 30 },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: "잘못된 query parameter",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: {
+                      type: "string",
+                      example: "startDate is required when period is custom.",
                     },
                   },
                 },

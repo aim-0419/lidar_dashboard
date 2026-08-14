@@ -13,12 +13,15 @@ async function getSummary(req, res) {
       period: req.query?.period,
       siteId: req.query?.siteId,
       zoneId: req.query?.zoneId,
+      startDate: req.query?.startDate,
+      endDate: req.query?.endDate,
     });
 
     res.status(200).json({
       ok: true,
       period: result.period,
       range: result.range,
+      bucketUnit: result.bucketUnit,
       summary: result.summary,
     });
   } catch (error) {
@@ -28,6 +31,8 @@ async function getSummary(req, res) {
       period: req.query?.period,
       siteId: req.query?.siteId,
       zoneId: req.query?.zoneId,
+      startDate: req.query?.startDate,
+      endDate: req.query?.endDate,
       statusCode: error.statusCode,
       message: error.message,
     });
@@ -39,6 +44,45 @@ async function getSummary(req, res) {
   }
 }
 
+async function getTrafficSeries(req, res) {
+  try {
+    const result = await statisticsService.getTrafficSeries({
+      period: req.query?.period,
+      siteId: req.query?.siteId,
+      zoneId: req.query?.zoneId,
+      startDate: req.query?.startDate,
+      endDate: req.query?.endDate,
+    });
+
+    res.status(200).json({
+      ok: true,
+      period: result.period,
+      range: result.range,
+      bucketUnit: result.bucketUnit,
+      series: result.series,
+      summary: result.summary,
+    });
+  } catch (error) {
+    logger.error("get traffic series failed", {
+      requesterId: req.user?.id,
+      requesterUserId: req.user?.userId,
+      period: req.query?.period,
+      siteId: req.query?.siteId,
+      zoneId: req.query?.zoneId,
+      startDate: req.query?.startDate,
+      endDate: req.query?.endDate,
+      statusCode: error.statusCode,
+      message: error.message,
+    });
+
+    res.status(error.statusCode || 500).json({
+      ok: false,
+      message: getPublicMessage(error, "Failed to fetch traffic series."),
+    });
+  }
+}
+
 module.exports = {
   getSummary,
+  getTrafficSeries,
 };
