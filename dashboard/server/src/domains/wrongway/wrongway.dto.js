@@ -34,6 +34,20 @@ function createWrongwayTestSendResponse({ payload, result }) {
   };
 }
 
+function createWrongwayBatchResponse({ snapshot, summary, results, warnings = [] }) {
+  // 한 HTTP snapshot 안의 여러 객체가 각각 어떻게 처리됐는지 한 응답으로 묶는다.
+  return {
+    ok: true,
+    source: snapshot.source,
+    status: snapshot.status,
+    occurredAt: snapshot.timestamp || null,
+    receivedAt: snapshot.receivedAt,
+    summary,
+    warnings,
+    results,
+  };
+}
+
 function createWrongwayErrorResponse(error, fallbackMessage) {
   // controller의 실패 응답을 같은 형태로 맞춰 Swagger와 실제 응답이 어긋나지 않게 합니다.
   return {
@@ -43,8 +57,55 @@ function createWrongwayErrorResponse(error, fallbackMessage) {
   };
 }
 
+// DB 모델을 프론트 이벤트 목록에서 사용하는 camelCase 응답으로 제한한다.
+// 목록 조회에서는 크기가 큰 rawPayload를 제외하고 상세 API에서만 제공할 예정이다.
+function createEventHistoryItem(event) {
+  return {
+    id: event.id,
+    eventCode: event.eventCode,
+    eventType: event.eventType,
+    status: event.status,
+    occurredAt: event.occurredAt,
+    receivedAt: event.receivedAt,
+    zone: event.zone
+      ? { id: event.zone.id, code: event.zone.zoneCode, name: event.zone.name }
+      : null,
+    externalZoneId: event.externalZoneId,
+    trackId: event.trackId,
+    warningLevel: event.warningLevel,
+    confidence: event.confidence,
+    message: event.message,
+    speedKmh: event.speedKmh,
+    objectClass: event.objectClass,
+    description: event.description,
+  };
+}
+
+function createEventHistoryResponse({ events, page, limit, total, filters }) {
+  const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+  return {
+    success: true,
+    data: {
+      items: events.map(createEventHistoryItem),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasPrevious: page > 1,
+        hasNext: page < totalPages,
+      },
+      filters,
+    },
+    message: "OK",
+  };
+}
+
 module.exports = {
+  createEventHistoryResponse,
   createWrongwayErrorResponse,
   createWrongwayReceiveResponse,
+  createWrongwayBatchResponse,
   createWrongwayTestSendResponse,
 };
