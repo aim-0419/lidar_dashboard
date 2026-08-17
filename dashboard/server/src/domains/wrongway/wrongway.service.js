@@ -10,6 +10,7 @@ const {
 } = require("./wrongway.constants");
 const {
   createEventHistoryResponse,
+  createEventStatusUpdateResponse,
   createWrongwayBatchResponse,
   createWrongwayTestSendResponse,
 } = require("./wrongway.dto");
@@ -21,6 +22,15 @@ const SUPPORTED_TYPES = new Set(Object.values(WRONGWAY_EVENT_TYPE));
 const EVENT_HISTORY_DEFAULT_LIMIT = 20;
 const EVENT_HISTORY_MAX_LIMIT = 100;
 const EVENT_HISTORY_STATUSES = new Set(Object.values(WRONGWAY_EVENT_STATUS));
+const EVENT_HISTORY_SORT_FIELDS = new Set([
+  "occurredAt",
+  "eventType",
+  "zone",
+  "trackId",
+  "speedKmh",
+  "status",
+]);
+const EVENT_HISTORY_SORT_ORDERS = new Set(["asc", "desc"]);
 
 // 같은 라이다 PC가 보낸 snapshot 두 건이 동시에 상태를 덮어쓰지 않도록 source별 처리 순서를 보장한다.
 const sourceQueues = new Map();
@@ -94,6 +104,7 @@ function createEventHistoryWhere(filters) {
   }
 
   if (filters.externalZoneId) where.externalZoneId = filters.externalZoneId;
+  if (filters.zoneId) where.zoneId = filters.zoneId;
   if (filters.from || filters.to) {
     where.occurredAt = {
       ...(filters.from ? { gte: filters.from } : {}),
@@ -107,10 +118,23 @@ function createEventHistoryWhere(filters) {
       { trackId: { contains: filters.search, mode: "insensitive" } },
       { externalZoneId: { contains: filters.search, mode: "insensitive" } },
       { message: { contains: filters.search, mode: "insensitive" } },
+      // 화면에 표시하는 내부 구역명과 구역 코드도 같은 검색창에서 찾을 수 있게 한다.
+      { zone: { is: { name: { contains: filters.search, mode: "insensitive" } } } },
+      { zone: { is: { zoneCode: { contains: filters.search, mode: "insensitive" } } } },
     ];
   }
 
   return where;
+}
+
+// 화면에서 허용한 열 이름만 Prisma 정렬 조건으로 변환해 임의 DB 필드 접근을 막는다.
+function createEventHistoryOrderBy(sortBy, sortOrder) {
+  const primaryOrder = sortBy === "zone"
+    ? { zone: { name: sortOrder } }
+    : { [sortBy]: sortOrder };
+
+  // 같은 값을 가진 행의 순서가 페이지 이동마다 바뀌지 않도록 ID를 보조 정렬 기준으로 둔다.
+  return [primaryOrder, { id: sortOrder }];
 }
 
 async function getEventHistory(query = {}) {
@@ -124,10 +148,20 @@ async function getEventHistory(query = {}) {
     eventType: String(query.eventType || "").trim() || null,
     status: String(query.status || "").trim().toUpperCase() || null,
     externalZoneId: String(query.externalZoneId || "").trim() || null,
+    zoneId: String(query.zoneId || "").trim() || null,
     search: String(query.search || "").trim() || null,
     from: parseHistoryDate(query.from, "from"),
     to: parseHistoryDate(query.to, "to"),
   };
+  const sortBy = String(query.sortBy || "occurredAt").trim();
+  const sortOrder = String(query.sortOrder || "desc").trim().toLowerCase();
+
+  if (!EVENT_HISTORY_SORT_FIELDS.has(sortBy)) {
+    throw createHttpError(400, "지원하지 않는 정렬 필드입니다.", { field: "sortBy" });
+  }
+  if (!EVENT_HISTORY_SORT_ORDERS.has(sortOrder)) {
+    throw createHttpError(400, "정렬 방향은 asc 또는 desc여야 합니다.", { field: "sortOrder" });
+  }
   if (filters.from && filters.to && filters.from > filters.to) {
     throw createHttpError(400, "from은 to보다 늦을 수 없습니다.", { fields: ["from", "to"] });
   }
@@ -139,7 +173,7 @@ async function getEventHistory(query = {}) {
       where,
       skip: (page - 1) * limit,
       take: limit,
-      orderBy: [{ occurredAt: "desc" }, { receivedAt: "desc" }, { id: "desc" }],
+      orderBy: createEventHistoryOrderBy(sortBy, sortOrder),
       include: { zone: { select: { id: true, zoneCode: true, name: true } } },
     }),
   ]);
@@ -153,7 +187,79 @@ async function getEventHistory(query = {}) {
       ...filters,
       from: filters.from?.toISOString() || null,
       to: filters.to?.toISOString() || null,
+      sortBy,
+      sortOrder,
     },
+  });
+}
+
+async function updateEventStatus({ eventId, status, memo, userId }) {
+  const nextStatus = String(status || "").trim().toUpperCase();
+  const normalizedMemo = typeof memo === "string" ? memo.trim() : "";
+
+  if (!EVENT_HISTORY_STATUSES.has(nextStatus)) {
+    throw createHttpError(400, "지원하지 않는 status입니다.", { field: "status" });
+  }
+
+  // 관리자 상태 변경은 관제 업무 기록만 갱신하며 통합제어보드 제어 흐름을 호출하지 않는다.
+  const result = await prisma.$transaction(async (tx) => {
+    const existingEvent = await tx.trafficEvent.findUnique({
+      where: { id: eventId },
+      include: { zone: { select: { id: true, zoneCode: true, name: true } } },
+    });
+
+    if (!existingEvent) {
+      throw createHttpError(404, "이벤트를 찾을 수 없습니다.", { eventId });
+    }
+
+    if (existingEvent.status === nextStatus) {
+      return {
+        event: existingEvent,
+        previousStatus: existingEvent.status,
+        changed: false,
+      };
+    }
+
+    const event = await tx.trafficEvent.update({
+      where: { id: eventId },
+      data: { status: nextStatus },
+      include: { zone: { select: { id: true, zoneCode: true, name: true } } },
+    });
+
+    await tx.eventLog.create({
+      data: {
+        eventId,
+        userId,
+        action: "EVENT_STATUS_CHANGED",
+        message: normalizedMemo || null,
+        metadata: {
+          source: "MANUAL",
+          previousStatus: existingEvent.status,
+          nextStatus,
+        },
+      },
+    });
+
+    return {
+      event,
+      previousStatus: existingEvent.status,
+      changed: true,
+    };
+  });
+
+  if (result.changed) {
+    logger.info("event status changed manually", {
+      eventId,
+      userId,
+      previousStatus: result.previousStatus,
+      nextStatus,
+    });
+  }
+
+  return createEventStatusUpdateResponse({
+    event: result.event,
+    previousStatus: result.previousStatus,
+    changed: result.changed,
   });
 }
 
@@ -479,25 +585,18 @@ async function processObject(tx, { entry, snapshot, device, incident }) {
   };
 }
 
-// snapshot에 상황 종료 객체가 있고 현재 역주행 객체가 없을 때 활성 사건을 종료한다.
-// 사건에 연결된 미처리 traffic_events도 함께 RESOLVED로 변경한다.
+// snapshot에 상황 종료 객체가 있고 현재 역주행 객체가 없을 때 시스템 사건만 종료한다.
+// traffic_events.status는 관제자의 업무 처리 상태이므로 라이다 신호로 자동 변경하지 않는다.
 async function resolveIncidentIfNeeded(tx, { snapshot, incident, hasWrongWay }) {
   const hasSituationEnded = snapshot.objects.some(
     (entry) => entry.event.originalType === WRONGWAY_EVENT_TYPE.SITUATION_ENDED,
   );
   if (!incident || hasWrongWay || !hasSituationEnded) return incident;
 
-  const updated = await tx.safetyIncident.update({
+  return tx.safetyIncident.update({
     where: { id: incident.id },
     data: { status: INCIDENT_STATUS.RESOLVED, resolvedAt: new Date(snapshot.receivedAt) },
   });
-
-  await tx.trafficEvent.updateMany({
-    where: { incidentId: incident.id, status: { not: WRONGWAY_EVENT_STATUS.RESOLVED } },
-    data: { status: WRONGWAY_EVENT_STATUS.RESOLVED },
-  });
-
-  return updated;
 }
 
 // 라이다 PC의 snapshot은 해당 시점에 보이는 전체 객체 목록이라는 전제로 처리한다.
@@ -759,6 +858,7 @@ function startNormalDrivingStream(options = {}) {
 
 module.exports = {
   getEventHistory,
+  updateEventStatus,
   getTestPayloads,
   getNormalStreamStatus,
   receiveWrongWayPayload,

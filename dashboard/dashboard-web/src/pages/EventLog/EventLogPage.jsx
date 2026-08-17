@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Filter, Search, Siren } from "lucide-react";
-import { getEventHistory } from "../../features/events/eventsApi";
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Search,
+  Siren,
+} from "lucide-react";
+import { getEventHistory, getEventZones, updateEventStatus } from "../../features/events/eventsApi";
 import "../Dashboard/dashboard.css";
 import "./eventLog.css";
 
@@ -8,7 +19,7 @@ const filters = [
   { label: "전체", value: "all" },
   { label: "역주행", value: "wrong-way" },
   { label: "보행자", value: "pedestrian" },
-  { label: "종료", value: "situation-ended" },
+  { label: "상황 종료", value: "situation-ended" },
 ];
 
 function statusText(status) {
@@ -50,20 +61,35 @@ function toDateBoundary(value, endOfDay = false) {
   return new Date(`${value}T${time}+09:00`).toISOString();
 }
 
+function todayDateInputValue() {
+  const now = new Date();
+  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000);
+  return localDate.toISOString().slice(0, 10);
+}
+
 export default function EventLogPage() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [status, setStatus] = useState("");
-  const [externalZoneId, setExternalZoneId] = useState("");
+  const [zoneId, setZoneId] = useState("");
+  const [zones, setZones] = useState([]);
+  const [zonesLoading, setZonesLoading] = useState(true);
+  const [zonesError, setZonesError] = useState(false);
   const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [toDate, setToDate] = useState(todayDateInputValue);
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState("occurredAt");
+  const [sortOrder, setSortOrder] = useState("desc");
   const [items, setItems] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [statusDraft, setStatusDraft] = useState("NEW");
+  const [statusMemo, setStatusMemo] = useState("");
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
 
   // 입력할 때마다 요청하지 않도록 검색어가 멈춘 뒤 API 필터에 반영한다.
   useEffect(() => {
@@ -77,6 +103,25 @@ export default function EventLogPage() {
   useEffect(() => {
     const controller = new AbortController();
 
+    async function loadZones() {
+      try {
+        setZones(await getEventZones({ signal: controller.signal }));
+      } catch (requestError) {
+        if (requestError.name !== "AbortError") {
+          setZonesError(true);
+        }
+      } finally {
+        if (!controller.signal.aborted) setZonesLoading(false);
+      }
+    }
+
+    loadZones();
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
     async function loadEvents() {
       setLoading(true);
       setError("");
@@ -86,10 +131,12 @@ export default function EventLogPage() {
           limit: 20,
           eventType: activeFilter === "all" ? "" : activeFilter,
           status,
-          externalZoneId: externalZoneId.trim(),
+          zoneId,
           search: debouncedQuery,
           from: toDateBoundary(fromDate),
           to: toDateBoundary(toDate, true),
+          sortBy,
+          sortOrder,
         }, { signal: controller.signal });
 
         setItems(data.items);
@@ -108,16 +155,80 @@ export default function EventLogPage() {
 
     loadEvents();
     return () => controller.abort();
-  }, [activeFilter, debouncedQuery, externalZoneId, fromDate, page, status, toDate]);
+  }, [activeFilter, debouncedQuery, fromDate, page, sortBy, sortOrder, status, toDate, zoneId]);
 
   const selected = useMemo(
     () => items.find((event) => event.id === selectedId) || items[0],
     [items, selectedId],
   );
 
+  useEffect(() => {
+    setStatusDraft(selected?.status || "NEW");
+    setStatusMemo("");
+    setStatusMessage("");
+  }, [selected?.id, selected?.status]);
+
   function changeFilter(value) {
     setActiveFilter(value);
     setPage(1);
+  }
+
+  // 같은 열은 방향을 반전하고, 새로운 열은 오름차순부터 조회한다.
+  function changeSort(field) {
+    if (sortBy === field) {
+      setSortOrder((current) => (current === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field);
+      setSortOrder("asc");
+    }
+    setPage(1);
+  }
+
+  function sortIcon(field) {
+    if (sortBy !== field) return <ArrowUpDown size={13} aria-hidden="true" />;
+    return sortOrder === "asc"
+      ? <ArrowUp size={13} aria-hidden="true" />
+      : <ArrowDown size={13} aria-hidden="true" />;
+  }
+
+  function sortableHeader(label, field) {
+    const active = sortBy === field;
+    const direction = active ? (sortOrder === "asc" ? "오름차순" : "내림차순") : "정렬 없음";
+
+    return (
+      <th aria-sort={active ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
+        <button
+          type="button"
+          className={`event-sort-button${active ? " active" : ""}`}
+          onClick={() => changeSort(field)}
+          title={`${label} ${direction}`}
+        >
+          <span>{label}</span>
+          {sortIcon(field)}
+        </button>
+      </th>
+    );
+  }
+
+  async function saveEventStatus() {
+    if (!selected || statusSaving) return;
+
+    setStatusSaving(true);
+    setStatusMessage("");
+    try {
+      const result = await updateEventStatus(selected.id, {
+        status: statusDraft,
+        memo: statusMemo,
+      });
+      setItems((current) => current.map((item) => (
+        item.id === selected.id ? result.event : item
+      )));
+      setStatusMessage(result.changed ? "상태를 변경했습니다." : "이미 같은 상태입니다.");
+    } catch (requestError) {
+      setStatusMessage(requestError.message || "상태를 변경하지 못했습니다.");
+    } finally {
+      setStatusSaving(false);
+    }
   }
 
   return (
@@ -137,7 +248,7 @@ export default function EventLogPage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="이벤트 ID, 구역, track_id 검색"
+            placeholder="이벤트 ID, 구역명/코드, track_id, 메시지 검색"
           />
         </div>
         <div className="event-filter-group" aria-label="이벤트 필터">
@@ -167,8 +278,21 @@ export default function EventLogPage() {
           </select>
         </label>
         <label>
-          <span>외부 구역 ID</span>
-          <input value={externalZoneId} onChange={(event) => { setExternalZoneId(event.target.value); setPage(1); }} placeholder="예: Z455" />
+          <span>구역</span>
+          <select
+            value={zoneId}
+            disabled={zonesLoading}
+            onChange={(event) => { setZoneId(event.target.value); setPage(1); }}
+          >
+            <option value="">
+              {zonesLoading ? "구역 불러오는 중" : zonesError ? "구역 조회 실패" : "전체 구역"}
+            </option>
+            {zones.map((zone) => (
+              <option key={zone.id} value={zone.id}>
+                {zone.site?.name ? `${zone.site.name} - ` : ""}{zone.name}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           <span>시작일</span>
@@ -185,12 +309,12 @@ export default function EventLogPage() {
           <table className="event-table">
             <thead>
               <tr>
-                <th>발생 시간</th>
-                <th>유형</th>
-                <th>구역</th>
-                <th>track_id</th>
-                <th>속도</th>
-                <th>상태</th>
+                {sortableHeader("발생 시간", "occurredAt")}
+                {sortableHeader("유형", "eventType")}
+                {sortableHeader("구역", "zone")}
+                {sortableHeader("track_id", "trackId")}
+                {sortableHeader("속도", "speedKmh")}
+                {sortableHeader("상태", "status")}
               </tr>
             </thead>
             <tbody>
@@ -264,6 +388,30 @@ export default function EventLogPage() {
                   <dd>{selected.trackId}</dd>
                 </div>
               </dl>
+              <div className="event-status-editor">
+                <label>
+                  <span>관리 상태</span>
+                  <select value={statusDraft} onChange={(event) => setStatusDraft(event.target.value)}>
+                    <option value="NEW">신규</option>
+                    <option value="CONFIRMED">확인</option>
+                    <option value="RESOLVED">처리 완료</option>
+                    <option value="FALSE_ALARM">오탐</option>
+                  </select>
+                </label>
+                <label>
+                  <span>변경 사유</span>
+                  <textarea
+                    value={statusMemo}
+                    onChange={(event) => setStatusMemo(event.target.value)}
+                    placeholder="확인 내용 또는 변경 사유"
+                    rows="3"
+                  />
+                </label>
+                <button type="button" onClick={saveEventStatus} disabled={statusSaving}>
+                  {statusSaving ? "저장 중" : "상태 저장"}
+                </button>
+                {statusMessage && <p className="event-status-message">{statusMessage}</p>}
+              </div>
             </>
           ) : (
             <p className="event-empty">조회된 이벤트가 없습니다.</p>

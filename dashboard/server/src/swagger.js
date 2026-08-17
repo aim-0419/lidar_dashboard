@@ -721,7 +721,7 @@ const swaggerSpec = {
         tags: ["Wrongway"],
         summary: "이벤트 이력 페이지 조회",
         description:
-          "traffic_events에 저장된 이벤트를 최신 발생 순으로 조회합니다. 보행자 필터는 진입과 이탈 이벤트를 함께 포함합니다.",
+          "traffic_events에 저장된 이벤트를 페이지 단위로 조회합니다. 보행자 필터는 진입과 이탈 이벤트를 함께 포함하며, sortBy와 sortOrder로 전체 결과의 정렬 기준을 지정할 수 있습니다.",
         parameters: [
           { name: "page", in: "query", schema: { type: "integer", minimum: 1, default: 1 } },
           { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
@@ -738,10 +738,37 @@ const swaggerSpec = {
             in: "query",
             schema: { type: "string", enum: ["NEW", "CONFIRMED", "RESOLVED", "FALSE_ALARM"] },
           },
+          {
+            name: "zoneId",
+            in: "query",
+            description: "내부 DB 구역 ID 기준 필터",
+            schema: { type: "string", example: "zone-roundabout-01" },
+          },
           { name: "externalZoneId", in: "query", schema: { type: "string", example: "Z455" } },
-          { name: "search", in: "query", schema: { type: "string", example: "track-001" } },
+          {
+            name: "search",
+            in: "query",
+            description: "이벤트 ID, track_id, 외부 구역 ID, 내부 구역명/코드, 메시지 통합 검색",
+            schema: { type: "string", example: "회전" },
+          },
           { name: "from", in: "query", schema: { type: "string", format: "date-time" } },
           { name: "to", in: "query", schema: { type: "string", format: "date-time" } },
+          {
+            name: "sortBy",
+            in: "query",
+            description: "정렬할 이벤트 필드",
+            schema: {
+              type: "string",
+              enum: ["occurredAt", "eventType", "zone", "trackId", "speedKmh", "status"],
+              default: "occurredAt",
+            },
+          },
+          {
+            name: "sortOrder",
+            in: "query",
+            description: "정렬 방향",
+            schema: { type: "string", enum: ["asc", "desc"], default: "desc" },
+          },
         ],
         responses: {
           200: {
@@ -768,6 +795,46 @@ const swaggerSpec = {
               },
             },
           },
+        },
+      },
+    },
+    "/api/events/{id}/status": {
+      patch: {
+        tags: ["Wrongway"],
+        summary: "관리자 이벤트 처리 상태 변경",
+        description:
+          "관리자가 이벤트의 업무 처리 상태를 변경하고 event_logs에 변경 이력을 기록합니다. 통합제어보드나 물리 장비는 제어하지 않습니다.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            description: "상태를 변경할 이벤트 ID",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/EventStatusUpdateRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "이벤트 상태 변경 또는 동일 상태 확인",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/EventStatusUpdateResponse" },
+              },
+            },
+          },
+          400: { description: "지원하지 않는 상태 값" },
+          401: { description: "인증 토큰이 없거나 유효하지 않음" },
+          404: { description: "이벤트를 찾을 수 없음" },
+          500: { description: "이벤트 상태 변경 오류" },
         },
       },
     },
@@ -1150,6 +1217,13 @@ const swaggerSpec = {
     },
   },
   components: {
+    securitySchemes: {
+      bearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+      },
+    },
     schemas: {
       HealthResponse: {
         type: "object",
@@ -1493,6 +1567,36 @@ const swaggerSpec = {
             },
           },
           message: { type: "string", example: "OK" },
+        },
+      },
+      EventStatusUpdateRequest: {
+        type: "object",
+        required: ["status"],
+        properties: {
+          status: {
+            type: "string",
+            enum: ["NEW", "CONFIRMED", "RESOLVED", "FALSE_ALARM"],
+            example: "CONFIRMED",
+          },
+          memo: {
+            type: "string",
+            example: "현장 확인 결과 실제 역주행으로 판단",
+          },
+        },
+      },
+      EventStatusUpdateResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: {
+            type: "object",
+            properties: {
+              event: { $ref: "#/components/schemas/EventHistoryItem" },
+              previousStatus: { type: "string", example: "NEW" },
+              changed: { type: "boolean", example: true },
+            },
+          },
+          message: { type: "string", example: "이벤트 상태가 변경되었습니다." },
         },
       },
       WrongwayTestSendResponse: {

@@ -46,6 +46,28 @@ async function getWrongWayHistory(req, res) {
   }
 }
 
+async function updateWrongWayEventStatus(req, res) {
+  try {
+    const result = await wrongwayService.updateEventStatus({
+      eventId: req.params.id,
+      status: req.body?.status,
+      memo: req.body?.memo,
+      userId: req.user.id,
+    });
+    res.json(result);
+  } catch (error) {
+    logger.error("wrongway event status update failed", {
+      eventId: req.params.id,
+      userId: req.user?.id,
+      message: error.message,
+      details: error.details,
+    });
+    res
+      .status(error.statusCode || 500)
+      .json(createWrongwayErrorResponse(error, "이벤트 상태 변경 중 오류가 발생했습니다."));
+  }
+}
+
 function getWrongWayTestPayloads(req, res) {
   const host = req.get("host") || "localhost:5000";
   const protocol = req.protocol || "http";
@@ -89,6 +111,7 @@ async function sendWrongWayTest(req, res) {
 module.exports = {
   receiveWrongWay,
   getWrongWayHistory,
+  updateWrongWayEventStatus,
   getWrongWayTestPayloads,
   getNormalDrivingStreamStatus,
   sendNormalDrivingTest,

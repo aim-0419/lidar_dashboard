@@ -102,8 +102,22 @@ function createEventHistoryResponse({ events, page, limit, total, filters }) {
   };
 }
 
+function createEventStatusUpdateResponse({ event, previousStatus, changed }) {
+  // 관리자 상태 변경 결과만 반환하며 장비 제어 결과와 섞지 않는다.
+  return {
+    success: true,
+    data: {
+      event: createEventHistoryItem(event),
+      previousStatus,
+      changed,
+    },
+    message: changed ? "이벤트 상태가 변경되었습니다." : "이벤트 상태가 이미 동일합니다.",
+  };
+}
+
 module.exports = {
   createEventHistoryResponse,
+  createEventStatusUpdateResponse,
   createWrongwayErrorResponse,
   createWrongwayReceiveResponse,
   createWrongwayBatchResponse,
