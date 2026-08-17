@@ -57,7 +57,53 @@ function createWrongwayErrorResponse(error, fallbackMessage) {
   };
 }
 
+// DB 모델을 프론트 이벤트 목록에서 사용하는 camelCase 응답으로 제한한다.
+// 목록 조회에서는 크기가 큰 rawPayload를 제외하고 상세 API에서만 제공할 예정이다.
+function createEventHistoryItem(event) {
+  return {
+    id: event.id,
+    eventCode: event.eventCode,
+    eventType: event.eventType,
+    status: event.status,
+    occurredAt: event.occurredAt,
+    receivedAt: event.receivedAt,
+    zone: event.zone
+      ? { id: event.zone.id, code: event.zone.zoneCode, name: event.zone.name }
+      : null,
+    externalZoneId: event.externalZoneId,
+    trackId: event.trackId,
+    warningLevel: event.warningLevel,
+    confidence: event.confidence,
+    message: event.message,
+    speedKmh: event.speedKmh,
+    objectClass: event.objectClass,
+    description: event.description,
+  };
+}
+
+function createEventHistoryResponse({ events, page, limit, total, filters }) {
+  const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+  return {
+    success: true,
+    data: {
+      items: events.map(createEventHistoryItem),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasPrevious: page > 1,
+        hasNext: page < totalPages,
+      },
+      filters,
+    },
+    message: "OK",
+  };
+}
+
 module.exports = {
+  createEventHistoryResponse,
   createWrongwayErrorResponse,
   createWrongwayReceiveResponse,
   createWrongwayBatchResponse,

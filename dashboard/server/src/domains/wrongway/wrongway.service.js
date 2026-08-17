@@ -9,6 +9,7 @@ const {
   WRONGWAY_RECEIVE_REASON,
 } = require("./wrongway.constants");
 const {
+  createEventHistoryResponse,
   createWrongwayBatchResponse,
   createWrongwayTestSendResponse,
 } = require("./wrongway.dto");
@@ -17,6 +18,9 @@ const NORMAL_STREAM_INTERVAL_MS = 1000;
 const TRACK_INACTIVE_TIMEOUT_MS = 3000;
 const VEHICLE_OBJECT_CLASSES = new Set([1, 2, 3, 4, 5, 6]);
 const SUPPORTED_TYPES = new Set(Object.values(WRONGWAY_EVENT_TYPE));
+const EVENT_HISTORY_DEFAULT_LIMIT = 20;
+const EVENT_HISTORY_MAX_LIMIT = 100;
+const EVENT_HISTORY_STATUSES = new Set(Object.values(WRONGWAY_EVENT_STATUS));
 
 // 같은 라이다 PC가 보낸 snapshot 두 건이 동시에 상태를 덮어쓰지 않도록 source별 처리 순서를 보장한다.
 const sourceQueues = new Map();
@@ -46,6 +50,111 @@ function toDateOrNull(value) {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parsePositiveInteger(value, fallback, fieldName) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw createHttpError(400, `${fieldName}는 1 이상의 정수여야 합니다.`, { field: fieldName });
+  }
+  return parsed;
+}
+
+function parseHistoryDate(value, fieldName) {
+  if (!value) return null;
+  const date = toDateOrNull(value);
+  if (!date) {
+    throw createHttpError(400, `${fieldName}는 유효한 ISO 날짜여야 합니다.`, { field: fieldName });
+  }
+  return date;
+}
+
+// 화면 필터를 Prisma where 조건으로 변환한다. 보행자는 진입·이탈 두 유형을 함께 조회한다.
+function createEventHistoryWhere(filters) {
+  const where = {};
+
+  if (filters.eventType === "pedestrian") {
+    where.eventType = { in: [WRONGWAY_EVENT_TYPE.PEDESTRIAN_ENTERED, WRONGWAY_EVENT_TYPE.PEDESTRIAN_EXITED] };
+  } else if (filters.eventType === WRONGWAY_EVENT_TYPE.WRONG_WAY) {
+    // 현재 규격과 기존 1·2차 규격으로 저장된 역주행 이력을 한 필터에서 함께 조회한다.
+    where.eventType = { in: [WRONGWAY_EVENT_TYPE.WRONG_WAY, "wrong-way-level-1", "wrong-way-level-2"] };
+  } else if (filters.eventType) {
+    if (!SUPPORTED_TYPES.has(filters.eventType)) {
+      throw createHttpError(400, "지원하지 않는 eventType입니다.", { field: "eventType" });
+    }
+    where.eventType = filters.eventType;
+  }
+
+  if (filters.status) {
+    if (!EVENT_HISTORY_STATUSES.has(filters.status)) {
+      throw createHttpError(400, "지원하지 않는 status입니다.", { field: "status" });
+    }
+    where.status = filters.status;
+  }
+
+  if (filters.externalZoneId) where.externalZoneId = filters.externalZoneId;
+  if (filters.from || filters.to) {
+    where.occurredAt = {
+      ...(filters.from ? { gte: filters.from } : {}),
+      ...(filters.to ? { lte: filters.to } : {}),
+    };
+  }
+
+  if (filters.search) {
+    where.OR = [
+      { id: { contains: filters.search, mode: "insensitive" } },
+      { trackId: { contains: filters.search, mode: "insensitive" } },
+      { externalZoneId: { contains: filters.search, mode: "insensitive" } },
+      { message: { contains: filters.search, mode: "insensitive" } },
+    ];
+  }
+
+  return where;
+}
+
+async function getEventHistory(query = {}) {
+  const page = parsePositiveInteger(query.page, 1, "page");
+  const limit = parsePositiveInteger(query.limit, EVENT_HISTORY_DEFAULT_LIMIT, "limit");
+  if (limit > EVENT_HISTORY_MAX_LIMIT) {
+    throw createHttpError(400, `limit은 ${EVENT_HISTORY_MAX_LIMIT} 이하여야 합니다.`, { field: "limit" });
+  }
+
+  const filters = {
+    eventType: String(query.eventType || "").trim() || null,
+    status: String(query.status || "").trim().toUpperCase() || null,
+    externalZoneId: String(query.externalZoneId || "").trim() || null,
+    search: String(query.search || "").trim() || null,
+    from: parseHistoryDate(query.from, "from"),
+    to: parseHistoryDate(query.to, "to"),
+  };
+  if (filters.from && filters.to && filters.from > filters.to) {
+    throw createHttpError(400, "from은 to보다 늦을 수 없습니다.", { fields: ["from", "to"] });
+  }
+
+  const where = createEventHistoryWhere(filters);
+  const [total, events] = await prisma.$transaction([
+    prisma.trafficEvent.count({ where }),
+    prisma.trafficEvent.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: [{ occurredAt: "desc" }, { receivedAt: "desc" }, { id: "desc" }],
+      include: { zone: { select: { id: true, zoneCode: true, name: true } } },
+    }),
+  ]);
+
+  return createEventHistoryResponse({
+    events,
+    page,
+    limit,
+    total,
+    filters: {
+      ...filters,
+      from: filters.from?.toISOString() || null,
+      to: filters.to?.toISOString() || null,
+    },
+  });
 }
 
 // 테스트 payload의 시간을 현장 기준인 KST ISO 문자열로 생성한다.
@@ -649,6 +758,7 @@ function startNormalDrivingStream(options = {}) {
 }
 
 module.exports = {
+  getEventHistory,
   getTestPayloads,
   getNormalStreamStatus,
   receiveWrongWayPayload,

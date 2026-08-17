@@ -1,5 +1,4 @@
 const { logger } = require("../../utils/logger");
-const mockLidarService = require("../mock-lidar/mockLidar.service");
 const { createWrongwayErrorResponse } = require("./wrongway.dto");
 const wrongwayService = require("./wrongway.service");
 
@@ -32,8 +31,19 @@ async function receiveWrongWay(req, res) {
   }
 }
 
-function getWrongWayHistory(req, res) {
-  res.json(mockLidarService.getWrongWayHistory());
+async function getWrongWayHistory(req, res) {
+  try {
+    const result = await wrongwayService.getEventHistory(req.query);
+    res.json(result);
+  } catch (error) {
+    logger.error("wrongway history query failed", {
+      message: error.message,
+      details: error.details,
+    });
+    res
+      .status(error.statusCode || 500)
+      .json(createWrongwayErrorResponse(error, "이벤트 이력 조회 중 오류가 발생했습니다."));
+  }
 }
 
 function getWrongWayTestPayloads(req, res) {

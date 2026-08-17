@@ -716,6 +716,61 @@ const swaggerSpec = {
         },
       },
     },
+    "/api/wrongway/history": {
+      get: {
+        tags: ["Wrongway"],
+        summary: "이벤트 이력 페이지 조회",
+        description:
+          "traffic_events에 저장된 이벤트를 최신 발생 순으로 조회합니다. 보행자 필터는 진입과 이탈 이벤트를 함께 포함합니다.",
+        parameters: [
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1, default: 1 } },
+          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+          {
+            name: "eventType",
+            in: "query",
+            schema: {
+              type: "string",
+              enum: ["wrong-way", "situation-ended", "pedestrian", "pedestrian-entered", "pedestrian-exited"],
+            },
+          },
+          {
+            name: "status",
+            in: "query",
+            schema: { type: "string", enum: ["NEW", "CONFIRMED", "RESOLVED", "FALSE_ALARM"] },
+          },
+          { name: "externalZoneId", in: "query", schema: { type: "string", example: "Z455" } },
+          { name: "search", in: "query", schema: { type: "string", example: "track-001" } },
+          { name: "from", in: "query", schema: { type: "string", format: "date-time" } },
+          { name: "to", in: "query", schema: { type: "string", format: "date-time" } },
+        ],
+        responses: {
+          200: {
+            description: "이벤트 이력 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/EventHistoryResponse" },
+              },
+            },
+          },
+          400: {
+            description: "페이지 또는 필터 값이 올바르지 않음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          500: {
+            description: "이벤트 이력 조회 오류",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/wrongway/test-payloads": {
       get: {
         tags: ["Wrongway"],
@@ -1385,6 +1440,59 @@ const swaggerSpec = {
           warnings: { type: "array", items: { type: "string" } },
           results: { type: "array", items: { type: "object", additionalProperties: true } },
           receivedAt: { type: "string", format: "date-time" },
+        },
+      },
+      EventHistoryItem: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "cm_event_id" },
+          eventCode: { type: "string", nullable: true },
+          eventType: { type: "string", example: "wrong-way" },
+          status: { type: "string", example: "NEW" },
+          occurredAt: { type: "string", format: "date-time", nullable: true },
+          receivedAt: { type: "string", format: "date-time" },
+          zone: {
+            type: "object",
+            nullable: true,
+            properties: {
+              id: { type: "string" },
+              code: { type: "string", nullable: true },
+              name: { type: "string" },
+            },
+          },
+          externalZoneId: { type: "string", nullable: true, example: "Z455" },
+          trackId: { type: "string", nullable: true, example: "track-001" },
+          warningLevel: { type: "integer", nullable: true, example: 1 },
+          confidence: { type: "number", nullable: true, example: 0.95 },
+          message: { type: "string", nullable: true, example: "역주행 발생" },
+          speedKmh: { type: "number", nullable: true, example: 10.08 },
+          objectClass: { type: "integer", nullable: true, example: 1 },
+          description: { type: "string", nullable: true },
+        },
+      },
+      EventHistoryResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: {
+            type: "object",
+            properties: {
+              items: { type: "array", items: { $ref: "#/components/schemas/EventHistoryItem" } },
+              pagination: {
+                type: "object",
+                properties: {
+                  page: { type: "integer", example: 1 },
+                  limit: { type: "integer", example: 20 },
+                  total: { type: "integer", example: 42 },
+                  totalPages: { type: "integer", example: 3 },
+                  hasPrevious: { type: "boolean", example: false },
+                  hasNext: { type: "boolean", example: true },
+                },
+              },
+              filters: { type: "object", additionalProperties: true },
+            },
+          },
+          message: { type: "string", example: "OK" },
         },
       },
       WrongwayTestSendResponse: {
