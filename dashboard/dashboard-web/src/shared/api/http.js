@@ -5,7 +5,7 @@ let unauthorizedHandler = null;
 let refreshPromise = null;
 let accessToken = "";
 
-// Axios 에러 객체를 UI에서 다루기 쉬운 형태로 정리합니다.
+// Axios error objects are normalized into a UI-friendly shape.
 function normalizeError(error, fallbackMessage) {
   const message =
     error?.response?.data?.message ||
@@ -24,7 +24,7 @@ export function getAccessToken() {
 }
 
 export function setAccessToken(token) {
-  // accessToken은 브라우저 저장소 대신 메모리 변수에만 유지합니다.
+  // accessToken is kept only in memory, not in browser storage.
   accessToken = token || "";
 }
 
@@ -44,7 +44,7 @@ const http = axios.create({
   },
 });
 
-// 기존 accessToken이 없거나 만료되면 refresh cookie로 새 accessToken을 발급받습니다.
+// When the current access token expires, use the refresh cookie to reissue it.
 async function requestTokenRefresh() {
   const response = await axios.post(
     apiUrl("/api/auth/refresh"),
@@ -71,7 +71,7 @@ http.interceptors.request.use((config) => {
   const nextConfig = { ...config };
   nextConfig.headers = nextConfig.headers || {};
 
-  // 현재 메모리에 올라와 있는 accessToken을 Authorization 헤더에 붙입니다.
+  // Attach the in-memory access token to the Authorization header.
   if (accessToken) {
     nextConfig.headers.Authorization = `Bearer ${accessToken}`;
   }
@@ -96,7 +96,7 @@ http.interceptors.response.use(
     originalRequest._retry = true;
 
     try {
-      // 여러 요청이 동시에 401이어도 refresh 요청은 한 번만 보내고 결과를 공유합니다.
+      // If multiple requests fail with 401 at the same time, send refresh only once.
       if (!refreshPromise) {
         refreshPromise = requestTokenRefresh().finally(() => {
           refreshPromise = null;
@@ -200,7 +200,7 @@ export async function loginRequest(credentials) {
   return postJson("/api/auth/login", credentials);
 }
 
-// 대시보드 websocket 연결 전에 사용할 접속 티켓을 요청한다. 
+// Request a short-lived websocket ticket before connecting the dashboard socket.
 export async function fetchWebSocketTicket() {
   return postJson("/api/auth/ws-ticket", {});
 }
@@ -230,7 +230,7 @@ export async function deactivateUserRequest(id) {
 }
 
 export async function initializeAccessToken() {
-  // 새로고침 후 메모리 토큰이 비어 있으면 refresh cookie로 다시 복구합니다.
+  // If the in-memory token is empty after reload, restore it via the refresh cookie.
   if (accessToken) {
     return accessToken;
   }
@@ -241,22 +241,4 @@ export async function initializeAccessToken() {
     clearAccessToken();
     return "";
   }
-}
-
-// 백엔드 PATCH JSON 요청 공통 함수이다. 인증 적용 후에는 같은 위치에서 토큰을 공통 처리한다.
-export async function patchJson(path, body = {}, options = {}) {
-  const response = await fetch(apiUrl(path), {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    body: JSON.stringify(body),
-    ...options,
-  });
-  const data = await parseJson(response);
-
-  if (!response.ok || data.ok === false || data.success === false) {
-    // 서버가 사용자용 메시지를 주지 않아도 API 경로 같은 내부 요청 정보는 화면에 노출하지 않는다.
-    throw new Error(data.error || data.message || "요청 처리 중 오류가 발생했습니다.");
-  }
-
-  return data;
 }
