@@ -1616,6 +1616,7 @@ const swaggerSpec = {
       post: {
         tags: ["Wrongway"],
         summary: "정주행·역주행 혼합 snapshot 테스트",
+        security: [{ bearerAuth: [] }],
         description:
           "normal-driving과 wrong-way 객체를 한 snapshot으로 보내 객체별 upsert, 사건 생성, 이벤트 저장을 확인합니다.",
         requestBody: {

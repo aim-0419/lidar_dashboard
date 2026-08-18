@@ -8,7 +8,7 @@ function normalizeRole(role) {
   return String(role || "").trim().toUpperCase();
 }
 
-// accessToken을 검증하고 인증된 사용자 정보를 req.user에 저장합니다.
+// accessToken을 검증하고 인증된 사용자 정보를 req.user에 담는다.
 function authenticateToken(req, res, next) {
   const authorizationHeader = req.headers.authorization || "";
 
@@ -101,7 +101,7 @@ function authenticateToken(req, res, next) {
         sessionVersion: user.sessionVersion,
       };
 
-      logger.info("authentication succeeded", {
+      logger.debug("authentication succeeded", {
         path: req.originalUrl,
         method: req.method,
         userId: req.user.userId,
@@ -125,7 +125,7 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// 인증 이후 특정 권한이 필요한 라우트 접근을 제한합니다.
+// 인증 이후 특정 권한이 필요한 경우에만 요청을 통과시킨다.
 function requireRole(...roles) {
   const allowedRoles = roles.map(normalizeRole).filter(Boolean);
 
@@ -159,7 +159,7 @@ function requireRole(...roles) {
       });
     }
 
-    logger.info("authorization succeeded", {
+    logger.debug("authorization succeeded", {
       path: req.originalUrl,
       method: req.method,
       userId: req.user.userId,

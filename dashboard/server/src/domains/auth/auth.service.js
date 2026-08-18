@@ -6,19 +6,14 @@ const { config } = require("../../config");
 const { prisma } = require("../../prisma/client");
 const { logger } = require("../../utils/logger");
 
-const INVALID_LOGIN_MESSAGE = "?꾩씠???먮뒗 鍮꾨?踰덊샇媛 ?щ컮瑜댁? ?딆뒿?덈떎.";
-const LOGIN_RATE_LIMIT_MESSAGE = "濡쒓렇???쒕룄媛 ?덈Т 留롮뒿?덈떎. ?좎떆 ???ㅼ떆 ?쒕룄?댁＜?몄슂.";
-const INVALID_REFRESH_TOKEN_MESSAGE = "?좏슚?섏? ?딆? refresh token?낅땲??";
-const INVALID_WS_TICKET_MESSAGE = "Invalid WebSocket ticket.";
+const INVALID_LOGIN_MESSAGE = "아이디 또는 비밀번호가 올바르지 않습니다.";
+const INVALID_REFRESH_TOKEN_MESSAGE = "유효하지 않은 refresh token입니다.";
+const INVALID_WS_TICKET_MESSAGE = "유효하지 않은 WebSocket 티켓입니다.";
 const REFRESH_TOKEN_EXPIRES_IN = "7d";
 const REFRESH_TOKEN_EXPIRES_IN_MS = 7 * 24 * 60 * 60 * 1000;
 const WS_TICKET_EXPIRES_IN = "30s";
 const WS_TICKET_EXPIRES_IN_SECONDS = 30;
-const MAX_LOGIN_FAILURES = 5;
-const LOGIN_BLOCK_DURATION_MS = 15 * 60 * 1000;
 
-// userId + IP 기준 로그인 실패 횟수를 서버 메모리에 임시 저장한다.
-const loginAttemptStore = new Map();
 // 이미 사용한 websocket 티켓을 메모리에 잠시 저장해 재사용을 막는다.
 const usedWebSocketTicketStore = new Map();
 
@@ -34,99 +29,6 @@ function normalizeRole(role) {
 
 function normalizeLoginKeyPart(value) {
   return String(value || "").trim().toLowerCase();
-}
-
-// 같은 userId와 IP의 반복 실패를 하나의 키로 묶기 위한 값을 만듭니다.
-function buildLoginAttemptKey(userId, ipAddress) {
-  return `${normalizeLoginKeyPart(userId)}::${normalizeLoginKeyPart(ipAddress)}`;
-}
-
-// 차단 시간이 지난 메모리 기록은 정리해서 불필요하게 남지 않도록 합니다.
-function cleanupLoginAttempt(key, now = Date.now()) {
-  const attempt = loginAttemptStore.get(key);
-
-  if (!attempt) {
-    return;
-  }
-
-  if (attempt.blockedUntil && attempt.blockedUntil > now) {
-    return;
-  }
-
-  if (now - attempt.lastFailedAt >= LOGIN_BLOCK_DURATION_MS) {
-    loginAttemptStore.delete(key);
-  }
-}
-
-// 현재 userId + IP 조합이 차단 상태면 로그인 로직을 바로 중단합니다.
-function assertLoginAttemptAllowed(userId, ipAddress) {
-  const key = buildLoginAttemptKey(userId, ipAddress);
-  const now = Date.now();
-
-  cleanupLoginAttempt(key, now);
-
-  const attempt = loginAttemptStore.get(key);
-
-  if (!attempt) {
-    return key;
-  }
-
-  if (attempt.blockedUntil && attempt.blockedUntil > now) {
-    logger.warn("login blocked by rate limit", {
-      userId,
-      ipAddress,
-      blockedUntil: new Date(attempt.blockedUntil).toISOString(),
-      failureCount: attempt.failureCount,
-    });
-
-    throw createHttpError(429, LOGIN_RATE_LIMIT_MESSAGE);
-  }
-
-  return key;
-}
-
-// 실패 횟수를 올리고 임계치에 도달하면 일정 시간 로그인 시도를 막습니다.
-function recordLoginFailure(key, { userId, ipAddress }) {
-  const now = Date.now();
-  const currentAttempt = loginAttemptStore.get(key);
-
-  if (!currentAttempt || now - currentAttempt.lastFailedAt >= LOGIN_BLOCK_DURATION_MS) {
-    loginAttemptStore.set(key, {
-      failureCount: 1,
-      lastFailedAt: now,
-      blockedUntil: null,
-    });
-
-    logger.warn("login failure recorded", {
-      userId,
-      ipAddress,
-      failureCount: 1,
-    });
-    return;
-  }
-
-  const nextFailureCount = currentAttempt.failureCount + 1;
-  const nextBlockedUntil = nextFailureCount >= MAX_LOGIN_FAILURES
-    ? now + LOGIN_BLOCK_DURATION_MS
-    : null;
-
-  loginAttemptStore.set(key, {
-    failureCount: nextFailureCount,
-    lastFailedAt: now,
-    blockedUntil: nextBlockedUntil,
-  });
-
-  logger.warn("login failure recorded", {
-    userId,
-    ipAddress,
-    failureCount: nextFailureCount,
-    blockedUntil: nextBlockedUntil ? new Date(nextBlockedUntil).toISOString() : null,
-  });
-}
-
-// 로그인에 성공하면 해당 키의 실패 기록을 즉시 초기화합니다.
-function clearLoginFailures(key) {
-  loginAttemptStore.delete(key);
 }
 
 function hashRefreshToken(refreshToken) {
@@ -177,16 +79,11 @@ async function login({ userId, password, ipAddress }) {
     ipAddress,
   });
 
-  // DB 조회나 비밀번호 검증 전에 현재 userId + IP 차단 여부를 먼저 확인합니다.
-  const loginAttemptKey = assertLoginAttemptAllowed(userId, ipAddress);
-
   if (!userId || !password) {
     logger.warn("login failed: missing credentials", {
       userId,
       ipAddress,
     });
-    // 자격 증명이 비어 있는 경우도 로그인 실패로 간주합니다.
-    recordLoginFailure(loginAttemptKey, { userId, ipAddress });
     throw createHttpError(401, INVALID_LOGIN_MESSAGE);
   }
 
@@ -204,7 +101,6 @@ async function login({ userId, password, ipAddress }) {
       userId,
       ipAddress,
     });
-    recordLoginFailure(loginAttemptKey, { userId, ipAddress });
     throw createHttpError(401, INVALID_LOGIN_MESSAGE);
   }
 
@@ -214,7 +110,6 @@ async function login({ userId, password, ipAddress }) {
       ipAddress,
       userDbId: user.id,
     });
-    recordLoginFailure(loginAttemptKey, { userId, ipAddress });
     throw createHttpError(401, INVALID_LOGIN_MESSAGE);
   }
 
@@ -232,12 +127,8 @@ async function login({ userId, password, ipAddress }) {
       ipAddress,
       userDbId: user.id,
     });
-    recordLoginFailure(loginAttemptKey, { userId, ipAddress });
     throw createHttpError(401, INVALID_LOGIN_MESSAGE);
   }
-
-  // 로그인 성공 시 이 키의 메모리 기반 제한 상태를 초기화합니다.
-  clearLoginFailures(loginAttemptKey);
 
   const refreshToken = jwt.sign(
     {
@@ -404,7 +295,7 @@ async function logout({ refreshToken }) {
   const logoutAt = new Date();
 
   await prisma.$transaction(async (tx) => {
-    await tx.refreshToken.updateMany({
+    const revokedResult = await tx.refreshToken.updateMany({
       where: {
         tokenHash: refreshTokenHash,
         revokedAt: null,
@@ -414,7 +305,7 @@ async function logout({ refreshToken }) {
       },
     });
 
-    if (decoded?.id) {
+    if (decoded?.id && revokedResult.count > 0) {
       await tx.user.updateMany({
         where: {
           id: decoded.id,
@@ -553,4 +444,3 @@ module.exports = {
   issueWebSocketTicket,
   verifyAndConsumeWebSocketTicket,
 };
-
