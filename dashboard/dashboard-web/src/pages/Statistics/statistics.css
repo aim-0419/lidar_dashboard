@@ -117,7 +117,15 @@
   touch-action: pan-y;
 }
 
+.stats-chart-interactive.is-draggable * {
+  cursor: grab;
+}
+
 .stats-chart-interactive.is-draggable:active {
+  cursor: grabbing;
+}
+
+.stats-chart-interactive.is-draggable:active * {
   cursor: grabbing;
 }
 

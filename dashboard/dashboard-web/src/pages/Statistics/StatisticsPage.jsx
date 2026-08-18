@@ -763,7 +763,7 @@ export default function StatisticsPage() {
                     <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="#e2e8f0" strokeDasharray="4 4" vertical={false} />
+                <CartesianGrid stroke="#94a3b8" strokeDasharray="3 3" strokeOpacity={1} />
                 <XAxis
                   dataKey="label"
                   tick={
@@ -778,7 +778,7 @@ export default function StatisticsPage() {
                   tickMargin={period === "일별" ? 12 : 10}
                   interval={period === "사용자 지정" ? customTickInterval : 0}
                   height={72}
-                  padding={{ left: 8, right: 12 }}
+                  padding={{ left: 0, right: 0 }}
                 />
                 <YAxis tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
                 <Tooltip
@@ -807,7 +807,7 @@ export default function StatisticsPage() {
           </div>
           <ResponsiveContainer width="100%" height={330}>
             <BarChart data={zoneStatistics}>
-              <CartesianGrid stroke="#e2e8f0" strokeDasharray="4 4" vertical={false} />
+              <CartesianGrid stroke="#94a3b8" strokeDasharray="3 3" strokeOpacity={1} />
               <XAxis
                 dataKey="zone"
                 tick={{ fill: "#64748b", fontSize: 12 }}
