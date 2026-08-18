@@ -130,6 +130,29 @@
   text-align: left;
 }
 
+.event-sort-button {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.event-sort-button:hover,
+.event-sort-button.active {
+  color: #1d4ed8;
+}
+
+.event-sort-button:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid #2563eb;
+  outline-offset: 3px;
+}
+
 .event-table td {
   border-bottom: 1px solid #f1f5f9;
   padding: 12px;
@@ -300,6 +323,54 @@
   .event-advanced-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.event-status-editor {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 14px;
+}
+
+.event-status-editor label {
+  display: grid;
+  gap: 5px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.event-status-editor select,
+.event-status-editor textarea {
+  width: 100%;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: #ffffff;
+  color: #334155;
+  font: inherit;
+  resize: vertical;
+}
+
+.event-status-editor button {
+  min-height: 38px;
+  border: 1px solid #1d4ed8;
+  border-radius: 8px;
+  background: #1d4ed8;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.event-status-editor button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.event-status-message {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
 }
 
 @media (max-width: 640px) {
