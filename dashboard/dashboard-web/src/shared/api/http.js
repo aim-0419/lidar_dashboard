@@ -4,8 +4,9 @@ import { API_BASE, apiUrl } from "./config";
 let unauthorizedHandler = null;
 let refreshPromise = null;
 let accessToken = "";
+const DEFAULT_REQUEST_ERROR_MESSAGE = "요청 처리에 실패했습니다.";
 
-// Axios error objects are normalized into a UI-friendly shape.
+// Axios 오류 객체를 화면에서 다루기 쉬운 형태로 정리한다.
 function normalizeError(error, fallbackMessage) {
   const message =
     error?.response?.data?.message ||
@@ -24,7 +25,7 @@ export function getAccessToken() {
 }
 
 export function setAccessToken(token) {
-  // accessToken is kept only in memory, not in browser storage.
+  // accessToken은 브라우저 저장소가 아니라 메모리에만 유지한다.
   accessToken = token || "";
 }
 
@@ -44,7 +45,7 @@ const http = axios.create({
   },
 });
 
-// When the current access token expires, use the refresh cookie to reissue it.
+// 현재 accessToken이 만료되면 refresh cookie를 이용해 다시 발급받는다.
 async function requestTokenRefresh() {
   const response = await axios.post(
     apiUrl("/api/auth/refresh"),
@@ -71,7 +72,7 @@ http.interceptors.request.use((config) => {
   const nextConfig = { ...config };
   nextConfig.headers = nextConfig.headers || {};
 
-  // Attach the in-memory access token to the Authorization header.
+  // 메모리에 보관 중인 accessToken을 Authorization 헤더에 붙인다.
   if (accessToken) {
     nextConfig.headers.Authorization = `Bearer ${accessToken}`;
   }
@@ -96,7 +97,7 @@ http.interceptors.response.use(
     originalRequest._retry = true;
 
     try {
-      // If multiple requests fail with 401 at the same time, send refresh only once.
+      // 여러 요청이 동시에 401로 실패해도 refresh 요청은 한 번만 보낸다.
       if (!refreshPromise) {
         refreshPromise = requestTokenRefresh().finally(() => {
           refreshPromise = null;
@@ -128,7 +129,7 @@ export async function getJson(path, options = {}) {
     });
     return response.data;
   } catch (error) {
-    throw normalizeError(error, `GET ${path} failed`);
+    throw normalizeError(error, DEFAULT_REQUEST_ERROR_MESSAGE);
   }
 }
 
@@ -140,12 +141,12 @@ export async function postJson(path, body = {}, options = {}) {
     });
 
     if (response.data?.ok === false || response.data?.success === false) {
-      throw new Error(response.data?.message || response.data?.error || `POST ${path} failed`);
+      throw new Error(response.data?.message || response.data?.error || DEFAULT_REQUEST_ERROR_MESSAGE);
     }
 
     return response.data;
   } catch (error) {
-    throw normalizeError(error, `POST ${path} failed`);
+    throw normalizeError(error, DEFAULT_REQUEST_ERROR_MESSAGE);
   }
 }
 
@@ -157,12 +158,12 @@ export async function patchJson(path, body = {}, options = {}) {
     });
 
     if (response.data?.ok === false || response.data?.success === false) {
-      throw new Error(response.data?.message || response.data?.error || `PATCH ${path} failed`);
+      throw new Error(response.data?.message || response.data?.error || DEFAULT_REQUEST_ERROR_MESSAGE);
     }
 
     return response.data;
   } catch (error) {
-    throw normalizeError(error, `PATCH ${path} failed`);
+    throw normalizeError(error, DEFAULT_REQUEST_ERROR_MESSAGE);
   }
 }
 
@@ -174,12 +175,12 @@ export async function deleteJson(path, options = {}) {
     });
 
     if (response.data?.ok === false || response.data?.success === false) {
-      throw new Error(response.data?.message || response.data?.error || `DELETE ${path} failed`);
+      throw new Error(response.data?.message || response.data?.error || DEFAULT_REQUEST_ERROR_MESSAGE);
     }
 
     return response.data;
   } catch (error) {
-    throw normalizeError(error, `DELETE ${path} failed`);
+    throw normalizeError(error, DEFAULT_REQUEST_ERROR_MESSAGE);
   }
 }
 
@@ -187,7 +188,7 @@ export async function logoutRequest() {
   try {
     await http.post("/api/auth/logout", {});
   } catch (error) {
-    throw normalizeError(error, "Failed to log out.");
+    throw normalizeError(error, DEFAULT_REQUEST_ERROR_MESSAGE);
   }
 }
 
@@ -200,7 +201,7 @@ export async function loginRequest(credentials) {
   return postJson("/api/auth/login", credentials);
 }
 
-// Request a short-lived websocket ticket before connecting the dashboard socket.
+// 대시보드 소켓 연결 전에 짧은 수명의 WebSocket 티켓을 발급받는다.
 export async function fetchWebSocketTicket() {
   return postJson("/api/auth/ws-ticket", {});
 }
@@ -230,7 +231,7 @@ export async function deactivateUserRequest(id) {
 }
 
 export async function initializeAccessToken() {
-  // If the in-memory token is empty after reload, restore it via the refresh cookie.
+  // 새로고침 후 메모리 토큰이 비어 있으면 refresh cookie로 다시 복구한다.
   if (accessToken) {
     return accessToken;
   }

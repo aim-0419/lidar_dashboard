@@ -374,7 +374,11 @@ async function verifyAndConsumeWebSocketTicket(ticket) {
     throw createHttpError(401, INVALID_WS_TICKET_MESSAGE);
   }
 
-   
+  const ticketExpiresAt =
+    typeof decoded.exp === "number"
+      ? decoded.exp
+      : Math.floor(Date.now() / 1000) + WS_TICKET_EXPIRES_IN_SECONDS;
+
   if (usedWebSocketTicketStore.has(decoded.jti)) {
     logger.warn("websocket ticket verification failed: reused ticket", {
       userDbId: decoded.id,
@@ -384,41 +388,43 @@ async function verifyAndConsumeWebSocketTicket(ticket) {
     throw createHttpError(401, INVALID_WS_TICKET_MESSAGE);
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.id },
-    select: {
-      id: true,
-      userId: true,
-      role: true,
-      isActive: true,
-      sessionVersion: true,
-    },
-  });
+  usedWebSocketTicketStore.set(decoded.jti, ticketExpiresAt);
 
-  if (!user || !user.isActive) {
-    logger.warn("websocket ticket verification failed: user unavailable", {
-      userDbId: decoded.id,
-      userId: decoded.userId,
+  let user;
+
+  try {
+    user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        userId: true,
+        role: true,
+        isActive: true,
+        sessionVersion: true,
+      },
     });
-    throw createHttpError(401, INVALID_WS_TICKET_MESSAGE);
-  }
 
-  if (typeof decoded.sessionVersion !== "number" || decoded.sessionVersion !== user.sessionVersion) {
-    logger.warn("websocket ticket verification failed: session version mismatch", {
-      userDbId: decoded.id,
-      userId: decoded.userId,
-      tokenSessionVersion: decoded.sessionVersion,
-      currentSessionVersion: user.sessionVersion,
-    });
-    throw createHttpError(401, INVALID_WS_TICKET_MESSAGE);
-  }
+    if (!user || !user.isActive) {
+      logger.warn("websocket ticket verification failed: user unavailable", {
+        userDbId: decoded.id,
+        userId: decoded.userId,
+      });
+      throw createHttpError(401, INVALID_WS_TICKET_MESSAGE);
+    }
 
-  usedWebSocketTicketStore.set(
-    decoded.jti,
-    typeof decoded.exp === "number"
-      ? decoded.exp
-      : Math.floor(Date.now() / 1000) + WS_TICKET_EXPIRES_IN_SECONDS,
-  );
+    if (typeof decoded.sessionVersion !== "number" || decoded.sessionVersion !== user.sessionVersion) {
+      logger.warn("websocket ticket verification failed: session version mismatch", {
+        userDbId: decoded.id,
+        userId: decoded.userId,
+        tokenSessionVersion: decoded.sessionVersion,
+        currentSessionVersion: user.sessionVersion,
+      });
+      throw createHttpError(401, INVALID_WS_TICKET_MESSAGE);
+    }
+  } catch (error) {
+    usedWebSocketTicketStore.delete(decoded.jti);
+    throw error;
+  }
 
   logger.info("websocket ticket verified successfully", {
     userDbId: user.id,
