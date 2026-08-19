@@ -194,21 +194,61 @@ async function updateUser({ id, userId, name, role, isActive, requesterId }) {
     throw createHttpError(400, "At least one field is required to update the user.");
   }
 
+  const shouldDeactivateUser = existingUser.isActive && nextIsActive === false;
+
   try {
-    const user = await prisma.user.update({
-      where: { id },
-      data,
-      select: {
-        id: true,
-        userId: true,
-        name: true,
-        role: true,
-        isActive: true,
-        lastLoginAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    let user;
+
+    if (shouldDeactivateUser) {
+      const [, updatedUser] = await prisma.$transaction([
+        prisma.refreshToken.updateMany({
+          where: {
+            userId: id,
+            revokedAt: null,
+          },
+          data: {
+            revokedAt: new Date(),
+          },
+        }),
+        prisma.user.update({
+          where: { id },
+          data: {
+            ...data,
+            isActive: false,
+            sessionVersion: {
+              increment: 1,
+            },
+          },
+          select: {
+            id: true,
+            userId: true,
+            name: true,
+            role: true,
+            isActive: true,
+            lastLoginAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+      ]);
+
+      user = updatedUser;
+    } else {
+      user = await prisma.user.update({
+        where: { id },
+        data,
+        select: {
+          id: true,
+          userId: true,
+          name: true,
+          role: true,
+          isActive: true,
+          lastLoginAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    }
 
     return serializeUser(user);
   } catch (error) {

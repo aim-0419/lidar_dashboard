@@ -1,5 +1,4 @@
-﻿const { logger } = require("../../utils/logger");
-const mockLidarService = require("../mock-lidar/mockLidar.service");
+const { logger } = require("../../utils/logger");
 const { createWrongwayErrorResponse } = require("./wrongway.dto");
 const wrongwayService = require("./wrongway.service");
 
@@ -120,4 +119,3 @@ module.exports = {
   startNormalDrivingStream,
   stopNormalDrivingStream,
 };
-

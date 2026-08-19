@@ -150,4 +150,26 @@ async function me(req, res) {
   }
 }
 
-module.exports = { login, refresh, logout, me };
+// 로그인된 사용자의 websocket 연결용 티켓 발급 요청을 처리한다. 
+async function wsTicket(req, res) {
+  try {
+    const result = await authService.issueWebSocketTicket({
+      user: req.user,
+    });
+
+    res.status(200).json(result);
+  } catch (error) {
+    logger.warn("websocket ticket request failed in controller", {
+      userId: req.user?.userId,
+      statusCode: error.statusCode,
+      message: error.message,
+    });
+
+    res.status(error.statusCode || 500).json({
+      ok: false,
+      message: getPublicMessage(error, "WebSocket ticket issuance failed."),
+    });
+  }
+}
+
+module.exports = { login, refresh, logout, me, wsTicket };

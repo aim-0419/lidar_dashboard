@@ -1,18 +1,18 @@
 const express = require("express");
-const { authenticateToken } = require("../../middlewares/auth.middleware");
+const { authenticateToken, requireRole } = require("../../middlewares/auth.middleware");
 const controller = require("./wrongway.controller");
 
 const router = express.Router();
 
 router.post("/wrongway", controller.receiveWrongWay);
-router.get("/wrongway/history", controller.getWrongWayHistory);
+router.get("/wrongway/history", authenticateToken, controller.getWrongWayHistory);
 router.patch("/events/:id/status", authenticateToken, controller.updateWrongWayEventStatus);
-router.get("/wrongway/test-payloads", controller.getWrongWayTestPayloads);
-router.post("/wrongway/test/normal", controller.sendNormalDrivingTest);
-router.post("/wrongway/test/normal-stream/start", controller.startNormalDrivingStream);
-router.post("/wrongway/test/normal-stream/stop", controller.stopNormalDrivingStream);
-router.get("/wrongway/test/normal-stream/status", controller.getNormalDrivingStreamStatus);
-router.post("/wrongway/test/wrong-way", controller.sendWrongWayTest);
-router.post("/wrongway/test/mixed-snapshot", controller.sendWrongWayTest);
+router.get("/wrongway/test-payloads", authenticateToken, requireRole("SUPER_ADMIN"), controller.getWrongWayTestPayloads);
+router.post("/wrongway/test/normal", authenticateToken, requireRole("SUPER_ADMIN"), controller.sendNormalDrivingTest);
+router.post("/wrongway/test/normal-stream/start", authenticateToken, requireRole("SUPER_ADMIN"), controller.startNormalDrivingStream);
+router.post("/wrongway/test/normal-stream/stop", authenticateToken, requireRole("SUPER_ADMIN"), controller.stopNormalDrivingStream);
+router.get("/wrongway/test/normal-stream/status", authenticateToken, requireRole("SUPER_ADMIN"), controller.getNormalDrivingStreamStatus);
+router.post("/wrongway/test/wrong-way", authenticateToken, requireRole("SUPER_ADMIN"), controller.sendWrongWayTest);
+router.post("/wrongway/test/mixed-snapshot", authenticateToken, requireRole("SUPER_ADMIN"), controller.sendWrongWayTest);
 
 module.exports = router;
