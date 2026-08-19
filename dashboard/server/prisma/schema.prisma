@@ -189,6 +189,42 @@ model VehicleTrack {
   @@map("vehicle_tracks")
 }
 
+model TrafficStatistic {
+  id String @id @default(cuid())
+
+  // 기준 날짜
+  statDate DateTime @map("stat_date")
+
+  // 시간대
+  hourSlot Int? @map("hour_slot")
+
+  // hourly | daily | weekly | monthly
+  periodType String @map("period_type")
+
+  // 현장 기준 통계
+  siteId String? @map("site_id")
+
+  // 구역 기준 통계
+  zoneId String? @map("zone_id")
+
+  // 통과 차량 수
+  totalVehicles Int @default(0) @map("total_vehicles")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([statDate])
+  @@index([periodType])
+  @@index([siteId])
+  @@index([zoneId])
+  @@index([statDate, periodType])
+
+  // 같은 시간대 통계 row 중복 방지
+  @@unique([statDate, hourSlot, periodType, siteId, zoneId])
+
+  @@map("traffic_statistics")
+}
+
 model SafetyIncident {
   id              String           @id @default(cuid())
   zoneId          String           @map("zone_id")

@@ -1,4 +1,4 @@
-import axios from "axios";
+﻿import axios from "axios";
 import { API_BASE, apiUrl } from "./config";
 
 let unauthorizedHandler = null;
@@ -208,6 +208,64 @@ export async function fetchWebSocketTicket() {
 
 export async function fetchUsers() {
   return getJson("/api/users");
+}
+
+export async function fetchStatisticsSummary(period, options = {}) {
+  const searchParams = new URLSearchParams();
+
+  if (period) {
+    searchParams.set("period", period);
+  }
+
+  if (options.startDate) {
+    searchParams.set("startDate", options.startDate);
+  }
+
+  if (options.endDate) {
+    searchParams.set("endDate", options.endDate);
+  }
+
+  if (options.siteId) {
+    searchParams.set("siteId", options.siteId);
+  }
+
+  if (options.zoneId) {
+    searchParams.set("zoneId", options.zoneId);
+  }
+
+  const query = searchParams.toString();
+  return getJson(`/api/statistics/summary${query ? `?${query}` : ""}`);
+}
+
+export async function fetchTrafficSeries(period, options = {}) {
+  const searchParams = new URLSearchParams();
+
+  if (period) {
+    searchParams.set("period", period);
+  }
+
+  if (options.startDate) {
+    searchParams.set("startDate", options.startDate);
+  }
+
+  if (options.endDate) {
+    searchParams.set("endDate", options.endDate);
+  }
+
+  if (options.siteId) {
+    searchParams.set("siteId", options.siteId);
+  }
+
+  if (options.zoneId) {
+    searchParams.set("zoneId", options.zoneId);
+  }
+
+  const query = searchParams.toString();
+  return getJson(`/api/statistics/traffic-series${query ? `?${query}` : ""}`);
+}
+
+export async function fetchDashboardState() {
+  return getJson("/api/state");
 }
 
 export async function fetchUserDetail(id) {
