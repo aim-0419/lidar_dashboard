@@ -36,8 +36,8 @@ function toKstParts(date) {
   };
 }
 
-function createKstDate(year, month, date, hours = 0) {
-  return new Date(Date.UTC(year, month, date, hours) - KST_OFFSET_MS);
+function createKstDate(year, month, date, hours = 0, minutes = 0) {
+  return new Date(Date.UTC(year, month, date, hours, minutes) - KST_OFFSET_MS);
 }
 
 function startOfKstDay(date) {
@@ -84,7 +84,7 @@ function normalizeDateInput(value, fieldName) {
     throw createHttpError(400, `${fieldName} is required when period is custom.`);
   }
 
-  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/);
 
   if (!match) {
     throw createHttpError(400, `${fieldName} must be a valid date.`);
@@ -93,13 +93,23 @@ function normalizeDateInput(value, fieldName) {
   const year = Number(match[1]);
   const month = Number(match[2]) - 1;
   const date = Number(match[3]);
-  const parsed = createKstDate(year, month, date);
+  const hours = match[4] === undefined ? 0 : Number(match[4]);
+  const minutes = match[5] === undefined ? 0 : Number(match[5]);
+
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    throw createHttpError(400, `${fieldName} must be a valid date.`);
+  }
+
+  const parsed = createKstDate(year, month, date, hours, minutes);
 
   if (Number.isNaN(parsed.getTime())) {
     throw createHttpError(400, `${fieldName} must be a valid date.`);
   }
 
-  return parsed;
+  return {
+    value: parsed,
+    hasTime: match[4] !== undefined,
+  };
 }
 
 function getDaySpan(startAt, endAtExclusive) {
@@ -153,14 +163,18 @@ function getRangeForPeriod(period, { startDate, endDate } = {}) {
     };
   }
 
-  const customStartAt = normalizeDateInput(startDate, "startDate");
-  const customEndAt = normalizeDateInput(endDate, "endDate");
+  const customStart = normalizeDateInput(startDate, "startDate");
+  const customEnd = normalizeDateInput(endDate, "endDate");
+  const customStartAt = customStart.value;
+  const customEndAt = customEnd.value;
 
   if (customEndAt < customStartAt) {
     throw createHttpError(400, "endDate must be greater than or equal to startDate.");
   }
 
-  const endAtExclusive = addKstDays(customEndAt, 1);
+  const endAtExclusive = customEnd.hasTime
+    ? new Date(customEndAt.getTime() + 60 * 1000)
+    : addKstDays(customEndAt, 1);
 
   return {
     startAt: customStartAt,
@@ -197,6 +211,32 @@ function getRangeDescriptor(period, startAt, endAt, bucketUnit) {
       endAt,
     },
     bucketUnit,
+  };
+}
+
+function startOfKstHour(date) {
+  const parts = toKstParts(new Date(date));
+  return createKstDate(parts.year, parts.month, parts.date, parts.hours);
+}
+
+function getRowTimeRange(row) {
+  const rowStart = addHours(startOfKstDay(row.statDate), Number(row.hourSlot || 0));
+  const rowEnd = addHours(rowStart, 1);
+  return { rowStart, rowEnd };
+}
+
+function shouldIncludeRowInRange(row, startAt, endAt) {
+  const { rowStart, rowEnd } = getRowTimeRange(row);
+  return rowEnd > startAt && rowStart < endAt;
+}
+
+function getRowQueryRange(startAt, endAt) {
+  const queryStart = startOfKstDay(startAt);
+  const queryEnd = addKstDays(startOfKstDay(new Date(endAt.getTime() - 1)), 1);
+
+  return {
+    queryStart,
+    queryEnd,
   };
 }
 
@@ -266,7 +306,14 @@ function getBucketEnd(bucketStart, bucketUnit) {
 
 function buildBuckets(startAt, endAt, bucketUnit) {
   const buckets = [];
-  let cursor = new Date(startAt);
+  let cursor =
+    bucketUnit === "hour"
+      ? startOfKstHour(startAt)
+      : bucketUnit === "day"
+        ? startOfKstDay(startAt)
+        : bucketUnit === "week"
+          ? startOfKstWeek(startAt)
+          : startOfKstMonth(startAt);
 
   while (cursor < endAt) {
     const bucketStart = new Date(cursor);
@@ -333,19 +380,24 @@ async function getStatisticsSummary({ period, siteId, zoneId, startDate, endDate
     startDate,
     endDate,
   });
-  const where = buildWhereClause({ startAt, endAt, siteId, zoneId });
+  const { queryStart, queryEnd } = getRowQueryRange(startAt, endAt);
+  const where = buildWhereClause({ startAt: queryStart, endAt: queryEnd, siteId, zoneId });
 
-  const result = await prisma.trafficStatistic.aggregate({
+  const rows = await prisma.trafficStatistic.findMany({
     where,
-    _sum: {
+    select: {
+      statDate: true,
+      hourSlot: true,
       totalVehicles: true,
     },
   });
+  const filteredRows = rows.filter((row) => shouldIncludeRowInRange(row, startAt, endAt));
+  const totalVehicles = filteredRows.reduce((sum, row) => sum + Number(row.totalVehicles || 0), 0);
 
   return {
     ...getRangeDescriptor(normalizedPeriod, startAt, endAt, bucketUnit),
     summary: {
-      totalVehicles: Number(result._sum.totalVehicles || 0),
+      totalVehicles,
       wrongWayEvents: 0,
       wrongWayRate: 0,
       pedestrianCount: 0,
@@ -359,7 +411,8 @@ async function getTrafficSeries({ period, siteId, zoneId, startDate, endDate }) 
     startDate,
     endDate,
   });
-  const where = buildWhereClause({ startAt, endAt, siteId, zoneId });
+  const { queryStart, queryEnd } = getRowQueryRange(startAt, endAt);
+  const where = buildWhereClause({ startAt: queryStart, endAt: queryEnd, siteId, zoneId });
 
   const rows = await prisma.trafficStatistic.findMany({
     where,
@@ -370,9 +423,10 @@ async function getTrafficSeries({ period, siteId, zoneId, startDate, endDate }) 
     },
     orderBy: [{ statDate: "asc" }, { hourSlot: "asc" }],
   });
+  const filteredRows = rows.filter((row) => shouldIncludeRowInRange(row, startAt, endAt));
 
   const buckets = buildBuckets(startAt, endAt, bucketUnit);
-  const series = mergeRowsIntoBuckets(buckets, rows, bucketUnit);
+  const series = mergeRowsIntoBuckets(buckets, filteredRows, bucketUnit);
 
   return {
     ...getRangeDescriptor(normalizedPeriod, startAt, endAt, bucketUnit),

@@ -124,12 +124,14 @@ function getZoneStatistics(period) {
   return fallbackZoneStatistics;
 }
 
-function formatDateInputValue(date) {
+function formatDateTimeInputValue(date) {
   const value = new Date(date);
   const year = value.getFullYear();
   const month = String(value.getMonth() + 1).padStart(2, "0");
   const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  const hours = String(value.getHours()).padStart(2, "0");
+  const minutes = String(value.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 function normalizeCustomRange(nextRange) {
@@ -354,8 +356,8 @@ export default function StatisticsPage() {
     threeDaysAgo.setDate(today.getDate() - 2);
 
     return {
-      startDate: formatDateInputValue(threeDaysAgo),
-      endDate: formatDateInputValue(today),
+      startDate: formatDateTimeInputValue(threeDaysAgo),
+      endDate: formatDateTimeInputValue(today),
     };
   });
 
@@ -660,7 +662,7 @@ export default function StatisticsPage() {
               <label className="stats-custom-field">
                 <span>시작</span>
                 <input
-                  type="date"
+                  type="datetime-local"
                   value={customRange.startDate}
                   onChange={(event) =>
                     setCustomRange((prev) =>
@@ -676,7 +678,7 @@ export default function StatisticsPage() {
               <label className="stats-custom-field">
                 <span>종료</span>
                 <input
-                  type="date"
+                  type="datetime-local"
                   value={customRange.endDate}
                   onChange={(event) =>
                     setCustomRange((prev) => {
