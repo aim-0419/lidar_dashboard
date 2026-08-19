@@ -14,6 +14,7 @@ const swaggerSpec = {
   tags: [
     { name: "Health", description: "서버 상태 확인" },
     { name: "Auth", description: "로그인과 인증 토큰 발급" },
+    { name: "Users", description: "User management and profile APIs" },
     { name: "Database", description: "DB 연결과 기본 테이블 확인" },
     { name: "Sites", description: "현장 정보 조회" },
     { name: "Zones", description: "현장별 구역 조회" },
@@ -47,7 +48,7 @@ const swaggerSpec = {
         tags: ["Auth"],
         summary: "관리자 로그인",
         description:
-          "userId와 password를 받아 사용자를 확인하고 access token, refresh token을 발급합니다.",
+          "userId와 password를 받아 사용자를 확인하고 accessToken은 응답 본문으로, refreshToken은 HttpOnly 쿠키로 발급합니다.",
         requestBody: {
           required: true,
           content: {
@@ -59,6 +60,16 @@ const swaggerSpec = {
         responses: {
           200: {
             description: "로그인 성공",
+            headers: {
+              "Set-Cookie": {
+                description: "HttpOnly refreshToken cookie",
+                schema: {
+                  type: "string",
+                  example:
+                    "refreshToken=jwt_refresh_token; HttpOnly; Path=/; SameSite=Lax",
+                },
+              },
+            },
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/LoginSuccessResponse" },
@@ -66,10 +77,727 @@ const swaggerSpec = {
             },
           },
           401: {
-            description: "아이디 또는 비밀번호 불일치, 또는 비활성 사용자",
+            description: "아이디 또는 비밀번호가 올바르지 않거나 비활성 사용자",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/LoginFailResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/auth/refresh": {
+      post: {
+        tags: ["Auth"],
+        summary: "토큰 재발급",
+        description: "HttpOnly cookie에 저장된 refreshToken을 검증해 새로운 accessToken을 발급합니다.",
+        responses: {
+          200: {
+            description: "토큰 재발급 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    accessToken: { type: "string", example: "jwt_access_token" },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "리프레시 토큰이 없거나 유효하지 않음",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "유효하지 않은 리프레시 토큰입니다." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/auth/ws-ticket": {
+      post: {
+        tags: ["Auth"],
+        summary: "WebSocket ticket issuance",
+        description:
+          "Issues a short-lived WebSocket connection ticket for authenticated users.",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: "WebSocket ticket issued successfully",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/WebSocketTicketResponse" },
+              },
+            },
+          },
+          401: {
+            description: "Authentication failed",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "Authentication is required." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/auth/me": {
+      get: {
+        tags: ["Auth"],
+        summary: "내 정보 조회",
+        description: "현재 로그인한 사용자의 정보를 조회합니다.",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: "내 정보 조회 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "admin" },
+                        name: { type: "string", example: "관리자" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: true },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "인증 실패",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "유효하지 않은 토큰입니다." },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "사용자 정보를 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "사용자 정보를 찾을 수 없습니다." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/auth/logout": {
+      post: {
+        tags: ["Auth"],
+        summary: "로그아웃",
+        description: "HttpOnly cookie에 저장된 refreshToken을 폐기하고 쿠키를 삭제합니다.",
+        responses: {
+          200: {
+            description: "로그아웃 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                  },
+                },
+              },
+            },
+          },
+          500: {
+            description: "로그아웃 처리 실패",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "로그아웃 처리 중 오류가 발생했습니다." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/users/me": {
+      get: {
+        tags: ["Users"],
+        summary: "내 정보 조회",
+        description: "현재 로그인한 사용자의 정보를 조회합니다.",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: "내 정보 조회 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "admin" },
+                        name: { type: "string", example: "관리자" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: true },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "인증 실패",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: {
+                      type: "string",
+                      example: "유효하지 않은 토큰입니다.",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "사용자 정보를 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "사용자 정보를 찾을 수 없습니다." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/users": {
+      get: {
+        tags: ["Users"],
+        summary: "Get users list",
+        description: "Returns the list of users for administrators.",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: "Users list fetched successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    count: { type: "integer", example: 1 },
+                    users: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string", example: "user_id" },
+                          userId: { type: "string", example: "admin" },
+                          name: { type: "string", example: "admin" },
+                          role: { type: "string", example: "super_admin" },
+                          isActive: { type: "boolean", example: true },
+                          lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                          createdAt: { type: "string", format: "date-time" },
+                          updatedAt: { type: "string", format: "date-time" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "Authentication failed",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "Authentication is required." },
+                  },
+                },
+              },
+            },
+          },
+          403: {
+            description: "Insufficient permission",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "Permission denied." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: ["Users"],
+        summary: "Create user",
+        description: "Creates a new user for administrators.",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["userId", "name", "password"],
+                properties: {
+                  userId: { type: "string", example: "manager01" },
+                  name: { type: "string", example: "manager" },
+                  password: { type: "string", example: "password123" },
+                  role: { type: "string", example: "SUPER_ADMIN" },
+                  isActive: { type: "boolean", example: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: "User created successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "manager01" },
+                        name: { type: "string", example: "manager" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: true },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: "Invalid request body",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "userId, name, and password are required." },
+                  },
+                },
+              },
+            },
+          },
+          409: {
+            description: "User ID already exists",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "User ID already exists." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/users/{id}": {
+      get: {
+        tags: ["Users"],
+        summary: "Get user detail",
+        description: "Returns a single user detail for administrators.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "user_id",
+          },
+        ],
+        responses: {
+          200: {
+            description: "User detail fetched successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "admin" },
+                        name: { type: "string", example: "admin" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: true },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "Authentication failed",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "Authentication is required." },
+                  },
+                },
+              },
+            },
+          },
+          403: {
+            description: "Insufficient permission",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "Permission denied." },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "User not found." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      patch: {
+        tags: ["Users"],
+        summary: "Update user",
+        description: "Updates a user for administrators.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "user_id",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  userId: { type: "string", example: "manager02" },
+                  name: { type: "string", example: "updated manager" },
+                  role: { type: "string", example: "SUPER_ADMIN" },
+                  isActive: { type: "boolean", example: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "User updated successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "manager02" },
+                        name: { type: "string", example: "updated manager" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: true },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: "Invalid request body",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "At least one field is required to update the user." },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "User not found." },
+                  },
+                },
+              },
+            },
+          },
+          409: {
+            description: "User ID already exists",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "User ID already exists." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      delete: {
+        tags: ["Users"],
+        summary: "Deactivate user",
+        description: "Deactivates a user for administrators.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "user_id",
+          },
+        ],
+        responses: {
+          200: {
+            description: "User deactivated successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "manager02" },
+                        name: { type: "string", example: "updated manager" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: false },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "User not found." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/users/{id}/password": {
+      patch: {
+        tags: ["Users"],
+        summary: "Update user password",
+        description: "Changes or resets a user password for administrators.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "user_id",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["password"],
+                properties: {
+                  password: { type: "string", example: "newPassword123" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "User password updated successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", example: "user_id" },
+                        userId: { type: "string", example: "manager02" },
+                        name: { type: "string", example: "updated manager" },
+                        role: { type: "string", example: "super_admin" },
+                        isActive: { type: "boolean", example: true },
+                        lastLoginAt: { type: "string", format: "date-time", nullable: true },
+                        createdAt: { type: "string", format: "date-time" },
+                        updatedAt: { type: "string", format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: "Invalid request body",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "password is required." },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "User not found",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "User not found." },
+                  },
+                },
               },
             },
           },
@@ -108,6 +836,7 @@ const swaggerSpec = {
         summary: "현장 목록 조회",
         description:
           "등록된 현장 목록을 생성순으로 반환합니다. 각 현장에 속한 구역 수와 장비 수를 함께 제공합니다.",
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "현장 목록 조회 성공",
@@ -158,6 +887,7 @@ const swaggerSpec = {
             example: "site-wolchulsan-rest-area",
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "현장 상세 조회 성공",
@@ -191,6 +921,7 @@ const swaggerSpec = {
         tags: ["Zones"],
         summary: "구역 목록 조회",
         description: "등록된 전체 구역 목록을 생성순으로 반환합니다. 각 구역의 소속 현장 요약과 장비 수를 함께 제공합니다.",
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "구역 목록 조회 성공",
@@ -225,6 +956,7 @@ const swaggerSpec = {
             example: "zone-roundabout-01",
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "구역 상세 조회 성공",
@@ -267,6 +999,7 @@ const swaggerSpec = {
             example: "site-wolchulsan-rest-area",
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "현장별 구역 조회 성공",
@@ -300,6 +1033,7 @@ const swaggerSpec = {
         tags: ["Devices"],
         summary: "장비 목록 조회",
         description: "등록된 전체 장비 목록을 생성순으로 반환합니다. 각 장비의 소속 구역/현장 요약을 함께 제공합니다.",
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "장비 목록 조회 성공",
@@ -334,6 +1068,7 @@ const swaggerSpec = {
             example: "device-lidar-pc-01",
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "장비 상세 조회 성공",
@@ -376,6 +1111,7 @@ const swaggerSpec = {
             example: "device-lidar-pc-01",
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "장비 상태 조회 성공",
@@ -418,6 +1154,7 @@ const swaggerSpec = {
             example: "zone-roundabout-01",
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "구역별 장비 조회 성공",
@@ -569,6 +1306,7 @@ const swaggerSpec = {
             },
           },
         },
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "통합제어보드 명령 처리 결과",
@@ -640,6 +1378,7 @@ const swaggerSpec = {
             schema: { type: "string", example: "cmd_123456" },
           },
         ],
+        security: [{ bearerAuth: [] }],
         responses: {
           200: {
             description: "명령 상세 결과",
@@ -944,6 +1683,7 @@ const swaggerSpec = {
       post: {
         tags: ["Wrongway"],
         summary: "정주행·역주행 혼합 snapshot 테스트",
+        security: [{ bearerAuth: [] }],
         description:
           "normal-driving과 wrong-way 객체를 한 snapshot으로 보내 객체별 upsert, 사건 생성, 이벤트 저장을 확인합니다.",
         requestBody: {
@@ -1254,8 +1994,15 @@ const swaggerSpec = {
         properties: {
           ok: { type: "boolean", example: true },
           accessToken: { type: "string", example: "jwt_access_token" },
-          refreshToken: { type: "string", example: "jwt_refresh_token" },
           user: { $ref: "#/components/schemas/LoginUser" },
+        },
+      },
+      WebSocketTicketResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          ticket: { type: "string", example: "jwt_websocket_ticket" },
+          expiresInSeconds: { type: "integer", example: 30 },
         },
       },
       LoginFailResponse: {

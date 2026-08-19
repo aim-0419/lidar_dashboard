@@ -1,14 +1,29 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
-// 인증이 필요한 화면을 감싸는 보호 라우트 컴포넌트이다.
-// 로그인하지 않은 사용자는 로그인 페이지로 이동시킨다.
+const loadingWrapStyle = {
+  minHeight: "100vh",
+  display: "grid",
+  placeItems: "center",
+  background: "#0b0f14",
+  color: "#ffffff",
+  fontSize: "14px",
+};
+
+// 인증이 필요한 화면을 보호하는 라우트입니다.
 export default function RequireAuth({ children }) {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, isInitializing } = useAuth();
+  const location = useLocation();
 
-  // replace 옵션은 뒤로 가기 시 보호 페이지로 다시 돌아가는 흐름을 줄인다.
-  if (!isLoggedIn) return <Navigate to="/login" replace />;
+  if (isInitializing) {
+    return <div style={loadingWrapStyle}>인증 상태를 확인하는 중입니다.</div>;
+  }
 
-  // 로그인 상태라면 감싸고 있는 실제 페이지를 그대로 보여준다.
+  if (!isLoggedIn) {
+    // 로그인 후 원래 가려던 화면으로 다시 이동할 수 있도록 경로를 보존합니다.
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  // 인증이 확인되면 요청한 실제 페이지를 그대로 보여줍니다.
   return children;
 }

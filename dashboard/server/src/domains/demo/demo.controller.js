@@ -18,7 +18,7 @@ async function startDemo(req, res) {
   } catch (err) {
     logger.error("detector demo start failed", { err });
     mockLidarService.pushLog(`Demo START failed: ${String(err.message || err)}`);
-    res.status(500).json({ ok: false, error: String(err.message || err) });
+    res.status(500).json({ ok: false, error: "데모 시작 처리 중 오류가 발생했습니다." });
   }
 }
 
@@ -40,7 +40,7 @@ async function resetDemo(req, res) {
   } catch (err) {
     logger.error("detector demo reset failed", { err });
     mockLidarService.pushLog(`Demo RESET failed: ${String(err.message || err)}`);
-    res.status(500).json({ ok: false, error: String(err.message || err) });
+    res.status(500).json({ ok: false, error: "데모 초기화 처리 중 오류가 발생했습니다." });
   }
 }
 

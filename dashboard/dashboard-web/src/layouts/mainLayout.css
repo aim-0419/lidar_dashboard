@@ -17,6 +17,9 @@
   border-right: 1px solid #dbe4f0;
   padding: 18px 14px;
   background: linear-gradient(180deg, #0f233f 0%, #102b4d 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .ml-brand {
@@ -93,6 +96,49 @@
 .ml-main {
   min-width: 0;
   overflow: auto;
+  padding: 18px;
+}
+
+.ml-auth-card {
+  margin-top: auto;
+  padding: 14px 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.82);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ml-auth-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+}
+
+.ml-auth-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.ml-auth-role {
+  font-size: 12px;
+  color: #8fc7ff;
+  text-transform: lowercase;
+}
+
+.ml-logout-btn {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.06);
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.ml-logout-btn:hover {
+  background: rgba(255,255,255,0.12);
 }
 
 @media (max-width: 860px) {

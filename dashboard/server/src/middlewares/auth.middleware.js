@@ -1,93 +1,173 @@
 const jwt = require("jsonwebtoken");
 
 const { config } = require("../config");
+const { prisma } = require("../prisma/client");
 const { logger } = require("../utils/logger");
 
-/**
- * JWT Access Token 인증 미들웨어
- * 
- * 요청 헤더의 Authorization 값을 확인하고,
- * Bearer Token이 유효한 경우 사용자 정보를 req.user에 저장한 뒤 
- * 다음 미들웨어 또는 컨트롤러로 요청을 전달한다.  
- * 
- * Authorization 헤더 형식:
- * Authorization: Bearer <accessToken>
- */
+function normalizeRole(role) {
+  return String(role || "").trim().toUpperCase();
+}
 
+// accessToken을 검증하고 인증된 사용자 정보를 req.user에 담는다.
 function authenticateToken(req, res, next) {
-  // 요청 헤더에서 Authorization 값을 가져온다.
-  // Authorization 헤더가 없는 경우 빈 문자열("")을 사용한다.
   const authorizationHeader = req.headers.authorization || "";
 
-  // Authorization 헤더가 "Bearer" 형식으로 시작하는지 확인한다. 
-  // 토큰이 없거나 Bearer 인증 형식이 아닌 경우 인증 실패 처리한다.
   if (!authorizationHeader.startsWith("Bearer ")) {
-    logger.warn("인증 실패: Bearer 토큰 없음", {
+    logger.warn("authentication failed: missing bearer token", {
       path: req.originalUrl,
       method: req.method,
     });
 
     return res.status(401).json({
       ok: false,
-      message: "인증이 요청됨.",
+      message: "인증이 필요합니다.",
     });
   }
 
-  // "Bearer " 문자열(7글자)을 제거하여 실제 Access Token만 추출한다.
-  // trim()으로 앞뒤 불필요한 공백도 제거한다.
   const accessToken = authorizationHeader.slice(7).trim();
 
-  // "Bearer " 형식은 존재하지만 실제 토큰 값이 비어 있는 경우
-  // 인증 실패 처리한다.
   if (!accessToken) {
-    logger.warn("인증 실패: Bearer 토큰 값이 비어 있음", {
+    logger.warn("authentication failed: empty bearer token", {
       path: req.originalUrl,
       method: req.method,
     });
 
     return res.status(401).json({
       ok: false,
-      message: "인증이 요청됨.",
+      message: "인증이 필요합니다.",
     });
   }
 
-  try {
-    // Access Token의 서명과 만료 여부를 검증한다.
-    // 토큰이 유효하면 JWT Payload(decoded)를 반환한다.
-    // 토큰이 만료되었거나 변조된 경우 예외가 발생하여 catch 블록으로 이동한다.
-    const decoded = jwt.verify(accessToken, config.jwtSecret);
+  jwt.verify(accessToken, config.jwtSecret, async (error, decoded) => {
+    if (error) {
+      logger.warn("authentication failed: invalid token", {
+        path: req.originalUrl,
+        method: req.method,
+        message: error.message,
+      });
 
-    // 검증된 JWT Payload에서 사용자 정보를 추출하여 req.user에 저장한다. 
-    // 이후 컨트롤러나 다른 미들웨어에서 req.user로 로그인 사용자 정보를 사용할 수 있다.
-    req.user = {
-      id: decoded.id,
-      userId: decoded.userId,
-      role: decoded.role,
-    };
+      return res.status(401).json({
+        ok: false,
+        message: "유효하지 않은 토큰입니다.",
+      });
+    }
 
-    logger.info("인증 성공", {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        select: {
+          id: true,
+          userId: true,
+          role: true,
+          isActive: true,
+          sessionVersion: true,
+        },
+      });
+
+      if (!user || !user.isActive) {
+        logger.warn("authentication failed: user unavailable", {
+          path: req.originalUrl,
+          method: req.method,
+          userId: decoded.userId,
+          userDbId: decoded.id,
+        });
+
+        return res.status(401).json({
+          ok: false,
+          message: "인증된 사용자를 찾을 수 없습니다.",
+        });
+      }
+
+      if (typeof decoded.sessionVersion !== "number" || decoded.sessionVersion !== user.sessionVersion) {
+        logger.warn("authentication failed: session version mismatch", {
+          path: req.originalUrl,
+          method: req.method,
+          userId: decoded.userId,
+          userDbId: decoded.id,
+          tokenSessionVersion: decoded.sessionVersion,
+          currentSessionVersion: user.sessionVersion,
+        });
+
+        return res.status(401).json({
+          ok: false,
+          message: "유효하지 않은 토큰입니다.",
+        });
+      }
+
+      req.user = {
+        id: user.id,
+        userId: user.userId,
+        role: user.role,
+        sessionVersion: user.sessionVersion,
+      };
+
+      logger.debug("authentication succeeded", {
+        path: req.originalUrl,
+        method: req.method,
+        userId: req.user.userId,
+        role: req.user.role,
+        sessionVersion: req.user.sessionVersion,
+      });
+
+      next();
+    } catch (dbError) {
+      logger.error("authentication failed: database lookup error", {
+        path: req.originalUrl,
+        method: req.method,
+        message: dbError.message,
+      });
+
+      return res.status(500).json({
+        ok: false,
+        message: "인증 처리 중 오류가 발생했습니다.",
+      });
+    }
+  });
+}
+
+// 인증 이후 특정 권한이 필요한 경우에만 요청을 통과시킨다.
+function requireRole(...roles) {
+  const allowedRoles = roles.map(normalizeRole).filter(Boolean);
+
+  return function roleMiddleware(req, res, next) {
+    if (!req.user) {
+      logger.warn("authorization failed: missing authenticated user", {
+        path: req.originalUrl,
+        method: req.method,
+      });
+
+      return res.status(401).json({
+        ok: false,
+        message: "인증이 필요합니다.",
+      });
+    }
+
+    const currentRole = normalizeRole(req.user.role);
+
+    if (allowedRoles.length > 0 && !allowedRoles.includes(currentRole)) {
+      logger.warn("authorization failed: insufficient role", {
+        path: req.originalUrl,
+        method: req.method,
+        userId: req.user.userId,
+        currentRole,
+        allowedRoles,
+      });
+
+      return res.status(403).json({
+        ok: false,
+        message: "권한이 없습니다.",
+      });
+    }
+
+    logger.debug("authorization succeeded", {
       path: req.originalUrl,
       method: req.method,
       userId: req.user.userId,
-      role: req.user.role,
+      currentRole,
     });
 
-    // 인증에 성공했으므로 다음 미들웨어 또는 컨트롤러로 요청을 전달한다.
     next();
-  } catch (error) {
-    // JWT 검증 실패 처리
-    // 예: 만료된 토큰, 변조된 토큰, 잘못된 서명 등
-    logger.warn("인증 실패: 유효하지 않은 토큰", {
-      path: req.originalUrl,
-      method: req.method,
-      error,
-    });
-
-    return res.status(401).json({
-      ok: false,
-      message: "유효하지 않은 토큰.",
-    });
-  }
+  };
 }
 
-module.exports = { authenticateToken };
+module.exports = { authenticateToken, requireRole };

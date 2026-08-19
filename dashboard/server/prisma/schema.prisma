@@ -7,17 +7,18 @@ datasource db {
 }
 
 model User {
-  id            String         @id @default(cuid())
-  userId        String         @unique @map("user_id")
-  name          String
-  passwordHash  String         @map("password_hash")
-  role          String         @default("SUPER_ADMIN")
-  isActive      Boolean        @default(true) @map("is_active")
-  lastLoginAt   DateTime?      @map("last_login_at")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  eventLogs     EventLog[]
-  refreshTokens RefreshToken[]
+  id               String         @id @default(cuid())
+  userId           String         @unique @map("user_id")
+  name             String
+  passwordHash     String         @map("password_hash")
+  role             String         @default("SUPER_ADMIN")
+  isActive         Boolean        @default(true) @map("is_active")
+  sessionVersion   Int            @default(0) @map("session_version")
+  lastLoginAt      DateTime?      @map("last_login_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  eventLogs        EventLog[]
+  refreshTokens    RefreshToken[]
 
   @@map("users")
 }
@@ -25,7 +26,7 @@ model User {
 model RefreshToken {
   id        String    @id @default(cuid())
   userId    String    @map("user_id")
-  tokenHash String    @map("token_hash")
+  tokenHash String    @unique @map("token_hash")
   expiresAt DateTime  @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
   createdAt DateTime  @default(now()) @map("created_at")
