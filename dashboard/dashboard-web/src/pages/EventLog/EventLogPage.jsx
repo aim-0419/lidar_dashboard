@@ -1,6 +1,17 @@
-import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Download, Filter, Search, Siren } from "lucide-react";
-import { eventHistory } from "../../shared/constants/operationsDashboardData";
+import { useEffect, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Search,
+  Siren,
+} from "lucide-react";
+import { getEventHistory, getEventZones, updateEventStatus } from "../../features/events/eventsApi";
 import "../Dashboard/dashboard.css";
 import "./eventLog.css";
 
@@ -8,44 +19,217 @@ const filters = [
   { label: "전체", value: "all" },
   { label: "역주행", value: "wrong-way" },
   { label: "보행자", value: "pedestrian" },
-  { label: "종료", value: "ended" },
+  { label: "상황 종료", value: "situation-ended" },
 ];
-
-function matchesFilter(event, filter) {
-  if (filter === "all") return true;
-  if (filter === "wrong-way") return event.type.startsWith("wrong-way");
-  if (filter === "pedestrian") return event.type.startsWith("pedestrian");
-  if (filter === "ended") return event.type === "situation-ended";
-  return true;
-}
 
 function statusText(status) {
   if (status === "NEW") return "신규";
-  if (status === "MONITORING") return "확인 중";
-  if (status === "CLOSED") return "종료";
-  if (status === "DONE") return "처리 완료";
+  if (status === "CONFIRMED") return "확인";
+  if (status === "RESOLVED") return "처리 완료";
+  if (status === "FALSE_ALARM") return "오탐";
   return status;
+}
+
+function eventTypeText(type) {
+  if (type === "wrong-way" || type === "wrong-way-level-1" || type === "wrong-way-level-2") return "역주행";
+  if (type === "situation-ended") return "상황 종료";
+  if (type === "pedestrian-entered") return "보행자 진입";
+  if (type === "pedestrian-exited") return "보행자 이탈";
+  return type;
+}
+
+function eventTypeClass(type) {
+  return type?.startsWith("wrong-way") ? "wrong-way" : type;
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+}
+
+function toDateBoundary(value, endOfDay = false) {
+  if (!value) return "";
+  const time = endOfDay ? "23:59:59.999" : "00:00:00.000";
+  return new Date(`${value}T${time}+09:00`).toISOString();
+}
+
+function todayDateInputValue() {
+  const now = new Date();
+  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000);
+  return localDate.toISOString().slice(0, 10);
 }
 
 export default function EventLogPage() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(eventHistory[0]?.id);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [status, setStatus] = useState("");
+  const [zoneId, setZoneId] = useState("");
+  const [zones, setZones] = useState([]);
+  const [zonesLoading, setZonesLoading] = useState(true);
+  const [zonesError, setZonesError] = useState(false);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState(todayDateInputValue);
+  const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState("occurredAt");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [items, setItems] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+  const [selectedId, setSelectedId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [statusDraft, setStatusDraft] = useState("NEW");
+  const [statusMemo, setStatusMemo] = useState("");
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
 
-  const filteredEvents = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
-    return eventHistory.filter((event) => {
-      const textMatched = !keyword
-        || event.id.toLowerCase().includes(keyword)
-        || event.zoneId.toLowerCase().includes(keyword)
-        || event.message.toLowerCase().includes(keyword)
-        || event.trackId.toLowerCase().includes(keyword);
+  // 입력할 때마다 요청하지 않도록 검색어가 멈춘 뒤 API 필터에 반영한다.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
 
-      return textMatched && matchesFilter(event, activeFilter);
-    });
-  }, [activeFilter, query]);
+  useEffect(() => {
+    const controller = new AbortController();
 
-  const selected = eventHistory.find((event) => event.id === selectedId) || filteredEvents[0];
+    async function loadZones() {
+      try {
+        setZones(await getEventZones({ signal: controller.signal }));
+      } catch (requestError) {
+        if (requestError.name !== "AbortError") {
+          setZonesError(true);
+        }
+      } finally {
+        if (!controller.signal.aborted) setZonesLoading(false);
+      }
+    }
+
+    loadZones();
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadEvents() {
+      setLoading(true);
+      setError("");
+      try {
+        const data = await getEventHistory({
+          page,
+          limit: 20,
+          eventType: activeFilter === "all" ? "" : activeFilter,
+          status,
+          zoneId,
+          search: debouncedQuery,
+          from: toDateBoundary(fromDate),
+          to: toDateBoundary(toDate, true),
+          sortBy,
+          sortOrder,
+        }, { signal: controller.signal });
+
+        setItems(data.items);
+        setPagination(data.pagination);
+        setSelectedId((current) => (
+          data.items.some((event) => event.id === current) ? current : data.items[0]?.id || null
+        ));
+      } catch (requestError) {
+        if (requestError.name !== "AbortError") {
+          setError(requestError.message || "이벤트 이력을 불러오지 못했습니다.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+
+    loadEvents();
+    return () => controller.abort();
+  }, [activeFilter, debouncedQuery, fromDate, page, sortBy, sortOrder, status, toDate, zoneId]);
+
+  const selected = useMemo(
+    () => items.find((event) => event.id === selectedId) || items[0],
+    [items, selectedId],
+  );
+
+  useEffect(() => {
+    setStatusDraft(selected?.status || "NEW");
+    setStatusMemo("");
+    setStatusMessage("");
+  }, [selected?.id, selected?.status]);
+
+  function changeFilter(value) {
+    setActiveFilter(value);
+    setPage(1);
+  }
+
+  // 같은 열은 방향을 반전하고, 새로운 열은 오름차순부터 조회한다.
+  function changeSort(field) {
+    if (sortBy === field) {
+      setSortOrder((current) => (current === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field);
+      setSortOrder("asc");
+    }
+    setPage(1);
+  }
+
+  function sortIcon(field) {
+    if (sortBy !== field) return <ArrowUpDown size={13} aria-hidden="true" />;
+    return sortOrder === "asc"
+      ? <ArrowUp size={13} aria-hidden="true" />
+      : <ArrowDown size={13} aria-hidden="true" />;
+  }
+
+  function sortableHeader(label, field) {
+    const active = sortBy === field;
+    const direction = active ? (sortOrder === "asc" ? "오름차순" : "내림차순") : "정렬 없음";
+
+    return (
+      <th aria-sort={active ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
+        <button
+          type="button"
+          className={`event-sort-button${active ? " active" : ""}`}
+          onClick={() => changeSort(field)}
+          title={`${label} ${direction}`}
+        >
+          <span>{label}</span>
+          {sortIcon(field)}
+        </button>
+      </th>
+    );
+  }
+
+  async function saveEventStatus() {
+    if (!selected || statusSaving) return;
+
+    setStatusSaving(true);
+    setStatusMessage("");
+    try {
+      const result = await updateEventStatus(selected.id, {
+        status: statusDraft,
+        memo: statusMemo,
+      });
+      setItems((current) => current.map((item) => (
+        item.id === selected.id ? result.event : item
+      )));
+      setStatusMessage(result.changed ? "상태를 변경했습니다." : "이미 같은 상태입니다.");
+    } catch (requestError) {
+      setStatusMessage(requestError.message || "상태를 변경하지 못했습니다.");
+    } finally {
+      setStatusSaving(false);
+    }
+  }
 
   return (
     <div className="ops-page event-page">
@@ -55,10 +239,7 @@ export default function EventLogPage() {
           <h1>이벤트 이력</h1>
           <p className="ops-subtitle">역주행, 보행자, 상황 종료 이벤트를 시간순으로 검토</p>
         </div>
-        <button className="event-export-button" type="button">
-          <Download size={15} />
-          CSV 내보내기
-        </button>
+        <div className="event-total">총 {pagination.total.toLocaleString()}건</div>
       </header>
 
       <section className="event-toolbar ops-card">
@@ -67,7 +248,7 @@ export default function EventLogPage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="이벤트 ID, 구역, track_id 검색"
+            placeholder="이벤트 ID, 구역명/코드, track_id, 메시지 검색"
           />
         </div>
         <div className="event-filter-group" aria-label="이벤트 필터">
@@ -77,7 +258,7 @@ export default function EventLogPage() {
               key={filter.value}
               type="button"
               className={activeFilter === filter.value ? "active" : ""}
-              onClick={() => setActiveFilter(filter.value)}
+              onClick={() => changeFilter(filter.value)}
             >
               {filter.label}
             </button>
@@ -85,38 +266,94 @@ export default function EventLogPage() {
         </div>
       </section>
 
+      <section className="event-advanced-filters" aria-label="상세 필터">
+        <label>
+          <span>상태</span>
+          <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+            <option value="">전체</option>
+            <option value="NEW">신규</option>
+            <option value="CONFIRMED">확인</option>
+            <option value="RESOLVED">처리 완료</option>
+            <option value="FALSE_ALARM">오탐</option>
+          </select>
+        </label>
+        <label>
+          <span>구역</span>
+          <select
+            value={zoneId}
+            disabled={zonesLoading}
+            onChange={(event) => { setZoneId(event.target.value); setPage(1); }}
+          >
+            <option value="">
+              {zonesLoading ? "구역 불러오는 중" : zonesError ? "구역 조회 실패" : "전체 구역"}
+            </option>
+            {zones.map((zone) => (
+              <option key={zone.id} value={zone.id}>
+                {zone.site?.name ? `${zone.site.name} - ` : ""}{zone.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>시작일</span>
+          <input type="date" value={fromDate} onChange={(event) => { setFromDate(event.target.value); setPage(1); }} />
+        </label>
+        <label>
+          <span>종료일</span>
+          <input type="date" value={toDate} onChange={(event) => { setToDate(event.target.value); setPage(1); }} />
+        </label>
+      </section>
+
       <section className="event-layout">
         <article className="ops-card event-table-card">
           <table className="event-table">
             <thead>
               <tr>
-                <th>발생 시간</th>
-                <th>유형</th>
-                <th>구역</th>
-                <th>track_id</th>
-                <th>속도</th>
-                <th>상태</th>
+                {sortableHeader("발생 시간", "occurredAt")}
+                {sortableHeader("유형", "eventType")}
+                {sortableHeader("구역", "zone")}
+                {sortableHeader("track_id", "trackId")}
+                {sortableHeader("속도", "speedKmh")}
+                {sortableHeader("상태", "status")}
               </tr>
             </thead>
             <tbody>
-              {filteredEvents.map((event) => (
+              {items.map((event) => (
                 <tr
                   key={event.id}
                   className={selected?.id === event.id ? "selected" : ""}
                   onClick={() => setSelectedId(event.id)}
                 >
-                  <td>{event.occurredAt}</td>
+                  <td>{formatDateTime(event.occurredAt || event.receivedAt)}</td>
                   <td>
-                    <span className={`event-type-badge ${event.type}`}>{event.message}</span>
+                    <span className={`event-type-badge ${eventTypeClass(event.eventType)}`}>{eventTypeText(event.eventType)}</span>
                   </td>
-                  <td>{event.zoneId}</td>
-                  <td>{event.trackId}</td>
-                  <td>{event.speedKmh.toFixed(1)} km/h</td>
+                  <td>{event.zone?.name || event.externalZoneId || "-"}</td>
+                  <td>{event.trackId || "-"}</td>
+                  <td>{event.speedKmh == null ? "-" : `${event.speedKmh.toFixed(1)} km/h`}</td>
                   <td>{statusText(event.status)}</td>
                 </tr>
               ))}
+              {!loading && !error && items.length === 0 && (
+                <tr><td colSpan="6" className="event-table-message">조회된 이벤트가 없습니다.</td></tr>
+              )}
+              {loading && (
+                <tr><td colSpan="6" className="event-table-message">이벤트 이력을 불러오는 중입니다.</td></tr>
+              )}
+              {error && (
+                <tr><td colSpan="6" className="event-table-message error">{error}</td></tr>
+              )}
             </tbody>
           </table>
+          <div className="event-pagination">
+            <button type="button" disabled={!pagination.hasPrevious || loading} onClick={() => setPage((value) => value - 1)} aria-label="이전 페이지">
+              <ChevronLeft size={16} />
+            </button>
+            <span>{pagination.totalPages === 0 ? 0 : pagination.page} / {pagination.totalPages}</span>
+            <button type="button" disabled={!pagination.hasNext || loading} onClick={() => setPage((value) => value + 1)} aria-label="다음 페이지">
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </article>
 
         <aside className="ops-card event-detail">
@@ -127,11 +364,11 @@ export default function EventLogPage() {
                   <h2>상세 정보</h2>
                   <p>{selected.id}</p>
                 </div>
-                {selected.type.startsWith("wrong-way") ? <Siren size={20} /> : <CheckCircle2 size={20} />}
+                {selected.eventType?.startsWith("wrong-way") ? <Siren size={20} /> : <CheckCircle2 size={20} />}
               </div>
-              <div className={`event-thumbnail ${selected.type}`}>
+              <div className={`event-thumbnail ${eventTypeClass(selected.eventType)}`}>
                 <AlertTriangle size={28} />
-                <span>현장 영상 연결 예정</span>
+                <span>현장 영상 미제공</span>
               </div>
               <dl className="event-detail-list">
                 <div>
@@ -144,16 +381,36 @@ export default function EventLogPage() {
                 </div>
                 <div>
                   <dt>구역</dt>
-                  <dd>{selected.zoneId}</dd>
+                  <dd>{selected.zone?.name || "-"} ({selected.externalZoneId || "-"})</dd>
                 </div>
                 <div>
                   <dt>객체 ID</dt>
                   <dd>{selected.trackId}</dd>
                 </div>
               </dl>
-              <div className="event-detail-actions">
-                <button type="button">오탐 처리</button>
-                <button type="button" className="primary">처리 완료</button>
+              <div className="event-status-editor">
+                <label>
+                  <span>관리 상태</span>
+                  <select value={statusDraft} onChange={(event) => setStatusDraft(event.target.value)}>
+                    <option value="NEW">신규</option>
+                    <option value="CONFIRMED">확인</option>
+                    <option value="RESOLVED">처리 완료</option>
+                    <option value="FALSE_ALARM">오탐</option>
+                  </select>
+                </label>
+                <label>
+                  <span>변경 사유</span>
+                  <textarea
+                    value={statusMemo}
+                    onChange={(event) => setStatusMemo(event.target.value)}
+                    placeholder="확인 내용 또는 변경 사유"
+                    rows="3"
+                  />
+                </label>
+                <button type="button" onClick={saveEventStatus} disabled={statusSaving}>
+                  {statusSaving ? "저장 중" : "상태 저장"}
+                </button>
+                {statusMessage && <p className="event-status-message">{statusMessage}</p>}
               </div>
             </>
           ) : (

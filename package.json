@@ -18,6 +18,7 @@
     "check:server": "node dashboard/server/scripts/check-syntax.js",
     "ci": "npm run build:web && npm run check:server",
     "test:wrongway-samples": "node scripts/send-wrongway-samples.js",
+    "test:lidar-scenario": "node scripts/send-lidar-multi-object-scenario.js",
     "setup:demo": "python -m venv dashboard/demo-server/venv && \"dashboard\\demo-server\\venv\\Scripts\\python.exe\" -m pip install -r dashboard/demo-server/requirements.txt"
   }
 }

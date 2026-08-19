@@ -52,40 +52,57 @@ model Site {
 }
 
 model Zone {
-  id            String         @id @default(cuid())
-  siteId        String         @map("site_id")
-  zoneCode      String?        @unique @map("zone_code")
+  id            String             @id @default(cuid())
+  siteId        String             @map("site_id")
+  zoneCode      String?            @unique @map("zone_code")
   name          String
   type          String?
   description   String?
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  site          Site           @relation(fields: [siteId], references: [id])
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  site          Site               @relation(fields: [siteId], references: [id])
   devices       Device[]
   vehicleTracks VehicleTrack[]
   trafficEvents TrafficEvent[]
+  incidents     SafetyIncident[]
+  dailyStats    DailyTrafficStat[]
 
   @@index([siteId])
   @@map("zones")
 }
 
 model Device {
-  id                String    @id @default(cuid())
-  zoneId            String    @map("zone_id")
-  deviceCode        String?   @unique @map("device_code")
+  id                String             @id @default(cuid())
+  zoneId            String             @map("zone_id")
+  deviceCode        String?            @unique @map("device_code")
   name              String
-  deviceType        String    @map("device_type")
-  status            String    @default("UNKNOWN")
-  healthStatus      String    @default("UNKNOWN") @map("health_status")
-  ipAddress         String?   @map("ip_address")
+  deviceType        String             @map("device_type")
+  status            String             @default("UNKNOWN")
+  healthStatus      String             @default("UNKNOWN") @map("health_status")
+  ipAddress         String?            @map("ip_address")
   port              Int?
-  lastSeenAt        DateTime? @map("last_seen_at")
-  installedLocation String?   @map("installed_location")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-  zone              Zone      @relation(fields: [zoneId], references: [id])
+  lastSeenAt        DateTime?          @map("last_seen_at")
+  installedLocation String?            @map("installed_location")
+  controllerId      String?            @map("controller_id")
+  protocolDeviceId  Int?               @map("protocol_device_id")
+  powerStatus       String             @default("UNKNOWN") @map("power_status")
+  operationStatus   String             @default("UNKNOWN") @map("operation_status")
+  statusCheckedAt   DateTime?          @map("status_checked_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  zone              Zone               @relation(fields: [zoneId], references: [id])
+  controller        Device?            @relation("ControlledDevices", fields: [controllerId], references: [id], onDelete: SetNull)
+  controlledDevices Device[]           @relation("ControlledDevices")
+  vehicleTracks     VehicleTrack[]
+  trafficEvents     TrafficEvent[]
+  incidents         SafetyIncident[]
+  dailyStats        DailyTrafficStat[]
+  controlCommands   ControlCommand[]   @relation("ControlBoardCommands")
+  targetCommands    ControlCommand[]   @relation("TargetDeviceCommands")
 
+  @@unique([controllerId, protocolDeviceId])
   @@index([zoneId])
+  @@index([controllerId])
   @@index([deviceType])
   @@index([status])
   @@index([healthStatus])
@@ -93,35 +110,41 @@ model Device {
 }
 
 model TrafficEvent {
-  id                       String        @id @default(cuid())
-  eventCode                String?       @unique @map("event_code")
-  eventType                String        @map("event_type")
-  status                   String        @default("NEW")
-  occurredAt               DateTime?     @map("occurred_at")
-  receivedAt               DateTime      @default(now()) @map("received_at")
-  zoneId                   String?       @map("zone_id")
-  vehicleTrackId           String?       @map("vehicle_track_id")
-  externalZoneId           String?       @map("external_zone_id")
-  trackId                  String?       @map("track_id")
-  warningLevel             Int?          @map("warning_level")
+  id                       String          @id @default(cuid())
+  eventCode                String?         @unique @map("event_code")
+  eventType                String          @map("event_type")
+  status                   String          @default("NEW")
+  occurredAt               DateTime?       @map("occurred_at")
+  receivedAt               DateTime        @default(now()) @map("received_at")
+  zoneId                   String?         @map("zone_id")
+  deviceId                 String?         @map("device_id")
+  incidentId               String?         @map("incident_id")
+  vehicleTrackId           String?         @map("vehicle_track_id")
+  externalZoneId           String?         @map("external_zone_id")
+  trackId                  String?         @map("track_id")
+  warningLevel             Int?            @map("warning_level")
   confidence               Float?
   message                  String?
-  speedMs                  Float?        @map("speed_ms")
-  speedKmh                 Float?        @map("speed_kmh")
-  objectClass              Int?          @map("object_class")
-  objectUuid               String?       @map("object_uuid")
+  speedMs                  Float?          @map("speed_ms")
+  speedKmh                 Float?          @map("speed_kmh")
+  objectClass              Int?            @map("object_class")
+  objectUuid               String?         @map("object_uuid")
   description              String?
-  consecutiveCount         Int?          @map("consecutive_count")
-  isConfirmed              Boolean?      @map("is_confirmed")
-  normalMovingVehicleCount Int?          @map("normal_moving_vehicle_count")
-  rawPayload               Json          @map("raw_payload")
-  createdAt                DateTime      @default(now()) @map("created_at")
-  updatedAt                DateTime      @updatedAt @map("updated_at")
-  zone                     Zone?         @relation(fields: [zoneId], references: [id])
-  vehicleTrack             VehicleTrack? @relation(fields: [vehicleTrackId], references: [id], onDelete: SetNull)
+  consecutiveCount         Int?            @map("consecutive_count")
+  isConfirmed              Boolean?        @map("is_confirmed")
+  normalMovingVehicleCount Int?            @map("normal_moving_vehicle_count")
+  rawPayload               Json            @map("raw_payload")
+  createdAt                DateTime        @default(now()) @map("created_at")
+  updatedAt                DateTime        @updatedAt @map("updated_at")
+  zone                     Zone?           @relation(fields: [zoneId], references: [id])
+  device                   Device?         @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  incident                 SafetyIncident? @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  vehicleTrack             VehicleTrack?   @relation(fields: [vehicleTrackId], references: [id], onDelete: SetNull)
   eventLogs                EventLog[]
 
   @@index([zoneId])
+  @@index([deviceId])
+  @@index([incidentId])
   @@index([vehicleTrackId])
   @@index([externalZoneId])
   @@index([trackId])
@@ -135,12 +158,18 @@ model TrafficEvent {
 
 model VehicleTrack {
   id                           String         @id @default(cuid())
-  trackId                      String         @unique @map("track_id")
+  deviceId                     String?        @map("device_id")
+  trackId                      String         @map("track_id")
   zoneId                       String?        @map("zone_id")
   externalZoneId               String?        @map("external_zone_id")
   lastEventType                String?        @map("last_event_type")
   lastWarningLevel             Int?           @map("last_warning_level")
   objectClass                  Int?           @map("object_class")
+  lastConfidence               Float?         @map("last_confidence")
+  lastSpeedMs                  Float?         @map("last_speed_ms")
+  lastSpeedKmh                 Float?         @map("last_speed_kmh")
+  isActive                     Boolean        @default(true) @map("is_active")
+  endedAt                      DateTime?      @map("ended_at")
   firstSeenAt                  DateTime       @default(now()) @map("first_seen_at")
   lastSeenAt                   DateTime       @default(now()) @map("last_seen_at")
   lastNormalMovingVehicleCount Int?           @map("last_normal_moving_vehicle_count")
@@ -148,8 +177,11 @@ model VehicleTrack {
   createdAt                    DateTime       @default(now()) @map("created_at")
   updatedAt                    DateTime       @updatedAt @map("updated_at")
   zone                         Zone?          @relation(fields: [zoneId], references: [id])
+  device                       Device?        @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   trafficEvents                TrafficEvent[]
 
+  @@unique([deviceId, trackId])
+  @@index([deviceId])
   @@index([zoneId])
   @@index([externalZoneId])
   @@index([lastEventType])
@@ -191,6 +223,73 @@ model TrafficStatistic {
   @@unique([statDate, hourSlot, periodType, siteId, zoneId])
 
   @@map("traffic_statistics")
+model SafetyIncident {
+  id              String           @id @default(cuid())
+  zoneId          String           @map("zone_id")
+  sourceDeviceId  String           @map("source_device_id")
+  incidentType    String           @default("WRONG_WAY") @map("incident_type")
+  status          String           @default("ACTIVE")
+  startedAt       DateTime         @default(now()) @map("started_at")
+  resolvedAt      DateTime?        @map("resolved_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  zone            Zone             @relation(fields: [zoneId], references: [id])
+  sourceDevice    Device           @relation(fields: [sourceDeviceId], references: [id])
+  trafficEvents   TrafficEvent[]
+  controlCommands ControlCommand[]
+
+  @@index([zoneId, status])
+  @@index([sourceDeviceId, status])
+  @@index([startedAt])
+  @@map("safety_incidents")
+}
+
+model DailyTrafficStat {
+  id                     String   @id @default(cuid())
+  statDate               DateTime @map("stat_date") @db.Date
+  zoneId                 String   @map("zone_id")
+  deviceId               String   @map("device_id")
+  totalVehicleCount      Int      @default(0) @map("total_vehicle_count")
+  normalVehicleCount     Int      @default(0) @map("normal_vehicle_count")
+  wrongWayCount          Int      @default(0) @map("wrong_way_count")
+  pedestrianEnteredCount Int      @default(0) @map("pedestrian_entered_count")
+  pedestrianExitedCount  Int      @default(0) @map("pedestrian_exited_count")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+  zone                   Zone     @relation(fields: [zoneId], references: [id])
+  device                 Device   @relation(fields: [deviceId], references: [id])
+
+  @@unique([statDate, zoneId, deviceId])
+  @@index([zoneId, statDate])
+  @@index([deviceId, statDate])
+  @@map("daily_traffic_stats")
+}
+
+model ControlCommand {
+  id             String          @id @default(cuid())
+  incidentId     String?         @map("incident_id")
+  controlBoardId String          @map("control_board_id")
+  targetDeviceId String?         @map("target_device_id")
+  commandType    String          @map("command_type")
+  sequence       Int?
+  status         String          @default("PENDING")
+  requestedAt    DateTime        @default(now()) @map("requested_at")
+  sentAt         DateTime?       @map("sent_at")
+  acknowledgedAt DateTime?       @map("acknowledged_at")
+  packetHex      String?         @map("packet_hex")
+  responseHex    String?         @map("response_hex")
+  errorMessage   String?         @map("error_message")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  incident       SafetyIncident? @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  controlBoard   Device          @relation("ControlBoardCommands", fields: [controlBoardId], references: [id])
+  targetDevice   Device?         @relation("TargetDeviceCommands", fields: [targetDeviceId], references: [id], onDelete: SetNull)
+
+  @@index([incidentId])
+  @@index([controlBoardId, status])
+  @@index([targetDeviceId])
+  @@index([requestedAt])
+  @@map("control_commands")
 }
 
 model EventLog {

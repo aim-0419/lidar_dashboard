@@ -4,108 +4,151 @@ const {
   createExternalEvent,
   createRawSummary,
 } = require("../../external-ingest/externalEvent.model");
+const { WRONGWAY_EVENT_TYPE } = require("../wrongway.constants");
 
-// 라이다 PC가 보내는 상황 type을 대시보드 내부 이벤트 타입으로 변환한다.
-// 외부 type 원문은 originalType으로 따로 보존하고, 내부 처리는 아래 표준 타입을 기준으로 한다.
+function firstDefined(...values) {
+  return values.find((value) => value !== undefined && value !== null);
+}
+
+function toNumberOrUndefined(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const number = Number(value);
+  return Number.isNaN(number) ? undefined : number;
+}
+
+function normalizeLidarType(type) {
+  const normalized = String(type || "").trim().toLowerCase();
+  return normalized;
+}
+
 function mapLidarEventType(type) {
-  switch (type) {
-    case "normal-driving":
+  switch (normalizeLidarType(type)) {
+    case WRONGWAY_EVENT_TYPE.NORMAL_DRIVING:
       return EXTERNAL_EVENT_TYPE.NORMAL_DRIVING;
-    case "wrong-way-level-1":
-    case "wrong-way-level-2":
-    case "wrong-way":
+    case WRONGWAY_EVENT_TYPE.WRONG_WAY:
       return EXTERNAL_EVENT_TYPE.WRONG_WAY;
-    case "situation-ended":
+    case WRONGWAY_EVENT_TYPE.SITUATION_ENDED:
       return EXTERNAL_EVENT_TYPE.SITUATION_CLEARED;
+    case WRONGWAY_EVENT_TYPE.PEDESTRIAN_ENTERED:
+      return EXTERNAL_EVENT_TYPE.PEDESTRIAN_ENTERED;
+    case WRONGWAY_EVENT_TYPE.PEDESTRIAN_EXITED:
+      return EXTERNAL_EVENT_TYPE.PEDESTRIAN_EXITED;
     default:
       return EXTERNAL_EVENT_TYPE.UNKNOWN;
   }
 }
 
-// warning_level이 없을 때 기존 stage나 type으로 화면 표시용 단계를 보정한다.
-// 정주행/상황종료는 0, 역주행 1차는 1, 역주행 2차는 2로 본다.
-function resolveWarningLevel(payload) {
-  if (payload.warning_level !== undefined && payload.warning_level !== null) {
-    return Number(payload.warning_level);
-  }
-
-  if (payload.warningLevel !== undefined && payload.warningLevel !== null) {
-    return Number(payload.warningLevel);
-  }
-
-  if (payload.stage !== undefined && payload.stage !== null) {
-    return Number(payload.stage);
-  }
-
-  if (payload.type === "wrong-way-level-1") return 1;
-  if (payload.type === "wrong-way-level-2") return 2;
-
-  return 0;
+function resolveWarningLevel(payload, normalizedType) {
+  const value = firstDefined(payload.warning_level, payload.warningLevel, payload.stage);
+  if (value !== undefined) return toNumberOrUndefined(value) ?? 0;
+  return normalizedType === WRONGWAY_EVENT_TYPE.WRONG_WAY ? 1 : 0;
 }
 
-// 숫자형 payload는 문자열로 들어올 수 있어서 Number 변환 후 유효한 값만 넘긴다.
-function toNumberOrUndefined(value) {
-  if (value === undefined || value === null || value === "") return undefined;
-
-  const number = Number(value);
-  return Number.isNaN(number) ? undefined : number;
+// source는 DB device_code와 비교할 수 있도록 대문자 케밥케이스로 통일한다.
+function normalizeSourceDeviceCode(source) {
+  return String(source || "")
+    .trim()
+    .replace(/[\s_]+/g, "-")
+    .toUpperCase();
 }
 
-// boolean payload는 문자열 "true"/"false"로 들어와도 내부 boolean으로 맞춘다.
-function toBooleanOrUndefined(value) {
-  if (value === undefined || value === null || value === "") return undefined;
-  if (typeof value === "boolean") return value;
-  if (value === "true") return true;
-  if (value === "false") return false;
-
-  return undefined;
+function createEventRawPayload(snapshot, object) {
+  // 전체 objects 배열을 이벤트마다 복제하지 않고 공통 스냅샷 요약과 해당 객체만 보관한다.
+  return {
+    snapshot: {
+      timestamp: snapshot.timestamp,
+      source: snapshot.source,
+      status: snapshot.status,
+      total_objects: snapshot.totalObjects,
+      moving_vehicle_count: snapshot.movingVehicleCount,
+      normal_moving_vehicle_count: snapshot.normalMovingVehicleCount,
+      wrong_way_count: snapshot.wrongWayCount,
+      processing_time_ms: snapshot.processingTimeMs,
+    },
+    object,
+  };
 }
 
-// 0도 의미 있는 값이므로 || 대신 null/undefined일 때만 대체값을 사용한다.
-function firstDefined(...values) {
-  return values.find((value) => value !== undefined && value !== null);
+function adaptLidarObjectPayload(object = {}, snapshot) {
+  const externalType = firstDefined(object.type, object.event_type, object.eventType);
+  const normalizedType = normalizeLidarType(externalType);
+  const warningLevel = resolveWarningLevel(object, normalizedType);
+  const externalZoneId = firstDefined(object.zone_id, object.zoneId, object.external_zone_id);
+  const rawPayload = createEventRawPayload(snapshot, object);
+
+  return {
+    ...createExternalEvent({
+      source: EXTERNAL_EVENT_SOURCE.LIDAR_PC,
+      eventType: mapLidarEventType(normalizedType),
+      originalType: normalizedType,
+      warningLevel,
+      stage: warningLevel,
+      zoneId: externalZoneId,
+      externalZoneId,
+      deviceId: snapshot.sourceDeviceCode,
+      trackId: firstDefined(object.track_id, object.trackId, object.object_id),
+      message: object.message || "라이다 객체 상태 수신",
+      occurredAt: snapshot.timestamp,
+      confidence: toNumberOrUndefined(object.confidence),
+      speedMs: toNumberOrUndefined(firstDefined(object.speed_ms, object.speedMs)),
+      speedKmh: toNumberOrUndefined(firstDefined(object.speed_kmh, object.speedKmh)),
+      objectClass: toNumberOrUndefined(firstDefined(object.object_class, object.objectClass)),
+      description: object.description,
+      normalMovingVehicleCount: snapshot.normalMovingVehicleCount,
+      rawPayload,
+      rawSummary: createRawSummary(rawPayload),
+    }),
+    externalType,
+  };
 }
 
-// 라이다 HTTP payload를 내부 표준 이벤트로 바꾸는 adapter 함수다.
+function adaptLidarSnapshotPayload(payload = {}) {
+  // 구형 단일 객체 테스트 payload는 objects 한 건으로 감싸 새 처리 흐름을 함께 검증한다.
+  const isLegacySingleObject = !Array.isArray(payload.objects) && Boolean(payload.type);
+  const rawObjects = Array.isArray(payload.objects)
+    ? payload.objects
+    : isLegacySingleObject
+      ? [payload]
+      : [];
+
+  const source = payload.source || payload.device_id || payload.deviceId || (isLegacySingleObject ? "lidar-pc-01" : "");
+  const snapshot = {
+    timestamp: payload.timestamp,
+    source,
+    sourceDeviceCode: normalizeSourceDeviceCode(source),
+    status: normalizeLidarType(payload.status || payload.type),
+    totalObjects: toNumberOrUndefined(payload.total_objects) ?? rawObjects.length,
+    movingVehicleCount: toNumberOrUndefined(payload.moving_vehicle_count),
+    normalMovingVehicleCount: toNumberOrUndefined(payload.normal_moving_vehicle_count),
+    wrongWayCount: toNumberOrUndefined(payload.wrong_way_count),
+    processingTimeMs: toNumberOrUndefined(payload.processing_time_ms),
+    receivedAt: new Date().toISOString(),
+    isLegacySingleObject,
+    rawPayloadSummary: createRawSummary(payload),
+    hasObjectsArray: Array.isArray(payload.objects),
+  };
+
+  return {
+    ...snapshot,
+    countMismatch: snapshot.totalObjects !== rawObjects.length,
+    objects: rawObjects.map((object, index) => ({
+      index,
+      raw: object,
+      event: adaptLidarObjectPayload(object, snapshot),
+    })),
+  };
+}
+
+// 기존 단일 객체 호출부가 남아 있는 동안 첫 객체를 반환하는 호환 함수다.
 function adaptLidarHttpPayload(payload = {}) {
-  const originalType = firstDefined(payload.type, payload.event_type, payload.eventType);
-  const warningLevel = resolveWarningLevel(payload);
-  const externalZoneId = firstDefined(payload.zone_id, payload.zoneId, payload.external_zone_id);
-
-  // 라이다 PC 최신 JSON 규격을 내부 표준 이벤트로 변환한다.
-  // 여기서는 DB에 직접 저장하지 않고, service가 저장 정책을 결정할 수 있도록 원본/정규화 필드를 모두 보존한다.
-  return createExternalEvent({
-    id: payload.id || payload.event_id || payload.eventCode,
-    source: EXTERNAL_EVENT_SOURCE.LIDAR_PC,
-    eventType: mapLidarEventType(originalType),
-    originalType,
-    warningLevel,
-    stage: warningLevel,
-    siteId: payload.site_id || payload.siteId,
-    zoneId: externalZoneId,
-    externalZoneId,
-    deviceId: payload.device_id || payload.deviceId || payload.serial_no,
-    trackId: payload.track_id || payload.trackId || payload.object_id,
-    message: payload.message || "라이다 역주행 감지 이벤트 수신",
-    occurredAt: payload.timestamp || payload.occurred_at || payload.occurredAt,
-    confidence: toNumberOrUndefined(payload.confidence),
-    speedMs: toNumberOrUndefined(firstDefined(payload.speed_ms, payload.speedMs)),
-    speedKmh: toNumberOrUndefined(firstDefined(payload.speed_kmh, payload.speedKmh)),
-    objectClass: toNumberOrUndefined(firstDefined(payload.object_class, payload.objectClass)),
-    description: payload.description,
-    consecutiveCount: toNumberOrUndefined(
-      firstDefined(payload.consecutive_count, payload.consecutiveCount),
-    ),
-    isConfirmed: toBooleanOrUndefined(payload.is_confirmed ?? payload.isConfirmed),
-    normalMovingVehicleCount: toNumberOrUndefined(
-      firstDefined(payload.normal_moving_vehicle_count, payload.normalMovingVehicleCount),
-    ),
-    rawPayload: payload,
-    rawSummary: createRawSummary(payload),
-  });
+  return adaptLidarSnapshotPayload(payload).objects[0]?.event;
 }
 
 module.exports = {
   adaptLidarHttpPayload,
+  adaptLidarObjectPayload,
+  adaptLidarSnapshotPayload,
   mapLidarEventType,
+  normalizeLidarType,
+  normalizeSourceDeviceCode,
 };

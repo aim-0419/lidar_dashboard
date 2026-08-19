@@ -8,10 +8,10 @@ async function receiveWrongWay(req, res) {
     const body = req.body || {};
 
     logger.info("wrongway payload received", {
-      type: body.type,
-      warningLevel: body.warning_level,
-      zoneId: body.zone_id,
-      trackId: body.track_id,
+      source: body.source,
+      status: body.status,
+      totalObjects: body.total_objects,
+      objectCount: Array.isArray(body.objects) ? body.objects.length : body.type ? 1 : 0,
     });
     logger.debug("wrongway payload shape received", {
       payloadKeys: Object.keys(body),
@@ -19,7 +19,7 @@ async function receiveWrongWay(req, res) {
     });
 
     const result = await wrongwayService.receiveWrongWayPayload(body);
-    res.status(result.stored ? 201 : 200).json(result);
+    res.status(result.summary?.eventsStored > 0 ? 201 : 200).json(result);
   } catch (error) {
     logger.error("wrongway payload failed", {
       message: error.message,
@@ -32,8 +32,41 @@ async function receiveWrongWay(req, res) {
   }
 }
 
-function getWrongWayHistory(req, res) {
-  res.json(mockLidarService.getWrongWayHistory());
+async function getWrongWayHistory(req, res) {
+  try {
+    const result = await wrongwayService.getEventHistory(req.query);
+    res.json(result);
+  } catch (error) {
+    logger.error("wrongway history query failed", {
+      message: error.message,
+      details: error.details,
+    });
+    res
+      .status(error.statusCode || 500)
+      .json(createWrongwayErrorResponse(error, "이벤트 이력 조회 중 오류가 발생했습니다."));
+  }
+}
+
+async function updateWrongWayEventStatus(req, res) {
+  try {
+    const result = await wrongwayService.updateEventStatus({
+      eventId: req.params.id,
+      status: req.body?.status,
+      memo: req.body?.memo,
+      userId: req.user.id,
+    });
+    res.json(result);
+  } catch (error) {
+    logger.error("wrongway event status update failed", {
+      eventId: req.params.id,
+      userId: req.user?.id,
+      message: error.message,
+      details: error.details,
+    });
+    res
+      .status(error.statusCode || 500)
+      .json(createWrongwayErrorResponse(error, "이벤트 상태 변경 중 오류가 발생했습니다."));
+  }
 }
 
 function getWrongWayTestPayloads(req, res) {
@@ -65,24 +98,25 @@ function getNormalDrivingStreamStatus(req, res) {
   res.json(wrongwayService.getNormalStreamStatus());
 }
 
-async function sendWrongWayLevel1Test(req, res) {
+async function sendWrongWayTest(req, res) {
   try {
-    const result = await wrongwayService.sendWrongWayLevel1TestPayload(req.body || {});
-    res.status(result.result?.stored ? 201 : 200).json(result);
+    const result = await wrongwayService.sendWrongWayTestPayload(req.body || {});
+    res.status(result.result?.summary?.eventsStored > 0 ? 201 : 200).json(result);
   } catch (error) {
     res
       .status(error.statusCode || 500)
-      .json(createWrongwayErrorResponse(error, "역주행 1차 테스트 데이터 전송 중 오류가 발생했습니다."));
+      .json(createWrongwayErrorResponse(error, "역주행 테스트 데이터 전송 중 오류가 발생했습니다."));
   }
 }
 
 module.exports = {
   receiveWrongWay,
   getWrongWayHistory,
+  updateWrongWayEventStatus,
   getWrongWayTestPayloads,
   getNormalDrivingStreamStatus,
   sendNormalDrivingTest,
-  sendWrongWayLevel1Test,
+  sendWrongWayTest,
   startNormalDrivingStream,
   stopNormalDrivingStream,
 };
