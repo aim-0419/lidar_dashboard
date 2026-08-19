@@ -223,6 +223,8 @@ model TrafficStatistic {
   @@unique([statDate, hourSlot, periodType, siteId, zoneId])
 
   @@map("traffic_statistics")
+}
+
 model SafetyIncident {
   id              String           @id @default(cuid())
   zoneId          String           @map("zone_id")
