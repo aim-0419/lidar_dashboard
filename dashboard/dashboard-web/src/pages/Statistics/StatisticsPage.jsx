@@ -24,6 +24,7 @@ const PERIOD_QUERY_MAP = {
   "사용자 지정": "custom",
 };
 const STATE_REFRESH_INTERVAL_MS = 5000;
+const KST_TIME_ZONE = "Asia/Seoul";
 
 const EMPTY_HOURLY_EVENTS = Array.from({ length: 24 }, (_, hour) => ({
   hour: String(hour),
@@ -149,22 +150,61 @@ function normalizeCustomRange(nextRange) {
   return nextRange;
 }
 
+function formatKstDayLabel(value) {
+  if (!value) {
+    return "";
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: KST_TIME_ZONE,
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const day = parts.find((part) => part.type === "day")?.value;
+  return day ? `${day}일` : "";
+}
+
+function formatKstMonthDayLabel(value) {
+  if (!value) {
+    return "";
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: KST_TIME_ZONE,
+    month: "numeric",
+    day: "numeric",
+  }).format(date);
+}
+
 function DailyAxisTick({ x, y, payload }) {
-  const label = String(payload?.value || "");
-  const [, timeText = label] = label.split(" ");
+  const rawLabel = String(payload?.value || "").trim();
+  const dayText =
+    /^\d{2}일$/.test(rawLabel) || /^\d{1,2}일$/.test(rawLabel)
+      ? rawLabel
+      : formatKstDayLabel(payload?.payload?.startAt) || rawLabel;
 
   return (
     <g transform={`translate(${x},${y})`}>
-      <text
-        x={0}
-        y={0}
-        dy={9}
-        textAnchor="middle"
-        fill="#64748b"
-        fontSize="11"
-        fontWeight="700"
-      >
-        {timeText}
+        <text
+          x={0}
+          y={0}
+          dy={9}
+          textAnchor="middle"
+          fill="#64748b"
+          fontSize="11"
+          fontWeight="700"
+        >
+        {dayText}
       </text>
     </g>
   );
@@ -178,15 +218,15 @@ function PeriodAxisTick({ x, y, payload }) {
 
   return (
     <g transform={`translate(${x},${y})`}>
-      <text
-        x={0}
-        y={0}
-        dy={22}
-        textAnchor="middle"
-        fill="#64748b"
-        fontSize="11"
-        fontWeight="700"
-      >
+        <text
+          x={0}
+          y={0}
+          dy={22}
+          textAnchor="middle"
+          fill="#64748b"
+          fontSize="11"
+          fontWeight="700"
+        >
         <tspan x="0" dy="0">
           {firstLine}
         </tspan>
@@ -267,6 +307,10 @@ function getCustomWindowDescription(bucketUnit, totalCount) {
 }
 
 function getChartWindowSize(period, bucketUnit) {
+    if (period === "일별") {
+      return 10;
+  }
+
   if (period === "주별" || period === "월별") {
     return 12;
   }
@@ -295,7 +339,7 @@ function formatTooltipDateRange(startAt, endAt, bucketUnit) {
   }
 
   if (bucketUnit === "day") {
-    return formatDate(start);
+    return formatKstMonthDayLabel(start);
   }
 
   if (bucketUnit === "week") {
@@ -324,20 +368,20 @@ function StatisticsTooltip({ active, payload, bucketUnit }) {
     formatTooltipDateRange(item.startAt, item.endAt, bucketUnit) || String(item.label || "");
 
   return (
-    <div
-      style={{
-        border: "1px solid #dbe4f0",
-        borderRadius: "12px",
-        padding: "10px 12px",
-        background: "rgba(255, 255, 255, 0.96)",
-        boxShadow: "0 10px 30px rgba(15, 23, 42, 0.12)",
-      }}
-    >
-      <div style={{ color: "#0f172a", fontSize: "12px", fontWeight: 800 }}>{rangeText}</div>
-      <div style={{ marginTop: "6px", color: "#2563eb", fontSize: "13px", fontWeight: 900 }}>
-        통과 차량 {Number(item.vehicles || 0).toLocaleString()}대
+      <div
+        style={{
+          border: "1px solid #dbe4f0",
+          borderRadius: "12px",
+          padding: "10px 12px",
+          background: "rgba(255, 255, 255, 0.96)",
+          boxShadow: "0 10px 30px rgba(15, 23, 42, 0.12)",
+        }}
+      >
+        <div style={{ color: "#0f172a", fontSize: "12px", fontWeight: 800 }}>{rangeText}</div>
+        <div style={{ marginTop: "6px", color: "#2563eb", fontSize: "13px", fontWeight: 900 }}>
+          통과 차량 {Number(item.vehicles || 0).toLocaleString()}대
+        </div>
       </div>
-    </div>
   );
 }
 
@@ -456,10 +500,15 @@ export default function StatisticsPage() {
   const statisticsSeries = useMemo(() => {
     if (Array.isArray(seriesResponse.series) && seriesResponse.series.length > 0) {
       return seriesResponse.series.map((item) => ({
-        label: item.label,
+        label:
+          period === "일별" && item.startAt
+            ? formatKstDayLabel(item.startAt)
+            : item.label,
         vehicles: Number(item.value || 0),
         wrongWay: 0,
         pedestrians: 0,
+        startAt: item.startAt,
+        endAt: item.endAt,
       }));
     }
 
@@ -472,7 +521,8 @@ export default function StatisticsPage() {
   }, [period, seriesResponse.series, dashboardState]);
 
   const zoneStatistics = useMemo(() => getZoneStatistics(period), [period]);
-  const isPannablePeriod = period === "주별" || period === "월별" || period === "사용자 지정";
+  const isPannablePeriod =
+    period === "일별" || period === "주별" || period === "월별" || period === "사용자 지정";
   const chartWindowSize = useMemo(() => {
     return getChartWindowSize(period, seriesResponse.bucketUnit);
   }, [period, seriesResponse.bucketUnit]);
@@ -527,7 +577,7 @@ export default function StatisticsPage() {
 
     return getCustomTickInterval(seriesResponse.bucketUnit, visibleStatisticsSeries.length);
   }, [period, seriesResponse.bucketUnit, visibleStatisticsSeries.length]);
-  const chartBucketUnit = seriesResponse.bucketUnit || (period === "일별" ? "hour" : undefined);
+  const chartBucketUnit = seriesResponse.bucketUnit || (period === "일별" ? "day" : undefined);
 
   function handleCustomChartPointerDown(event) {
     if (!canPanSeries) {
@@ -538,6 +588,10 @@ export default function StatisticsPage() {
       pointerId: event.pointerId,
       startX: event.clientX,
       startWindowStart: chartWindowStart,
+      pixelsPerStep: Math.max(
+        event.currentTarget.getBoundingClientRect().width / Math.max(chartWindowSize - 1, 1),
+        12,
+      ),
     });
 
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -549,7 +603,7 @@ export default function StatisticsPage() {
     }
 
     const deltaX = event.clientX - chartDragState.startX;
-    const shift = Math.trunc(deltaX / 36);
+    const shift = Math.trunc(deltaX / chartDragState.pixelsPerStep);
 
     if (shift === 0) {
       return;
@@ -576,14 +630,10 @@ export default function StatisticsPage() {
   }
 
   const fallbackTotalVehicles =
-    period === "일별"
-      ? Number(dashboardState.vehiclesPassed || 0)
-      : statisticsSeries.reduce((sum, item) => sum + Number(item.vehicles || 0), 0);
+    statisticsSeries.reduce((sum, item) => sum + Number(item.vehicles || 0), 0);
 
   const fallbackTotalWrongWay =
-    period === "일별"
-      ? Number(dashboardState.wrongWayEvents || 0)
-      : statisticsSeries.reduce((sum, item) => sum + Number(item.wrongWay || 0), 0);
+    statisticsSeries.reduce((sum, item) => sum + Number(item.wrongWay || 0), 0);
 
   const fallbackTotalPedestrians = statisticsSeries.reduce(
     (sum, item) => sum + Number(item.pedestrians || 0),
@@ -607,14 +657,14 @@ export default function StatisticsPage() {
       value: totalVehicles.toLocaleString(),
       icon: Car,
       tone: "blue",
-      description: period === "일별" ? "실시간 누적 통과 차량 수" : `${period} 누적 집계 값`,
+      description: `${period} 누적 집계 값`,
     },
     {
       label: "역주행 이벤트",
       value: totalWrongWay.toLocaleString(),
       icon: Siren,
       tone: "red",
-      description: period === "일별" ? "실시간 누적 역주행 이벤트 수" : `${period} 누적 집계 값`,
+      description: `${period} 누적 집계 값`,
     },
     {
       label: "역주행 비율",
@@ -632,6 +682,15 @@ export default function StatisticsPage() {
     },
   ];
 
+  const trafficChartTitle =
+    period === "일별"
+      ? "일별 통과 차량 추이"
+      : period === "주별"
+        ? "주별 통과 차량 추이"
+        : period === "월별"
+          ? "월별 통과 차량 추이"
+          : "사용자 지정 통과 차량 추이";
+
   return (
     <div className="ops-page stats-page">
       <header className="ops-header">
@@ -639,7 +698,7 @@ export default function StatisticsPage() {
           <p className="ops-kicker">Statistics</p>
           <h1>교통량 및 이벤트 통계</h1>
           <p className="ops-subtitle">
-            시간대별 통과 차량 추이와 구역별 역주행 발생 현황을 기간 기준으로 확인합니다.
+            선택한 기간 기준의 통과 차량 추이와 구역별 역주행 발생 현황을 확인합니다.
           </p>
           {errorMessage ? <p className="ops-subtitle">상태 동기화 실패: {errorMessage}</p> : null}
         </div>
@@ -726,10 +785,10 @@ export default function StatisticsPage() {
         <article className="ops-card stats-chart-card">
           <div className="ops-card-head">
             <div>
-              <h2>시간대별 통과 차량 추이</h2>
+              <h2>{trafficChartTitle}</h2>
               <p>
                 {period === "일별"
-                  ? "0시부터 23시까지 24시간 전체 구간을 표시합니다."
+                  ? `이번 달 1일부터 말일까지의 일별 집계를 불러오고, 기본으로 최근 10일 구간을 표시합니다.${canPanSeries ? " 차트를 좌우로 드래그하면 이전/이후 날짜 구간을 이동할 수 있습니다." : ""}`
                   : period === "월별"
                     ? `최근 36개월 데이터를 불러오고, 기본으로 최근 12개월 구간을 표시합니다.${canPanSeries ? " 차트를 좌우로 드래그하면 이전/이후 구간을 이동할 수 있습니다." : ""}`
                     : period === "주별"
@@ -777,16 +836,17 @@ export default function StatisticsPage() {
                   }
                   axisLine={false}
                   tickLine={false}
-                  tickMargin={period === "일별" ? 12 : 10}
+                  tickMargin={10}
                   interval={period === "사용자 지정" ? customTickInterval : 0}
                   height={72}
                   padding={{ left: 0, right: 0 }}
                 />
                 <YAxis tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  content={<StatisticsTooltip bucketUnit={chartBucketUnit} />}
-                  cursor={{ stroke: "#93c5fd", strokeDasharray: "4 4" }}
-                />
+                  <Tooltip
+                    content={<StatisticsTooltip bucketUnit={chartBucketUnit} />}
+                    active={!chartDragState ? undefined : false}
+                    cursor={false}
+                  />
                 <Area
                   type="monotone"
                   dataKey="vehicles"
@@ -824,20 +884,6 @@ export default function StatisticsPage() {
         </article>
       </section>
 
-      <section className="ops-card stats-summary">
-        <div className="ops-card-head">
-          <div>
-            <h2>현재 연동 상태</h2>
-            <p>실시간 KPI 연결에 사용하는 현재 서버 상태 값입니다.</p>
-          </div>
-        </div>
-        <div className="stats-summary-grid">
-          <span>siteId: {dashboardState.siteId}</span>
-          <span>deviceId: {dashboardState.deviceId}</span>
-          <span>gate: {dashboardState.gate}</span>
-          <span>vmsLast: {dashboardState.vmsLast || "(empty)"}</span>
-        </div>
-      </section>
     </div>
   );
 }
