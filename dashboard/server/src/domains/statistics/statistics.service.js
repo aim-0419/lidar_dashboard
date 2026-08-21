@@ -136,10 +136,12 @@ function getRangeForPeriod(period, { startDate, endDate } = {}) {
   const today = startOfKstDay(now);
 
   if (period === "daily") {
+    const currentMonthStart = startOfKstMonth(now);
+
     return {
-      startAt: today,
-      endAt: addKstDays(today, 1),
-      bucketUnit: "hour",
+      startAt: currentMonthStart,
+      endAt: addKstMonths(currentMonthStart, 1),
+      bucketUnit: "day",
     };
   }
 
