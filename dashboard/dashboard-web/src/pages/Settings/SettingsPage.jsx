@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bell, Globe, Monitor, Shield, UserCog, UserPlus, KeyRound, UserX, RefreshCw } from "lucide-react";
-import { Card } from "../../shared/components/Card";
+import {
+  CircleHelp,
+  KeyRound,
+  RefreshCw,
+  Shield,
+  UserCog,
+  UserPlus,
+  UserX,
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import {
   createUserRequest,
@@ -10,6 +17,8 @@ import {
   updateUserPasswordRequest,
   updateUserRequest,
 } from "../../shared/api/http";
+import "../Dashboard/dashboard.css";
+import "./settings.css";
 
 const initialCreateForm = {
   userId: "",
@@ -30,10 +39,38 @@ const initialPasswordForm = {
   password: "",
 };
 
-// 설정 placeholder 섹션과 사용자 관리 패널을 함께 관리합니다.
+const ROLE_LABELS = {
+  SUPER_ADMIN: "최고 관리자",
+};
+
+function formatDateTime(value, fallback = "-") {
+  if (!value) {
+    return fallback;
+  }
+
+  const nextDate = new Date(value);
+  if (Number.isNaN(nextDate.getTime())) {
+    return fallback;
+  }
+
+  return nextDate.toLocaleString();
+}
+
+function getRoleLabel(role) {
+  if (!role) {
+    return "선택 없음";
+  }
+
+  const normalizedRole = String(role).toUpperCase();
+  return ROLE_LABELS[normalizedRole] || normalizedRole;
+}
+
 export default function SettingsPage() {
   const { user } = useAuth();
-  const [activeSection, setActiveSection] = useState("users");
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+  const [isActivateConfirmOpen, setIsActivateConfirmOpen] = useState(false);
+  const [isDeactivateConfirmOpen, setIsDeactivateConfirmOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
@@ -45,39 +82,32 @@ export default function SettingsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
+  const [createErrorMessage, setCreateErrorMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
   const isSuperAdmin = user?.role === "super_admin";
 
-  const navItems = useMemo(
-    () => [
-      { id: "general", icon: Globe, label: "일반" },
-      { id: "notifications", icon: Bell, label: "알림" },
-      { id: "users", icon: UserCog, label: "사용자 관리" },
-      { id: "display", icon: Monitor, label: "화면" },
-    ],
-    [],
-  );
+  const activeUserCount = users.filter((item) => item.isActive).length;
+  const inactiveUserCount = users.filter((item) => !item.isActive).length;
 
   useEffect(() => {
-    if (activeSection !== "users" || !isSuperAdmin) {
+    if (!isSuperAdmin) {
       return;
     }
 
-    // 사용자 관리 섹션이 활성화되면 최신 사용자 목록을 불러옵니다.
     void loadUsers();
-  }, [activeSection, isSuperAdmin]);
+  }, [isSuperAdmin]);
 
   useEffect(() => {
-    if (!selectedUserId || activeSection !== "users" || !isSuperAdmin) {
+    if (!selectedUserId || !isSuperAdmin) {
       return;
     }
 
-    // 선택된 사용자가 바뀌면 해당 사용자 상세 정보를 다시 불러옵니다.
     void loadUserDetail(selectedUserId);
-  }, [activeSection, isSuperAdmin, selectedUserId]);
+  }, [isSuperAdmin, selectedUserId]);
 
   async function loadUsers(nextSelectedUserId) {
     setIsListLoading(true);
@@ -130,6 +160,7 @@ export default function SettingsPage() {
 
   function handleCreateChange(event) {
     const { name, value, type, checked } = event.target;
+    setCreateErrorMessage("");
     setCreateForm((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -154,27 +185,38 @@ export default function SettingsPage() {
 
   async function handleCreateUser(event) {
     event.preventDefault();
+    const nextUserId = createForm.userId.trim();
+    const nextName = createForm.name.trim();
+    const nextPassword = createForm.password.trim();
+
+    if (!nextUserId || !nextName || !nextPassword) {
+      setCreateErrorMessage("사용자 ID, 이름, 비밀번호를 모두 입력해 주세요.");
+      return;
+    }
+
     setIsCreating(true);
+    setCreateErrorMessage("");
     setErrorMessage("");
     setSuccessMessage("");
 
     try {
       const response = await createUserRequest({
-        userId: createForm.userId.trim(),
-        name: createForm.name.trim(),
-        password: createForm.password,
+        userId: nextUserId,
+        name: nextName,
+        password: nextPassword,
         role: createForm.role,
         isActive: createForm.isActive,
       });
 
       setCreateForm(initialCreateForm);
       setSuccessMessage("사용자를 생성했습니다.");
+      setIsCreateModalOpen(false);
       await loadUsers(response.user?.id);
       if (response.user?.id) {
         await loadUserDetail(response.user.id);
       }
     } catch (error) {
-      setErrorMessage(error.message || "사용자를 생성하지 못했습니다.");
+      setCreateErrorMessage(error.message || "필수 입력값을 확인한 뒤 다시 시도해 주세요.");
     } finally {
       setIsCreating(false);
     }
@@ -237,11 +279,6 @@ export default function SettingsPage() {
       return;
     }
 
-    const confirmed = window.confirm(`${selectedUser.userId} 사용자를 비활성화할까요?`);
-    if (!confirmed) {
-      return;
-    }
-
     setIsDeactivating(true);
     setErrorMessage("");
     setSuccessMessage("");
@@ -249,6 +286,7 @@ export default function SettingsPage() {
     try {
       const response = await deactivateUserRequest(selectedUserId);
       setSuccessMessage("사용자를 비활성화했습니다.");
+      setIsDeactivateConfirmOpen(false);
       await loadUsers(response.user?.id || selectedUserId);
       await loadUserDetail(response.user?.id || selectedUserId);
     } catch (error) {
@@ -258,320 +296,563 @@ export default function SettingsPage() {
     }
   }
 
-  function renderPlaceholder(title, description) {
+  async function handleActivateUser() {
+    if (!selectedUserId || !selectedUser) {
+      return;
+    }
+
+    setIsActivating(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const response = await updateUserRequest(selectedUserId, {
+        isActive: true,
+      });
+
+      setSuccessMessage("사용자를 활성화했습니다.");
+      setIsActivateConfirmOpen(false);
+      await loadUsers(response.user?.id || selectedUserId);
+      await loadUserDetail(response.user?.id || selectedUserId);
+    } catch (error) {
+      setErrorMessage(error.message || "사용자를 활성화하지 못했습니다.");
+    } finally {
+      setIsActivating(false);
+    }
+  }
+
+  function renderNotice() {
+    if (errorMessage) {
+      return <div className="settings-banner error">{errorMessage}</div>;
+    }
+
+    if (successMessage) {
+      return <div className="settings-banner success">{successMessage}</div>;
+    }
+
+    return null;
+  }
+
+  function openCreateModal() {
+    setCreateForm(initialCreateForm);
+    setCreateErrorMessage("");
+    setErrorMessage("");
+    setSuccessMessage("");
+    setIsCreateModalOpen(true);
+  }
+
+  function openManageModal() {
+    if (!selectedUserId) {
+      setErrorMessage("먼저 사용자 목록에서 계정을 선택해 주세요.");
+      return;
+    }
+
+    setErrorMessage("");
+    setSuccessMessage("");
+    setIsManageModalOpen(true);
+  }
+
+  function closeCreateModal() {
+    if (isCreating) {
+      return;
+    }
+
+    setCreateErrorMessage("");
+    setIsCreateModalOpen(false);
+  }
+
+  function closeManageModal() {
+    if (isUpdating || isChangingPassword || isActivating || isDeactivating) {
+      return;
+    }
+
+    setIsManageModalOpen(false);
+    setIsActivateConfirmOpen(false);
+    setIsDeactivateConfirmOpen(false);
+  }
+
+  function openActivateConfirmModal() {
+    if (selectedUser?.isActive || isActivating || isDeactivating) {
+      return;
+    }
+
+    setIsActivateConfirmOpen(true);
+  }
+
+  function closeActivateConfirmModal() {
+    if (isActivating || isDeactivating) {
+      return;
+    }
+
+    setIsActivateConfirmOpen(false);
+  }
+
+  function openDeactivateConfirmModal() {
+    if (!selectedUser?.isActive || isActivating || isDeactivating) {
+      return;
+    }
+
+    setIsDeactivateConfirmOpen(true);
+  }
+
+  function closeDeactivateConfirmModal() {
+    if (isActivating || isDeactivating) {
+      return;
+    }
+
+    setIsDeactivateConfirmOpen(false);
+  }
+
+  function renderCreateModal() {
+    if (!isCreateModalOpen) {
+      return null;
+    }
+
     return (
-      <Card title={title}>
-        <div className="text-sm text-gray-600">{description}</div>
-      </Card>
+      <div className="settings-modal-overlay" onClick={closeCreateModal}>
+        <div className="settings-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="settings-modal__head">
+            <div>
+              <h2>사용자 생성</h2>
+              <p>새 관리자 계정을 등록합니다.</p>
+            </div>
+            <button type="button" className="settings-modal__close" onClick={closeCreateModal}>
+              닫기
+            </button>
+          </div>
+
+          <form className="settings-form-stack" onSubmit={handleCreateUser}>
+            {createErrorMessage ? (
+              <div className="settings-banner error settings-modal-banner">{createErrorMessage}</div>
+            ) : null}
+
+            <div className="settings-form-grid">
+              <label className="settings-field">
+                <span>사용자 ID</span>
+                <input
+                  name="userId"
+                  value={createForm.userId}
+                  onChange={handleCreateChange}
+                  placeholder="manager01"
+                />
+              </label>
+              <label className="settings-field">
+                <span>이름</span>
+                <input
+                  name="name"
+                  value={createForm.name}
+                  onChange={handleCreateChange}
+                  placeholder="manager"
+                />
+              </label>
+            </div>
+
+            <div className="settings-form-grid">
+              <label className="settings-field">
+                <span>비밀번호</span>
+                <input
+                  type="password"
+                  name="password"
+                  value={createForm.password}
+                  onChange={handleCreateChange}
+                  placeholder="password123"
+                />
+              </label>
+              <label className="settings-field">
+                <span>권한</span>
+                <select name="role" value={createForm.role} onChange={handleCreateChange}>
+                  <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="settings-modal__actions">
+              <button type="button" className="settings-secondary-button" onClick={closeCreateModal}>
+                취소
+              </button>
+              <button type="submit" disabled={isCreating} className="settings-primary-button">
+                <UserPlus size={15} />
+                {isCreating ? "생성 중..." : "사용자 생성"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  function renderManageModal() {
+    if (!isManageModalOpen || !selectedUserId) {
+      return null;
+    }
+
+    return (
+      <div className="settings-modal-overlay" onClick={closeManageModal}>
+          <div className="settings-modal settings-modal--wide" onClick={(event) => event.stopPropagation()}>
+            <div className="settings-modal__head">
+              <div>
+                <div className="settings-title-row">
+                  <h2>사용자 관리</h2>
+                  <div className="settings-tooltip">
+                    <button
+                      type="button"
+                      className="settings-tooltip__trigger"
+                      aria-label="사용자 관리 설명"
+                    >
+                      <CircleHelp size={15} />
+                    </button>
+                    <div className="settings-tooltip__content" role="tooltip">
+                      계정 정보 수정, 비밀번호 변경, 계정 비활성화를 할 수 있습니다.
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button type="button" className="settings-modal__close" onClick={closeManageModal}>
+                닫기
+            </button>
+          </div>
+
+          {isDetailLoading ? (
+            <div className="settings-empty">사용자 상세 정보를 불러오는 중입니다.</div>
+          ) : !selectedUser ? (
+            <div className="settings-empty">사용자 상세 정보를 확인할 수 없습니다.</div>
+          ) : (
+            <div className="settings-stack">
+              <div className="settings-user-summary">
+                <strong>{selectedUser.name}</strong>
+                <span>{selectedUser.userId}</span>
+                <div className="settings-user-summary__grid">
+                  <div>권한: {getRoleLabel(selectedUser.role)}</div>
+                  <div>상태: {selectedUser.isActive ? "활성" : "비활성"}</div>
+                  <div>생성일: {formatDateTime(selectedUser.createdAt)}</div>
+                  <div>마지막 로그인: {formatDateTime(selectedUser.lastLoginAt, "로그인 이력 없음")}</div>
+                </div>
+              </div>
+
+              <form className="settings-form-stack" onSubmit={handleUpdateUser}>
+                <div className="settings-form-grid">
+                  <label className="settings-field">
+                    <span>사용자 ID</span>
+                    <input name="userId" value={editForm.userId} onChange={handleEditChange} />
+                  </label>
+                  <label className="settings-field">
+                    <span>이름</span>
+                    <input name="name" value={editForm.name} onChange={handleEditChange} />
+                  </label>
+                </div>
+
+                <div className="settings-form-grid">
+                  <label className="settings-field">
+                    <span>권한</span>
+                    <select name="role" value={editForm.role} onChange={handleEditChange}>
+                      <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                    </select>
+                  </label>
+                </div>
+
+                <button type="submit" disabled={isUpdating} className="settings-primary-button">
+                  {isUpdating ? "저장 중..." : "변경사항 저장"}
+                </button>
+              </form>
+
+              <form className="settings-form-stack settings-divider" onSubmit={handleUpdatePassword}>
+                <label className="settings-field">
+                  <span>비밀번호 변경</span>
+                  <input
+                    type="password"
+                    name="password"
+                    value={passwordForm.password}
+                    onChange={handlePasswordChange}
+                    placeholder="newPassword123"
+                  />
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="settings-secondary-button"
+                >
+                  <KeyRound size={15} />
+                  {isChangingPassword ? "변경 중..." : "비밀번호 저장"}
+                </button>
+              </form>
+
+              <div className="settings-divider settings-modal__footer">
+                {selectedUser.isActive ? (
+                  <button
+                    type="button"
+                    onClick={openDeactivateConfirmModal}
+                    disabled={isActivating || isDeactivating}
+                    className="settings-danger-button"
+                  >
+                    <UserX size={15} />
+                    {isDeactivating ? "비활성화 중..." : "사용자 비활성화"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={openActivateConfirmModal}
+                    disabled={isActivating || isDeactivating}
+                    className="settings-primary-button"
+                  >
+                    <Shield size={15} />
+                    {isActivating ? "활성화 중..." : "사용자 활성화"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderDeactivateConfirmModal() {
+    if (!isDeactivateConfirmOpen || !selectedUser) {
+      return null;
+    }
+
+    return (
+      <div className="settings-modal-overlay" onClick={closeDeactivateConfirmModal}>
+        <div
+          className="settings-modal settings-modal--compact"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="settings-modal__head">
+            <div>
+              <h2>사용자 비활성화 확인</h2>
+              <p>{selectedUser.userId} 계정을 정말 비활성화할까요?</p>
+            </div>
+            <button
+              type="button"
+              className="settings-modal__close"
+              onClick={closeDeactivateConfirmModal}
+            >
+              닫기
+            </button>
+          </div>
+
+          <div className="settings-confirm-copy">
+            비활성화된 계정은 로그인할 수 없으며, 필요 시 다시 활성화 절차가 필요합니다.
+          </div>
+
+          <div className="settings-modal__actions">
+            <button
+              type="button"
+              className="settings-secondary-button"
+              onClick={closeDeactivateConfirmModal}
+              disabled={isDeactivating}
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              className="settings-danger-button"
+              onClick={() => void handleDeactivateUser()}
+              disabled={isDeactivating}
+            >
+              {isDeactivating ? "비활성화 중..." : "비활성화 진행"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderActivateConfirmModal() {
+    if (!isActivateConfirmOpen || !selectedUser) {
+      return null;
+    }
+
+    return (
+      <div className="settings-modal-overlay" onClick={closeActivateConfirmModal}>
+        <div
+          className="settings-modal settings-modal--compact"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="settings-modal__head">
+            <div>
+              <h2>사용자 활성화 확인</h2>
+              <p>{selectedUser.userId} 계정을 다시 활성화할까요?</p>
+            </div>
+            <button
+              type="button"
+              className="settings-modal__close"
+              onClick={closeActivateConfirmModal}
+            >
+              닫기
+            </button>
+          </div>
+
+          <div className="settings-confirm-copy">
+            활성화된 계정은 다시 로그인할 수 있으며, 사용자 목록에서 즉시 활성 상태로 표시됩니다.
+          </div>
+
+          <div className="settings-modal__actions">
+            <button
+              type="button"
+              className="settings-secondary-button"
+              onClick={closeActivateConfirmModal}
+              disabled={isActivating}
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              className="settings-primary-button"
+              onClick={() => void handleActivateUser()}
+              disabled={isActivating}
+            >
+              {isActivating ? "활성화 중..." : "활성화 진행"}
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
   function renderUsersSection() {
     if (!isSuperAdmin) {
-      return renderPlaceholder("사용자 관리", "사용자 관리 권한이 없습니다.");
+      return (
+        <section className="ops-card settings-placeholder-card">
+          <div className="ops-card-head">
+            <div>
+              <h2>사용자 관리</h2>
+              <p>현재 계정에는 사용자 관리 권한이 없습니다.</p>
+            </div>
+          </div>
+          <div className="settings-placeholder-body">
+            <Shield size={18} />
+            <span>최고 관리자 계정으로 로그인해야 사용자 관리 기능을 사용할 수 있습니다.</span>
+          </div>
+        </section>
+      );
     }
 
     return (
-      <div className="space-y-6">
-        <Card title="사용자 관리 개요">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="settings-stack">
+        <section className="ops-card">
+          <div className="ops-card-head">
             <div>
-              <div className="text-sm font-semibold text-gray-800">관리자 계정을 관리합니다</div>
-              <div className="text-xs text-gray-500">
-                사용자 목록 조회, 생성, 수정, 비활성화, 비밀번호 변경을 관리합니다.
-              </div>
+              <h2>사용자 관리</h2>
             </div>
-            <button
-              type="button"
-              onClick={() => void loadUsers()}
-              className="inline-flex items-center justify-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              <RefreshCw className="h-4 w-4" />
-              새로고침
-            </button>
+            <div className="settings-head-actions">
+              <button
+                type="button"
+                className="settings-primary-button"
+                onClick={openCreateModal}
+              >
+                <UserPlus size={15} />
+                사용자 생성
+              </button>
+              <button type="button" className="settings-action-button" onClick={() => void loadUsers()}>
+                <RefreshCw size={15} />
+                새로고침
+              </button>
+            </div>
+          </div>
+          {renderNotice()}
+        </section>
+
+        <section className="ops-card">
+          <div className="ops-card-head">
+            <div>
+              <h2>사용자 목록</h2>
+              <p>계정을 선택하면 상세 관리 모달이 바로 열립니다.</p>
+            </div>
           </div>
 
-          {errorMessage ? (
-            <div className="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {errorMessage}
-            </div>
-          ) : null}
+          {isListLoading ? (
+            <div className="settings-empty">사용자 목록을 불러오는 중입니다.</div>
+          ) : users.length === 0 ? (
+            <div className="settings-empty">등록된 사용자가 없습니다.</div>
+          ) : (
+            <div className="settings-user-list">
+              {users.map((item) => {
+                const isSelected = item.id === selectedUserId;
 
-          {successMessage ? (
-            <div className="mt-4 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-              {successMessage}
-            </div>
-          ) : null}
-        </Card>
-
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_1.35fr]">
-          <Card title="사용자 목록" className="bg-white">
-            {isListLoading ? (
-              <div className="text-sm text-gray-500">사용자 목록을 불러오는 중입니다.</div>
-            ) : users.length === 0 ? (
-              <div className="text-sm text-gray-500">등록된 사용자가 없습니다.</div>
-            ) : (
-              <div className="space-y-3">
-                {users.map((item) => {
-                  const isSelected = item.id === selectedUserId;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setSelectedUserId(item.id)}
-                      className={`w-full rounded border px-4 py-3 text-left transition ${
-                        isSelected
-                          ? "border-gray-900 bg-gray-900 text-white"
-                          : "border-gray-200 bg-white text-gray-800 hover:border-gray-300 hover:bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="font-semibold">{item.name}</div>
-                          <div className={`text-xs ${isSelected ? "text-gray-200" : "text-gray-500"}`}>
-                            {item.userId}
-                          </div>
-                        </div>
-                        <div
-                          className={`rounded-full px-2 py-1 text-[11px] font-semibold uppercase ${
-                            isSelected ? "bg-white/15 text-white" : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {item.role}
-                        </div>
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedUserId(item.id);
+                      setErrorMessage("");
+                      setSuccessMessage("");
+                      setIsManageModalOpen(true);
+                    }}
+                    className={`settings-user-item${isSelected ? " is-selected" : ""}`}
+                  >
+                    <div className="settings-user-item__top">
+                      <div>
+                        <strong>{item.name}</strong>
+                        <span>{item.userId}</span>
                       </div>
-                      <div className={`mt-3 flex items-center justify-between text-xs ${isSelected ? "text-gray-200" : "text-gray-500"}`}>
-                        <span>{item.isActive ? "활성" : "비활성"}</span>
-                        <span>{item.lastLoginAt ? new Date(item.lastLoginAt).toLocaleString() : "로그인 이력 없음"}</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
-
-          <div className="space-y-6">
-            <Card title="사용자 생성" className="bg-white">
-              <form className="space-y-4" onSubmit={handleCreateUser}>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <label className="space-y-2 text-sm text-gray-700">
-                    <span className="font-semibold">사용자 ID</span>
-                    <input
-                      name="userId"
-                      value={createForm.userId}
-                      onChange={handleCreateChange}
-                      className="w-full rounded border border-gray-300 px-3 py-2"
-                      placeholder="manager01"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm text-gray-700">
-                    <span className="font-semibold">이름</span>
-                    <input
-                      name="name"
-                      value={createForm.name}
-                      onChange={handleCreateChange}
-                      className="w-full rounded border border-gray-300 px-3 py-2"
-                      placeholder="manager"
-                    />
-                  </label>
-                </div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <label className="space-y-2 text-sm text-gray-700">
-                    <span className="font-semibold">비밀번호</span>
-                    <input
-                      type="password"
-                      name="password"
-                      value={createForm.password}
-                      onChange={handleCreateChange}
-                      className="w-full rounded border border-gray-300 px-3 py-2"
-                      placeholder="password123"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm text-gray-700">
-                    <span className="font-semibold">권한</span>
-                    <select
-                      name="role"
-                      value={createForm.role}
-                      onChange={handleCreateChange}
-                      className="w-full rounded border border-gray-300 px-3 py-2"
-                    >
-                      <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                    </select>
-                  </label>
-                </div>
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    name="isActive"
-                    checked={createForm.isActive}
-                    onChange={handleCreateChange}
-                  />
-                  활성 사용자
-                </label>
-                <button
-                  type="submit"
-                  disabled={isCreating}
-                  className="inline-flex items-center justify-center gap-2 rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
-                >
-                  <UserPlus className="h-4 w-4" />
-                  {isCreating ? "생성 중..." : "사용자 생성"}
-                </button>
-              </form>
-            </Card>
-
-            <Card title="선택한 사용자" className="bg-white">
-              {!selectedUserId ? (
-                <div className="text-sm text-gray-500">목록에서 사용자를 선택해 계정을 관리하세요.</div>
-              ) : isDetailLoading ? (
-                <div className="text-sm text-gray-500">사용자 상세 정보를 불러오는 중입니다.</div>
-              ) : !selectedUser ? (
-                <div className="text-sm text-gray-500">사용자 상세 정보를 확인할 수 없습니다.</div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="rounded border border-gray-200 bg-gray-50 p-4">
-                    <div className="text-sm font-semibold text-gray-800">{selectedUser.name}</div>
-                    <div className="mt-1 text-xs text-gray-500">{selectedUser.userId}</div>
-                    <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-gray-600 md:grid-cols-2">
-                      <div>권한: {selectedUser.role}</div>
-                      <div>상태: {selectedUser.isActive ? "활성" : "비활성"}</div>
-                      <div>생성일: {selectedUser.createdAt ? new Date(selectedUser.createdAt).toLocaleString() : "-"}</div>
-                      <div>마지막 로그인: {selectedUser.lastLoginAt ? new Date(selectedUser.lastLoginAt).toLocaleString() : "로그인 이력 없음"}</div>
+                      <em>{getRoleLabel(item.role)}</em>
                     </div>
-                  </div>
-
-                  <form className="space-y-4" onSubmit={handleUpdateUser}>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <label className="space-y-2 text-sm text-gray-700">
-                        <span className="font-semibold">사용자 ID</span>
-                        <input
-                          name="userId"
-                          value={editForm.userId}
-                          onChange={handleEditChange}
-                          className="w-full rounded border border-gray-300 px-3 py-2"
-                        />
-                      </label>
-                      <label className="space-y-2 text-sm text-gray-700">
-                        <span className="font-semibold">이름</span>
-                        <input
-                          name="name"
-                          value={editForm.name}
-                          onChange={handleEditChange}
-                          className="w-full rounded border border-gray-300 px-3 py-2"
-                        />
-                      </label>
+                    <div className="settings-user-item__meta">
+                      <span>{item.isActive ? "활성" : "비활성"}</span>
+                      <span>{item.lastLoginAt ? formatDateTime(item.lastLoginAt, "로그인 이력 없음") : "로그인 이력 없음"}</span>
                     </div>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <label className="space-y-2 text-sm text-gray-700">
-                        <span className="font-semibold">권한</span>
-                        <select
-                          name="role"
-                          value={editForm.role}
-                          onChange={handleEditChange}
-                          className="w-full rounded border border-gray-300 px-3 py-2"
-                        >
-                          <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                        </select>
-                      </label>
-                      <label className="inline-flex items-center gap-2 pt-8 text-sm text-gray-700">
-                        <input
-                          type="checkbox"
-                          name="isActive"
-                          checked={editForm.isActive}
-                          onChange={handleEditChange}
-                        />
-                        활성 사용자
-                      </label>
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={isUpdating}
-                      className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
-                    >
-                      {isUpdating ? "저장 중..." : "변경사항 저장"}
-                    </button>
-                  </form>
-
-                  <form className="space-y-4 border-t border-gray-200 pt-6" onSubmit={handleUpdatePassword}>
-                    <div className="space-y-2 text-sm text-gray-700">
-                      <span className="font-semibold">비밀번호 변경</span>
-                      <input
-                        type="password"
-                        name="password"
-                        value={passwordForm.password}
-                        onChange={handlePasswordChange}
-                        className="w-full rounded border border-gray-300 px-3 py-2"
-                        placeholder="newPassword123"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={isChangingPassword}
-                      className="inline-flex items-center justify-center gap-2 rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:bg-gray-100"
-                    >
-                      <KeyRound className="h-4 w-4" />
-                      {isChangingPassword ? "변경 중..." : "비밀번호 저장"}
-                    </button>
-                  </form>
-
-                  <div className="border-t border-gray-200 pt-6">
-                    <button
-                      type="button"
-                      onClick={() => void handleDeactivateUser()}
-                      disabled={isDeactivating || !selectedUser.isActive}
-                      className="inline-flex items-center justify-center gap-2 rounded border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
-                    >
-                      <UserX className="h-4 w-4" />
-                      {isDeactivating ? "비활성화 중..." : "사용자 비활성화"}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </Card>
-          </div>
-        </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white p-6 font-sans">
-      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="ops-page settings-page">
+      <header className="ops-header">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">설정</h1>
-          <div className="text-sm text-gray-500">대시보드 설정과 관리자 계정을 관리합니다.</div>
+          <p className="ops-kicker">Settings</p>
+          <h1>관리자 설정</h1>
+          <p className="ops-subtitle">관리자 계정 생성, 수정, 비밀번호 변경, 활성화 상태를 관리합니다.</p>
         </div>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[240px_1fr]">
-        <div className="space-y-2">
-          {navItems.map(({ id, icon: Icon, label }) => {
-            const isActive = activeSection === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setActiveSection(id)}
-                className={`flex w-full items-center gap-3 rounded px-4 py-3 text-left text-sm transition ${
-                  isActive
-                    ? "bg-gray-900 text-white"
-                    : "border border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="font-semibold">{label}</span>
-              </button>
-            );
-          })}
-        </div>
+      <section className="ops-kpi-grid settings-kpis">
+        <article className="ops-kpi-card blue">
+          <div className="ops-kpi-icon">
+            <UserCog size={19} />
+          </div>
+          <div>
+            <span>등록 계정</span>
+            <strong>{users.length}</strong>
+            <small>현재 조회된 관리자 계정 수</small>
+          </div>
+        </article>
 
-        <div className="space-y-6">
-          {activeSection === "general" && renderPlaceholder("일반", "일반 설정은 아직 연결되지 않았습니다.")}
-          {activeSection === "notifications" && renderPlaceholder("알림", "알림 설정은 아직 연결되지 않았습니다.")}
-          {activeSection === "users" && renderUsersSection()}
-          {activeSection === "display" && renderPlaceholder("화면", "화면 설정은 아직 연결되지 않았습니다.")}
-        </div>
-      </div>
+        <article className="ops-kpi-card green">
+          <div className="ops-kpi-icon">
+            <Shield size={19} />
+          </div>
+          <div>
+            <span>활성 계정</span>
+            <strong>{activeUserCount}</strong>
+            <small>즉시 로그인 가능한 계정 수</small>
+          </div>
+        </article>
+
+        <article className="ops-kpi-card slate">
+          <div className="ops-kpi-icon">
+            <UserX size={19} />
+          </div>
+          <div>
+            <span>비활성 계정</span>
+            <strong>{inactiveUserCount}</strong>
+            <small>로그인할 수 없도록 비활성화된 계정 수</small>
+          </div>
+        </article>
+      </section>
+      <section className="settings-content">{renderUsersSection()}</section>
+      {renderCreateModal()}
+      {renderManageModal()}
+      {renderActivateConfirmModal()}
+      {renderDeactivateConfirmModal()}
     </div>
   );
 }
