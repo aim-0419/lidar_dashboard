@@ -299,25 +299,32 @@ async function updateEventStatus({ eventId, status, memo, userId }) {
       throw createHttpError(404, "이벤트를 찾을 수 없습니다.", { eventId });
     }
 
-    if (existingEvent.status === nextStatus) {
+    const statusChanged = existingEvent.status !== nextStatus;
+    const memoSaved = normalizedMemo.length > 0;
+
+    if (!statusChanged && !memoSaved) {
       return {
         event: existingEvent,
         previousStatus: existingEvent.status,
         changed: false,
+        statusChanged: false,
+        memoSaved: false,
       };
     }
 
-    const event = await tx.trafficEvent.update({
-      where: { id: eventId },
-      data: { status: nextStatus },
-      include: { zone: { select: { id: true, zoneCode: true, name: true } } },
-    });
+    const event = statusChanged
+      ? await tx.trafficEvent.update({
+          where: { id: eventId },
+          data: { status: nextStatus },
+          include: { zone: { select: { id: true, zoneCode: true, name: true } } },
+        })
+      : existingEvent;
 
     await tx.eventLog.create({
       data: {
         eventId,
         userId,
-        action: "EVENT_STATUS_CHANGED",
+        action: statusChanged ? "EVENT_STATUS_CHANGED" : "EVENT_MEMO_ADDED",
         message: normalizedMemo || null,
         metadata: {
           source: "MANUAL",
@@ -331,15 +338,23 @@ async function updateEventStatus({ eventId, status, memo, userId }) {
       event,
       previousStatus: existingEvent.status,
       changed: true,
+      statusChanged,
+      memoSaved,
     };
   });
 
-  if (result.changed) {
+  if (result.statusChanged) {
     logger.info("event status changed manually", {
       eventId,
       userId,
       previousStatus: result.previousStatus,
       nextStatus,
+    });
+  } else if (result.memoSaved) {
+    logger.info("event memo added manually", {
+      eventId,
+      userId,
+      status: nextStatus,
     });
   }
 
@@ -347,6 +362,8 @@ async function updateEventStatus({ eventId, status, memo, userId }) {
     event: result.event,
     previousStatus: result.previousStatus,
     changed: result.changed,
+    statusChanged: result.statusChanged,
+    memoSaved: result.memoSaved,
   });
 }
 

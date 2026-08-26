@@ -139,16 +139,30 @@ function createEventDetailResponse(event) {
   };
 }
 
-function createEventStatusUpdateResponse({ event, previousStatus, changed }) {
+function createEventStatusUpdateResponse({
+  event,
+  previousStatus,
+  changed,
+  statusChanged,
+  memoSaved,
+}) {
   // 관리자 상태 변경 결과만 반환하며 장비 제어 결과와 섞지 않는다.
+  const message = statusChanged
+    ? "이벤트 상태가 변경되었습니다."
+    : memoSaved
+      ? "이벤트 변경 사유가 기록되었습니다."
+      : "저장할 변경 사항이 없습니다.";
+
   return {
     success: true,
     data: {
       event: createEventHistoryItem(event),
       previousStatus,
       changed,
+      statusChanged,
+      memoSaved,
     },
-    message: changed ? "이벤트 상태가 변경되었습니다." : "이벤트 상태가 이미 동일합니다.",
+    message,
   };
 }
 
