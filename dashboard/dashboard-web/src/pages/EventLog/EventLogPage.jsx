@@ -4,14 +4,23 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Braces,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Filter,
+  Info,
   Search,
   Siren,
+  X,
 } from "lucide-react";
-import { getEventHistory, getEventZones, updateEventStatus } from "../../features/events/eventsApi";
+import {
+  getEventDetail,
+  getEventHistory,
+  getEventZones,
+  updateEventStatus,
+} from "../../features/events/eventsApi";
 import "../Dashboard/dashboard.css";
 import "./eventLog.css";
 
@@ -90,6 +99,11 @@ export default function EventLogPage() {
   const [statusMemo, setStatusMemo] = useState("");
   const [statusSaving, setStatusSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [eventDetail, setEventDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const [rawPayloadOpen, setRawPayloadOpen] = useState(false);
+  const [rawPayloadCopied, setRawPayloadCopied] = useState(false);
 
   // 입력할 때마다 요청하지 않도록 검색어가 멈춘 뒤 API 필터에 반영한다.
   useEffect(() => {
@@ -106,8 +120,9 @@ export default function EventLogPage() {
     async function loadZones() {
       try {
         setZones(await getEventZones({ signal: controller.signal }));
-      } catch (requestError) {
-        if (requestError.name !== "AbortError") {
+      } catch {
+        // 화면 전환이나 개발 모드 재실행으로 취소된 요청은 실제 조회 오류로 표시하지 않는다.
+        if (!controller.signal.aborted) {
           setZonesError(true);
         }
       } finally {
@@ -145,7 +160,8 @@ export default function EventLogPage() {
           data.items.some((event) => event.id === current) ? current : data.items[0]?.id || null
         ));
       } catch (requestError) {
-        if (requestError.name !== "AbortError") {
+        // 새 필터 요청이 이전 요청을 취소한 경우에는 canceled 메시지를 표에 노출하지 않는다.
+        if (!controller.signal.aborted) {
           setError(requestError.message || "이벤트 이력을 불러오지 못했습니다.");
         }
       } finally {
@@ -161,6 +177,49 @@ export default function EventLogPage() {
     () => items.find((event) => event.id === selectedId) || items[0],
     [items, selectedId],
   );
+
+  useEffect(() => {
+    if (!selected?.id) {
+      setEventDetail(null);
+      setDetailError("");
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    async function loadEventDetail() {
+      setDetailLoading(true);
+      setDetailError("");
+      setEventDetail(null);
+      setRawPayloadOpen(false);
+      setRawPayloadCopied(false);
+
+      try {
+        const detail = await getEventDetail(selected.id, { signal: controller.signal });
+        if (!controller.signal.aborted) setEventDetail(detail);
+      } catch (requestError) {
+        if (!controller.signal.aborted) {
+          setDetailError(requestError.message || "이벤트 상세 정보를 불러오지 못했습니다.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setDetailLoading(false);
+      }
+    }
+
+    loadEventDetail();
+    return () => controller.abort();
+  }, [selected?.id]);
+
+  useEffect(() => {
+    if (!rawPayloadOpen) return undefined;
+
+    function closeRawPayload(event) {
+      if (event.key === "Escape") setRawPayloadOpen(false);
+    }
+
+    window.addEventListener("keydown", closeRawPayload);
+    return () => window.removeEventListener("keydown", closeRawPayload);
+  }, [rawPayloadOpen]);
 
   useEffect(() => {
     setStatusDraft(selected?.status || "NEW");
@@ -223,11 +282,25 @@ export default function EventLogPage() {
       setItems((current) => current.map((item) => (
         item.id === selected.id ? result.event : item
       )));
+      setEventDetail((current) => (
+        current?.id === selected.id ? { ...current, status: result.event.status } : current
+      ));
       setStatusMessage(result.changed ? "상태를 변경했습니다." : "이미 같은 상태입니다.");
     } catch (requestError) {
       setStatusMessage(requestError.message || "상태를 변경하지 못했습니다.");
     } finally {
       setStatusSaving(false);
+    }
+  }
+
+  async function copyRawPayload() {
+    if (!eventDetail?.rawPayload) return;
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(eventDetail.rawPayload, null, 2));
+      setRawPayloadCopied(true);
+    } catch {
+      setRawPayloadCopied(false);
     }
   }
 
@@ -361,7 +434,7 @@ export default function EventLogPage() {
             <>
               <div className="ops-card-head">
                 <div>
-                  <h2>상세 정보</h2>
+                  <h2>이벤트 상세</h2>
                   <p>{selected.id}</p>
                 </div>
                 {selected.eventType?.startsWith("wrong-way") ? <Siren size={20} /> : <CheckCircle2 size={20} />}
@@ -371,6 +444,10 @@ export default function EventLogPage() {
                 <span>현장 영상 미제공</span>
               </div>
               <dl className="event-detail-list">
+                <div>
+                  <dt>발생 시간</dt>
+                  <dd>{formatDateTime(selected.occurredAt || selected.receivedAt)}</dd>
+                </div>
                 <div>
                   <dt>메시지</dt>
                   <dd>{selected.message}</dd>
@@ -385,9 +462,57 @@ export default function EventLogPage() {
                 </div>
                 <div>
                   <dt>객체 ID</dt>
-                  <dd>{selected.trackId}</dd>
+                  <dd>{selected.trackId || "-"}</dd>
+                </div>
+                <div>
+                  <dt>속도 / 신뢰도</dt>
+                  <dd>
+                    {selected.speedKmh == null ? "-" : `${selected.speedKmh.toFixed(1)} km/h`}
+                    {selected.confidence == null ? "" : ` · ${(selected.confidence * 100).toFixed(1)}%`}
+                  </dd>
                 </div>
               </dl>
+              {detailLoading && <p className="event-detail-notice">추가 정보를 불러오는 중입니다.</p>}
+              {detailError && <p className="event-detail-notice error">{detailError}</p>}
+              {eventDetail && (
+                <>
+                  <details className="event-diagnostic-details">
+                    <summary>
+                      <Info size={15} aria-hidden="true" />
+                      추가 진단 정보
+                    </summary>
+                    <dl className="event-detail-list compact">
+                      <div>
+                        <dt>서버 수신 시간</dt>
+                        <dd>{formatDateTime(eventDetail.receivedAt)}</dd>
+                      </div>
+                      <div>
+                        <dt>현장 / 라이다 PC</dt>
+                        <dd>
+                          {eventDetail.zone?.site?.name || "-"} · {eventDetail.device?.name || eventDetail.device?.code || "-"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>외부 구역 / 객체 종류</dt>
+                        <dd>{eventDetail.externalZoneId || "-"} · {eventDetail.objectClass ?? "-"}</dd>
+                      </div>
+                      <div>
+                        <dt>경고 단계 / 이벤트 ID</dt>
+                        <dd>{eventDetail.warningLevel ?? "-"} · {eventDetail.id}</dd>
+                      </div>
+                    </dl>
+                  </details>
+                  <button
+                    type="button"
+                    className="event-raw-button"
+                    onClick={() => setRawPayloadOpen(true)}
+                    disabled={!eventDetail.rawPayload}
+                  >
+                    <Braces size={15} aria-hidden="true" />
+                    원본 데이터 보기
+                  </button>
+                </>
+              )}
               <div className="event-status-editor">
                 <label>
                   <span>관리 상태</span>
@@ -418,6 +543,35 @@ export default function EventLogPage() {
           )}
         </aside>
       </section>
+      {rawPayloadOpen && eventDetail?.rawPayload && (
+        <div className="event-raw-backdrop" role="presentation" onMouseDown={() => setRawPayloadOpen(false)}>
+          <section
+            className="event-raw-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="event-raw-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <p>연동 진단 정보</p>
+                <h2 id="event-raw-title">라이다 원본 데이터</h2>
+              </div>
+              <button type="button" onClick={() => setRawPayloadOpen(false)} aria-label="원본 데이터 닫기">
+                <X size={18} />
+              </button>
+            </header>
+            <div className="event-raw-meta">
+              <span>{eventDetail.id}</span>
+              <button type="button" onClick={copyRawPayload}>
+                <Copy size={15} aria-hidden="true" />
+                {rawPayloadCopied ? "복사됨" : "JSON 복사"}
+              </button>
+            </div>
+            <pre>{JSON.stringify(eventDetail.rawPayload, null, 2)}</pre>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

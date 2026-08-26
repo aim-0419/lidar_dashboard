@@ -1838,6 +1838,37 @@
         },
       },
     },
+    "/api/events/{id}": {
+      get: {
+        tags: ["Wrongway"],
+        summary: "이벤트 상세 조회",
+        description:
+          "관제 화면에서 선택한 이벤트의 객체·시간·구역·라이다 PC 정보와 저장된 원본 payload를 조회합니다. 목록 API에는 원본 payload를 포함하지 않습니다.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            description: "상세 조회할 이벤트 ID",
+          },
+        ],
+        responses: {
+          200: {
+            description: "이벤트 상세 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/EventDetailResponse" },
+              },
+            },
+          },
+          401: { description: "인증 토큰이 없거나 유효하지 않음" },
+          404: { description: "이벤트를 찾을 수 없음" },
+          500: { description: "이벤트 상세 조회 오류" },
+        },
+      },
+    },
     "/api/wrongway/test-payloads": {
       get: {
         tags: ["Wrongway"],
@@ -2582,6 +2613,64 @@
                 },
               },
               filters: { type: "object", additionalProperties: true },
+            },
+          },
+          message: { type: "string", example: "OK" },
+        },
+      },
+      EventDetailItem: {
+        allOf: [
+          { $ref: "#/components/schemas/EventHistoryItem" },
+          {
+            type: "object",
+            properties: {
+              speedMs: { type: "number", nullable: true, example: 2.8 },
+              createdAt: { type: "string", format: "date-time" },
+              updatedAt: { type: "string", format: "date-time" },
+              zone: {
+                type: "object",
+                nullable: true,
+                properties: {
+                  id: { type: "string" },
+                  code: { type: "string", nullable: true, example: "Z455" },
+                  name: { type: "string", example: "회전교차로 영역 1" },
+                  site: {
+                    type: "object",
+                    nullable: true,
+                    properties: {
+                      id: { type: "string" },
+                      name: { type: "string", example: "월출산휴게소" },
+                    },
+                  },
+                },
+              },
+              device: {
+                type: "object",
+                nullable: true,
+                properties: {
+                  id: { type: "string" },
+                  code: { type: "string", nullable: true, example: "LIDAR-PC-01" },
+                  name: { type: "string", example: "회전교차로 1 라이다 PC" },
+                  type: { type: "string", example: "LIDAR_PC" },
+                },
+              },
+              rawPayload: {
+                type: "object",
+                additionalProperties: true,
+                description: "해당 이벤트의 상위 snapshot 요약과 라이다 객체 원본 데이터",
+              },
+            },
+          },
+        ],
+      },
+      EventDetailResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: {
+            type: "object",
+            properties: {
+              event: { $ref: "#/components/schemas/EventDetailItem" },
             },
           },
           message: { type: "string", example: "OK" },
