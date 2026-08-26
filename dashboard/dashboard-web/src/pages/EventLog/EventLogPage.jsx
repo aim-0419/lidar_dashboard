@@ -177,6 +177,7 @@ export default function EventLogPage() {
     () => items.find((event) => event.id === selectedId) || items[0],
     [items, selectedId],
   );
+  const hasStatusChange = Boolean(selected) && statusDraft !== selected.status;
 
   useEffect(() => {
     if (!selected?.id) {
@@ -270,7 +271,7 @@ export default function EventLogPage() {
   }
 
   async function saveEventStatus() {
-    if (!selected || statusSaving) return;
+    if (!selected || statusSaving || !hasStatusChange) return;
 
     setStatusSaving(true);
     setStatusMessage("");
@@ -532,7 +533,11 @@ export default function EventLogPage() {
                     rows="3"
                   />
                 </label>
-                <button type="button" onClick={saveEventStatus} disabled={statusSaving}>
+                <button
+                  type="button"
+                  onClick={saveEventStatus}
+                  disabled={statusSaving || !hasStatusChange}
+                >
                   {statusSaving ? "저장 중" : "상태 저장"}
                 </button>
                 {statusMessage && <p className="event-status-message">{statusMessage}</p>}
