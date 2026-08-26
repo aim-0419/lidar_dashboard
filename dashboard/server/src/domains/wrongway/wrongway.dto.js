@@ -102,6 +102,43 @@ function createEventHistoryResponse({ events, page, limit, total, filters }) {
   };
 }
 
+function createEventDetailItem(event) {
+  return {
+    ...createEventHistoryItem(event),
+    speedMs: event.speedMs,
+    createdAt: event.createdAt,
+    updatedAt: event.updatedAt,
+    zone: event.zone
+      ? {
+          id: event.zone.id,
+          code: event.zone.zoneCode,
+          name: event.zone.name,
+          site: event.zone.site
+            ? { id: event.zone.site.id, name: event.zone.site.name }
+            : null,
+        }
+      : null,
+    device: event.device
+      ? {
+          id: event.device.id,
+          code: event.device.deviceCode,
+          name: event.device.name,
+          type: event.device.deviceType,
+        }
+      : null,
+    rawPayload: event.rawPayload,
+  };
+}
+
+function createEventDetailResponse(event) {
+  // 목록에서는 제외한 진단 필드와 원본 payload를 단건 상세 조회에서만 반환한다.
+  return {
+    success: true,
+    data: { event: createEventDetailItem(event) },
+    message: "OK",
+  };
+}
+
 function createEventStatusUpdateResponse({ event, previousStatus, changed }) {
   // 관리자 상태 변경 결과만 반환하며 장비 제어 결과와 섞지 않는다.
   return {
@@ -116,6 +153,7 @@ function createEventStatusUpdateResponse({ event, previousStatus, changed }) {
 }
 
 module.exports = {
+  createEventDetailResponse,
   createEventHistoryResponse,
   createEventStatusUpdateResponse,
   createWrongwayErrorResponse,

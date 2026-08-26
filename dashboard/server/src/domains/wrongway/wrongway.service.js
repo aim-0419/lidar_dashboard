@@ -9,6 +9,7 @@ const {
   WRONGWAY_RECEIVE_REASON,
 } = require("./wrongway.constants");
 const {
+  createEventDetailResponse,
   createEventHistoryResponse,
   createEventStatusUpdateResponse,
   createWrongwayBatchResponse,
@@ -241,6 +242,42 @@ async function getEventHistory(query = {}) {
       sortOrder,
     },
   });
+}
+
+async function getEventDetail(eventId) {
+  const normalizedEventId = String(eventId || "").trim();
+  if (!normalizedEventId) {
+    throw createHttpError(400, "이벤트 ID가 필요합니다.", { field: "id" });
+  }
+
+  // 관제 상세 화면에 필요한 현장·구역·라이다 PC 정보와 원본 payload를 한 번에 조회한다.
+  const event = await prisma.trafficEvent.findUnique({
+    where: { id: normalizedEventId },
+    include: {
+      zone: {
+        select: {
+          id: true,
+          zoneCode: true,
+          name: true,
+          site: { select: { id: true, name: true } },
+        },
+      },
+      device: {
+        select: {
+          id: true,
+          deviceCode: true,
+          name: true,
+          deviceType: true,
+        },
+      },
+    },
+  });
+
+  if (!event) {
+    throw createHttpError(404, "이벤트를 찾을 수 없습니다.", { eventId: normalizedEventId });
+  }
+
+  return createEventDetailResponse(event);
 }
 
 async function updateEventStatus({ eventId, status, memo, userId }) {
@@ -781,6 +818,7 @@ function startNormalDrivingStream(options = {}) {
 }
 
 module.exports = {
+  getEventDetail,
   getEventHistory,
   updateEventStatus,
   getTestPayloads,
