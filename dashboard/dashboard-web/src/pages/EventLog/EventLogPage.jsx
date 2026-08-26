@@ -120,8 +120,9 @@ export default function EventLogPage() {
     async function loadZones() {
       try {
         setZones(await getEventZones({ signal: controller.signal }));
-      } catch (requestError) {
-        if (requestError.name !== "AbortError") {
+      } catch {
+        // 화면 전환이나 개발 모드 재실행으로 취소된 요청은 실제 조회 오류로 표시하지 않는다.
+        if (!controller.signal.aborted) {
           setZonesError(true);
         }
       } finally {
@@ -159,7 +160,8 @@ export default function EventLogPage() {
           data.items.some((event) => event.id === current) ? current : data.items[0]?.id || null
         ));
       } catch (requestError) {
-        if (requestError.name !== "AbortError") {
+        // 새 필터 요청이 이전 요청을 취소한 경우에는 canceled 메시지를 표에 노출하지 않는다.
+        if (!controller.signal.aborted) {
           setError(requestError.message || "이벤트 이력을 불러오지 못했습니다.");
         }
       } finally {
