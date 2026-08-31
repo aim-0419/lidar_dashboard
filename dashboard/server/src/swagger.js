@@ -1801,9 +1801,9 @@
     "/api/events/{id}/status": {
       patch: {
         tags: ["Wrongway"],
-        summary: "관리자 이벤트 처리 상태 변경",
+        summary: "관리자 이벤트 상태 및 변경 사유 기록",
         description:
-          "관리자가 이벤트의 업무 처리 상태를 변경하고 event_logs에 변경 이력을 기록합니다. 통합제어보드나 물리 장비는 제어하지 않습니다.",
+          "관리자가 이벤트의 업무 처리 상태를 변경하거나, 현재 상태를 유지한 채 변경 사유만 event_logs에 기록합니다. 통합제어보드나 물리 장비는 제어하지 않습니다.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -1811,7 +1811,7 @@
             in: "path",
             required: true,
             schema: { type: "string" },
-            description: "상태를 변경할 이벤트 ID",
+            description: "상태 또는 변경 사유를 기록할 이벤트 ID",
           },
         ],
         requestBody: {
@@ -1824,7 +1824,7 @@
         },
         responses: {
           200: {
-            description: "이벤트 상태 변경 또는 동일 상태 확인",
+            description: "이벤트 상태 변경 또는 동일 상태의 변경 사유 기록",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/EventStatusUpdateResponse" },
@@ -1834,7 +1834,7 @@
           400: { description: "지원하지 않는 상태 값" },
           401: { description: "인증 토큰이 없거나 유효하지 않음" },
           404: { description: "이벤트를 찾을 수 없음" },
-          500: { description: "이벤트 상태 변경 오류" },
+          500: { description: "이벤트 상태 또는 변경 사유 기록 오류" },
         },
       },
     },
@@ -2701,9 +2701,19 @@
               event: { $ref: "#/components/schemas/EventHistoryItem" },
               previousStatus: { type: "string", example: "NEW" },
               changed: { type: "boolean", example: true },
+              statusChanged: {
+                type: "boolean",
+                example: false,
+                description: "관리 상태가 실제로 변경되었는지 여부",
+              },
+              memoSaved: {
+                type: "boolean",
+                example: true,
+                description: "변경 사유가 event_logs에 기록되었는지 여부",
+              },
             },
           },
-          message: { type: "string", example: "이벤트 상태가 변경되었습니다." },
+          message: { type: "string", example: "이벤트 변경 사유가 기록되었습니다." },
         },
       },
       WrongwayTestSendResponse: {

@@ -177,6 +177,9 @@ export default function EventLogPage() {
     () => items.find((event) => event.id === selectedId) || items[0],
     [items, selectedId],
   );
+  const hasStatusChange = Boolean(selected) && statusDraft !== selected.status;
+  const hasMemo = statusMemo.trim().length > 0;
+  const hasStatusUpdate = hasStatusChange || hasMemo;
 
   useEffect(() => {
     if (!selected?.id) {
@@ -270,7 +273,7 @@ export default function EventLogPage() {
   }
 
   async function saveEventStatus() {
-    if (!selected || statusSaving) return;
+    if (!selected || statusSaving || !hasStatusUpdate) return;
 
     setStatusSaving(true);
     setStatusMessage("");
@@ -285,7 +288,10 @@ export default function EventLogPage() {
       setEventDetail((current) => (
         current?.id === selected.id ? { ...current, status: result.event.status } : current
       ));
-      setStatusMessage(result.changed ? "상태를 변경했습니다." : "이미 같은 상태입니다.");
+      setStatusMemo("");
+      setStatusMessage(
+        result.statusChanged ? "상태를 변경했습니다." : "변경 사유를 기록했습니다.",
+      );
     } catch (requestError) {
       setStatusMessage(requestError.message || "상태를 변경하지 못했습니다.");
     } finally {
@@ -532,7 +538,11 @@ export default function EventLogPage() {
                     rows="3"
                   />
                 </label>
-                <button type="button" onClick={saveEventStatus} disabled={statusSaving}>
+                <button
+                  type="button"
+                  onClick={saveEventStatus}
+                  disabled={statusSaving || !hasStatusUpdate}
+                >
                   {statusSaving ? "저장 중" : "상태 저장"}
                 </button>
                 {statusMessage && <p className="event-status-message">{statusMessage}</p>}
