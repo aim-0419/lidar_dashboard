@@ -2,7 +2,7 @@
 
 이 문서는 AI 에이전트용 라우터입니다. 작업 전 요청 범위에 맞는 문서만 읽고 따릅니다.
 
-> 최종 업데이트: 2026-08-05
+> 최종 업데이트: 2026-08-31
 
 ## 공통 작업 원칙
 
@@ -26,6 +26,7 @@
 - 테스트 피드백 루프: `docs/ai/testing-feedback-loop.md`
 - 프로젝트 메모: `docs/ai/project-notes.md`
 - AI 활용 가이드: `docs/ai/harness-engineering.md`
+- 시스템 인프라 및 구매 검토 설계: `docs/ai/system-infrastructure-design.md`
 
 ## 개발 컨벤션 문서
 
@@ -39,6 +40,7 @@
 
 - 라이다 PC-대시보드 payload 규격: `docs/specs/lidar-dashboard-payload.md`
 - 대시보드-통합제어보드 프로토콜 정의 TODO: `docs/specs/dashboard-control-board-protocol.md`
+- 시스템 인프라 및 장비 구매 검토: `docs/specs/system-infrastructure-purchase-review.md`
 
 ## 현재 프로젝트 전제
 
