@@ -121,6 +121,7 @@ async function updateUser(req, res) {
       role: req.body?.role,
       isActive: req.body?.isActive,
       requesterId: req.user.id,
+      requesterRole: req.user.role,
     });
 
     res.status(200).json({
@@ -170,11 +171,43 @@ async function deactivateUser(req, res) {
   }
 }
 
+async function verifyUserPassword(req, res) {
+  try {
+    const result = await usersService.verifyUserPassword({
+      id: req.params.id,
+      requesterId: req.user?.id,
+      requesterRole: req.user?.role,
+      currentPassword: req.body?.currentPassword,
+    });
+
+    res.status(200).json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    logger.error("verify user password failed", {
+      requesterId: req.user?.id,
+      requesterUserId: req.user?.userId,
+      targetUserId: req.params.id,
+      statusCode: error.statusCode,
+      message: error.message,
+    });
+
+    res.status(error.statusCode || 500).json({
+      ok: false,
+      message: getPublicMessage(error, "Failed to verify user password."),
+    });
+  }
+}
+
 async function updateUserPassword(req, res) {
   try {
     const user = await usersService.updateUserPassword({
       id: req.params.id,
-      password: req.body?.password,
+      requesterId: req.user?.id,
+      requesterRole: req.user?.role,
+      currentPassword: req.body?.currentPassword,
+      newPassword: req.body?.newPassword,
     });
 
     res.status(200).json({
@@ -204,5 +237,6 @@ module.exports = {
   createUser,
   updateUser,
   deactivateUser,
+  verifyUserPassword,
   updateUserPassword,
 };

@@ -280,6 +280,10 @@ export async function updateUserRequest(id, payload) {
   return patchJson(`/api/users/${id}`, payload);
 }
 
+export async function verifyUserPasswordRequest(id, payload) {
+  return postJson(`/api/users/${id}/password/verify`, payload);
+}
+
 export async function updateUserPasswordRequest(id, payload) {
   return patchJson(`/api/users/${id}/password`, payload);
 }

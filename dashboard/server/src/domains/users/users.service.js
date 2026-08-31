@@ -2,6 +2,8 @@ const bcrypt = require("bcrypt");
 const { Prisma } = require("@prisma/client");
 const { prisma } = require("../../prisma/client");
 
+const ALLOWED_ROLES = ["SUPER_ADMIN", "MANAGER"];
+
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -13,7 +15,13 @@ function normalizeRole(role) {
 }
 
 function normalizeRoleInput(role) {
-  return String(role || "SUPER_ADMIN").trim().toUpperCase();
+  const normalizedRole = String(role || "SUPER_ADMIN").trim().toUpperCase();
+
+  if (!ALLOWED_ROLES.includes(normalizedRole)) {
+    throw createHttpError(400, `role must be one of: ${ALLOWED_ROLES.join(", ")}.`);
+  }
+
+  return normalizedRole;
 }
 
 function serializeUser(user) {
@@ -148,10 +156,15 @@ async function createUser({ userId, name, password, role, isActive }) {
   }
 }
 
-async function updateUser({ id, userId, name, role, isActive, requesterId }) {
+async function updateUser({ id, userId, name, role, isActive, requesterId, requesterRole }) {
   const existingUser = await findUserRecordById(id);
   const isSelfUpdate = requesterId === id;
+  const isRequesterSuperAdmin = normalizeRole(requesterRole) === "super_admin";
   const data = {};
+
+  if (!isSelfUpdate && !isRequesterSuperAdmin) {
+    throw createHttpError(403, "You do not have permission to update this user.");
+  }
 
   if (typeof userId === "string") {
     if (userId.trim() === "") {
@@ -183,8 +196,8 @@ async function updateUser({ id, userId, name, role, isActive, requesterId }) {
 
   const nextIsActive = parseOptionalBoolean(isActive);
   if (typeof nextIsActive === "boolean") {
-    if (isSelfUpdate && nextIsActive === false) {
-      throw createHttpError(403, "You cannot deactivate your own account.");
+    if (isSelfUpdate && nextIsActive !== existingUser.isActive) {
+      throw createHttpError(403, "You cannot change your own active status.");
     }
 
     data.isActive = nextIsActive;
@@ -297,14 +310,66 @@ async function deactivateUser({ id, requesterId }) {
   return serializeUser(user);
 }
 
-async function updateUserPassword({ id, password }) {
-  await findUserRecordById(id);
-
-  if (isBlank(password)) {
-    throw createHttpError(400, "password is required.");
+async function verifyUserPassword({ id, requesterId, currentPassword }) {
+  if (requesterId !== id) {
+    throw createHttpError(403, "You can only verify your own password.");
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  if (isBlank(currentPassword)) {
+    throw createHttpError(400, "currentPassword is required.");
+  }
+
+  const userRecord = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      passwordHash: true,
+    },
+  });
+
+  if (!userRecord) {
+    throw createHttpError(404, "User not found.");
+  }
+
+  const isPasswordMatched = await bcrypt.compare(currentPassword, userRecord.passwordHash);
+  if (!isPasswordMatched) {
+    throw createHttpError(401, "Current password is incorrect.");
+  }
+
+  return { verified: true };
+}
+
+async function updateUserPassword({ id, requesterId, currentPassword, newPassword }) {
+  if (requesterId !== id) {
+    throw createHttpError(403, "You can only change your own password.");
+  }
+
+  if (isBlank(currentPassword) || isBlank(newPassword)) {
+    throw createHttpError(400, "currentPassword and newPassword are required.");
+  }
+
+  if (currentPassword === newPassword) {
+    throw createHttpError(400, "New password must be different from current password.");
+  }
+
+  const userRecord = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      passwordHash: true,
+    },
+  });
+
+  if (!userRecord) {
+    throw createHttpError(404, "User not found.");
+  }
+
+  const isPasswordMatched = await bcrypt.compare(currentPassword, userRecord.passwordHash);
+  if (!isPasswordMatched) {
+    throw createHttpError(401, "Current password is incorrect.");
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
 
   const [, user] = await prisma.$transaction([
     prisma.refreshToken.updateMany({
@@ -347,5 +412,6 @@ module.exports = {
   createUser,
   updateUser,
   deactivateUser,
+  verifyUserPassword,
   updateUserPassword,
 };
