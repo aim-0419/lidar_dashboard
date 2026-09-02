@@ -78,7 +78,7 @@ function getRoleLabel(role) {
 }
 
 export default function SettingsPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateCurrentUser } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isActivateConfirmOpen, setIsActivateConfirmOpen] = useState(false);
@@ -373,6 +373,10 @@ export default function SettingsPage() {
         role: editForm.role,
         isActive: editForm.isActive,
       });
+
+      if (response.user?.id === user?.id) {
+        updateCurrentUser(response.user);
+      }
 
       await loadUsers(response.user?.id || selectedUserId);
       await loadUserDetail(response.user?.id || selectedUserId);

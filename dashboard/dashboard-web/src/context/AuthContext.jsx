@@ -83,6 +83,10 @@ export function AuthProvider({ children }) {
     }
   }
 
+  function updateCurrentUser(nextUser) {
+    setUser((currentUser) => (currentUser ? { ...currentUser, ...nextUser } : currentUser));
+  }
+
   const value = useMemo(
     () => ({
       user,
@@ -90,6 +94,7 @@ export function AuthProvider({ children }) {
       isInitializing,
       login,
       logout,
+      updateCurrentUser,
     }),
     [isInitializing, user],
   );
