@@ -717,11 +717,11 @@
         },
       },
     },
-    "/api/users/{id}/password": {
-      patch: {
+    "/api/users/{id}/password/verify": {
+      post: {
         tags: ["Users"],
-        summary: "비밀번호 변경/초기화",
-        description: "관리자가 사용자 비밀번호를 변경하거나 초기화합니다.",
+        summary: "기존 비밀번호 확인",
+        description: "로그인한 사용자가 자신의 기존 비밀번호가 맞는지 확인합니다.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -738,9 +738,85 @@
             "application/json": {
               schema: {
                 type: "object",
-                required: ["password"],
+                required: ["currentPassword"],
                 properties: {
-                  password: { type: "string", example: "newPassword123" },
+                  currentPassword: { type: "string", example: "currentPassword123" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "기존 비밀번호 확인 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    verified: { type: "boolean", example: true },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "기존 비밀번호가 일치하지 않음",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "Current password is incorrect." },
+                  },
+                },
+              },
+            },
+          },
+          403: {
+            description: "다른 사용자의 비밀번호 확인 시도",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "You can only verify your own password." },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/users/{id}/password": {
+      patch: {
+        tags: ["Users"],
+        summary: "내 비밀번호 변경",
+        description: "로그인한 사용자가 기존 비밀번호를 확인한 뒤 자신의 새 비밀번호로 변경합니다.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "user_id",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["currentPassword", "newPassword"],
+                properties: {
+                  currentPassword: { type: "string", example: "currentPassword123" },
+                  newPassword: { type: "string", example: "newPassword123" },
                 },
               },
             },
@@ -781,7 +857,35 @@
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "password는 필수입니다." },
+                    message: { type: "string", example: "currentPassword and newPassword are required." },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "기존 비밀번호가 일치하지 않음",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "Current password is incorrect." },
+                  },
+                },
+              },
+            },
+          },
+          403: {
+            description: "다른 사용자의 비밀번호 변경 시도",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "You can only change your own password." },
                   },
                 },
               },
