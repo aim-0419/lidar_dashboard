@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+  <!-- LIDAR OPS 파비콘. 16px에서 화살촉이 뭉치지 않도록 축약형(정주행 1 + 역주행 1)을 쓴다. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5e9aeb"/>
+      <stop offset="55%" stop-color="#3b7dd8"/>
+      <stop offset="100%" stop-color="#2a5fad"/>
+    </linearGradient>
+  </defs>
+  <rect width="40" height="40" rx="13" fill="url(#tile)"/>
+  <g transform="translate(8 8)" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7.5 20 V6"/>
+    <path d="M4.3 9.2 L7.5 6 L10.7 9.2"/>
+    <path d="M16.5 4 V18" stroke="#ff7a7e"/>
+    <path d="M13.3 14.8 L16.5 18 L19.7 14.8" stroke="#ff7a7e"/>
+  </g>
+</svg>

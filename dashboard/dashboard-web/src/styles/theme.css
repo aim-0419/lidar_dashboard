@@ -1,0 +1,268 @@
+/*
+ * 관제 대시보드 디자인 토큰.
+ * 색은 여기서만 정의하고 각 페이지 CSS는 변수만 참조한다.
+ *   딥네이비 #12304F  · 배경 #F2F5F8 쿨 라이트 그레이 · 포인트 #3B7DD8 클리어 블루
+ */
+
+:root {
+  /* 브랜드 딥네이비 계열 */
+  --navy-950: #071626;
+  --navy-900: #0b2138;
+  --navy-800: #12304f; /* 기준 딥네이비 */
+  --navy-700: #1b4370;
+  --navy-600: #245891;
+  --navy-500: #2f6cae;
+
+  /* 포인트 클리어 블루 계열 */
+  --blue-600: #2a5fad;
+  --blue-500: #3b7dd8; /* 기준 포인트 */
+  --blue-400: #5e9aeb;
+  --blue-300: #8fbbf5;
+  --blue-100: #dbe8fb;
+  --blue-50: #eef4fd;
+
+  /* 중립 쿨 그레이 계열 */
+  --page-bg: #f2f5f8;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-sunken: #eef2f7;
+  --line: #e2e9f1;
+  --line-strong: #cfdae7;
+
+  --text: #0e2136;
+  --text-2: #41586f;
+  --text-3: #6b8098;
+  --text-inv: #ffffff;
+  --text-inv-2: #a9c0d8;
+  --text-inv-3: #6f89a5;
+
+  /* 상태색 */
+  --danger: #e2464c;
+  --danger-strong: #c02f36;
+  --danger-soft: #fdecee;
+  --warn: #e29a2b;
+  --warn-soft: #fdf3e3;
+  --ok: #12a077;
+  --ok-soft: #e6f7f1;
+  --violet: #7458e6;
+  --violet-soft: #efecfd;
+
+  /* 이벤트 의미색 */
+  --tone-wrongway: var(--danger);
+  --tone-pedestrian: var(--violet);
+  --tone-normal: var(--ok);
+  --tone-ended: var(--text-3);
+
+  /*
+   * rgba()로 투명도를 줄 때 쓰는 채널 값.
+   * 위 hex는 rgba() 안에 넣을 수 없어서 같은 색을 채널로도 둔다.
+   * 색을 바꿀 일이 생기면 hex와 이 값을 같이 고쳐야 한다.
+   */
+  --danger-rgb: 226, 70, 76;
+  --warn-rgb: 226, 154, 43;
+  --ok-rgb: 18, 160, 119;
+  --violet-rgb: 116, 88, 230;
+  --blue-rgb: 59, 125, 216;
+  --blue-400-rgb: 94, 154, 235;
+  --blue-300-rgb: 143, 187, 245;
+  --navy-800-rgb: 18, 48, 79;
+  --navy-900-rgb: 11, 33, 56;
+  --navy-950-rgb: 7, 22, 38;
+
+  /*
+   * 딥네이비 뷰포트 위에서 쓰는 밝은 상태색.
+   * 위 상태색은 흰 배경 기준이라 어두운 판 위에서는 가라앉는다.
+   */
+  --tone-normal-lit: #4fe0b0;
+  --tone-pedestrian-lit: #a98cff;
+  --tone-wrongway-lit: #ff7a7e;
+
+  /* 캔버스(ZoneScene)도 같은 색을 쓰도록 채널로 한 벌 더 둔다. */
+  --tone-normal-lit-rgb: 79, 224, 176;
+  --tone-pedestrian-lit-rgb: 169, 140, 255;
+  --tone-wrongway-lit-rgb: 255, 122, 126;
+
+  /* 그라디언트 */
+  --grad-navy: linear-gradient(150deg, #143961 0%, #12304f 42%, #0b2138 100%);
+  --grad-navy-deep: linear-gradient(160deg, #17406e 0%, #0e2946 45%, #071626 100%);
+  --grad-blue: linear-gradient(135deg, #5e9aeb 0%, #3b7dd8 55%, #2a5fad 100%);
+  --grad-danger: linear-gradient(135deg, #f06a6a 0%, #e2464c 60%, #c02f36 100%);
+  --grad-ok: linear-gradient(135deg, #3fc79c 0%, #12a077 100%);
+  --grad-violet: linear-gradient(135deg, #9a83f2 0%, #7458e6 100%);
+  --grad-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 100%);
+
+  /* 그림자 (네이비 톤) */
+  --shadow-xs: 0 1px 2px rgba(11, 33, 56, 0.06);
+  --shadow-sm: 0 2px 8px rgba(11, 33, 56, 0.06), 0 1px 2px rgba(11, 33, 56, 0.04);
+  --shadow-md: 0 12px 28px -12px rgba(11, 33, 56, 0.22), 0 2px 8px rgba(11, 33, 56, 0.06);
+  --shadow-lg: 0 28px 60px -24px rgba(11, 33, 56, 0.32), 0 6px 16px rgba(11, 33, 56, 0.08);
+  --shadow-blue: 0 14px 30px -12px rgba(59, 125, 216, 0.55);
+  --shadow-danger: 0 14px 30px -12px rgba(226, 70, 76, 0.5);
+
+  /* 형태 */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+
+  --font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-num: "Pretendard Variable", Pretendard, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--page-bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+button {
+  font-family: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--blue-300);
+  color: var(--navy-950);
+}
+
+/* ── 스크롤바 ─────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--line-strong);
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+  background-clip: content-box;
+}
+
+/* ── 공용 애니메이션 ──────────────────────────────────── */
+@keyframes ops-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ops-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ops-pulse-ring {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(2.1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.1);
+  }
+}
+
+@keyframes ops-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes ops-scanline {
+  from {
+    transform: translateY(-110%);
+  }
+  to {
+    transform: translateY(520%);
+  }
+}
+
+@keyframes ops-shimmer {
+  from {
+    background-position: -180% 0;
+  }
+  to {
+    background-position: 180% 0;
+  }
+}
+
+@keyframes ops-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(2%, -3%, 0) scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import {
+  AlertCircle,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Lock,
+  Radar,
+  User,
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { LoginScanField } from "../../features/auth/components/LoginScanField";
+import { BrandMark } from "../../shared/components/BrandMark";
+import "./login.css";
 
 // 사용자 로그인 정보를 받아 백엔드 로그인 흐름을 시작합니다.
 export default function LoginPage() {
@@ -16,6 +28,7 @@ export default function LoginPage() {
   });
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   // 로그인 성공 후 원래 요청했던 화면으로 다시 이동할 경로입니다.
   const redirectPath = location.state?.from?.pathname || "/";
@@ -55,81 +68,107 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={wrap}>
-      <form style={card} onSubmit={handleSubmit}>
-        <h2 style={title}>{t("title.login")}</h2>
+    <div className="login-root">
+      <div className="login-backdrop" aria-hidden="true">
+        <span className="login-glow one" />
+        <span className="login-glow two" />
+        <span className="login-grid" />
+      </div>
 
-        <input
-          name="userId"
-          placeholder="ID"
-          value={form.userId}
-          onChange={handleChange}
-          style={input}
-          autoComplete="username"
-        />
-        <input
-          name="password"
-          placeholder="Password"
-          type="password"
-          value={form.password}
-          onChange={handleChange}
-          style={input}
-          autoComplete="current-password"
-        />
+      <LoginScanField />
 
-        {errorMessage ? <p style={errorText}>{errorMessage}</p> : null}
+      <div className="login-layout">
+        {/* 좌측: 라이다 스캔 3D 연출 히어로 */}
+        <section className="login-hero">
+          <div className="login-hero-content">
+            <div className="login-badge">
+              <Radar size={14} />
+              LiDAR WRONG-WAY PREVENTION
+            </div>
+            <h1>
+              회전교차로의 <em>역주행</em>을
+              <br />
+              실시간으로 잡아냅니다
+            </h1>
+            <p>
+              라이다 다중 객체 payload를 실시간으로 해석해 역주행·보행자 진입을 감지하고,
+              전광판과 차단기까지 한 화면에서 관제합니다.
+            </p>
 
-        <button type="submit" disabled={isSubmitting} style={btn}>
-          {isSubmitting ? "로그인 중..." : t("title.loginbtn")}
-        </button>
-      </form>
+          </div>
+        </section>
+
+        {/* 우측: 인증 패널 */}
+        <section className="login-panel">
+          <div className="login-card">
+            <div className="login-card-glow" aria-hidden="true" />
+
+            <div className="login-brand">
+              <div className="login-brand-icon">
+                <BrandMark size={22} />
+              </div>
+              <div>
+                <strong>{t("title.trafficside")}</strong>
+                <span>{t("title.trafficsub")}</span>
+              </div>
+            </div>
+
+            <h2>{t("title.login")}</h2>
+
+            <form onSubmit={handleSubmit} className="login-form">
+              <label className="login-field">
+                <span>사용자 ID</span>
+                <div className="login-input">
+                  <User size={16} />
+                  <input
+                    name="userId"
+                    placeholder="관제 계정 ID"
+                    value={form.userId}
+                    onChange={handleChange}
+                    autoComplete="username"
+                  />
+                </div>
+              </label>
+
+              <label className="login-field">
+                <span>비밀번호</span>
+                <div className="login-input">
+                  <Lock size={16} />
+                  <input
+                    name="password"
+                    placeholder="비밀번호"
+                    type={isPasswordVisible ? "text" : "password"}
+                    value={form.password}
+                    onChange={handleChange}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    className="login-eye"
+                    onClick={() => setIsPasswordVisible((value) => !value)}
+                    aria-label={isPasswordVisible ? "비밀번호 숨기기" : "비밀번호 표시"}
+                  >
+                    {isPasswordVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </label>
+
+              {errorMessage ? (
+                <p className="login-error" role="alert">
+                  <AlertCircle size={15} />
+                  {errorMessage}
+                </p>
+              ) : null}
+
+              <button type="submit" disabled={isSubmitting} className="login-submit">
+                <span>{isSubmitting ? "로그인 중..." : t("title.loginbtn")}</span>
+                <ArrowRight size={17} />
+              </button>
+            </form>
+
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
-
-const wrap = {
-  height: "100vh",
-  display: "grid",
-  placeItems: "center",
-  background: "#0b0f14",
-};
-
-const card = {
-  width: 360,
-  padding: 24,
-  borderRadius: 16,
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.1)",
-  color: "#fff",
-  display: "flex",
-  flexDirection: "column",
-  gap: 12,
-};
-
-const title = {
-  margin: 0,
-};
-
-const input = {
-  padding: 10,
-  borderRadius: 8,
-  border: "1px solid rgba(255,255,255,0.2)",
-  background: "#111",
-  color: "#fff",
-};
-
-const errorText = {
-  margin: 0,
-  fontSize: 13,
-  color: "#ff8f8f",
-};
-
-const btn = {
-  marginTop: 8,
-  padding: 10,
-  borderRadius: 8,
-  background: "#00ffb4",
-  border: "none",
-  fontWeight: 700,
-  cursor: "pointer",
-};

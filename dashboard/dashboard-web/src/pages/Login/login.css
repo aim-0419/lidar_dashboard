@@ -1,0 +1,402 @@
+/* 딥네이비 몰입형 로그인 화면 */
+
+.login-root {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--grad-navy-deep);
+  color: #fff;
+}
+
+.login-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.login-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+}
+
+.login-glow.one {
+  top: -18%;
+  left: -8%;
+  width: 46vw;
+  height: 46vw;
+  background: radial-gradient(circle, rgba(var(--blue-rgb), 0.5) 0%, rgba(var(--blue-rgb), 0) 70%);
+  animation: ops-float 20s var(--ease-in-out) infinite;
+}
+
+.login-glow.two {
+  right: -14%;
+  bottom: -22%;
+  width: 52vw;
+  height: 52vw;
+  background: radial-gradient(circle, rgba(27, 67, 112, 0.75) 0%, rgba(27, 67, 112, 0) 70%);
+  animation: ops-float 26s var(--ease-in-out) infinite reverse;
+}
+
+.login-grid {
+  position: absolute;
+  inset: 0;
+  /* 장면과 겹치면 잡음이 되므로 원래보다 더 낮춘다. */
+  opacity: 0.22;
+  background-image:
+    linear-gradient(rgba(var(--blue-300-rgb), 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--blue-300-rgb), 0.1) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 40%, #000 0%, transparent 100%);
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 40%, #000 0%, transparent 100%);
+}
+
+.login-layout {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+  align-items: center;
+  gap: 24px;
+  padding: 40px clamp(24px, 5vw, 72px);
+}
+
+/* ── 히어로 ───────────────────────────────────────────── */
+/* 스캔 장면 — 화면 전체를 덮고 나머지는 그 위에 뜬다. */
+.login-scan-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.login-hero {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: ops-rise 900ms var(--ease-out) both;
+}
+
+/* 문구가 장면 위에 바로 얹히므로, 스캔 점이 밝게 지나가도 읽히도록 뒤를 눌러 준다.
+   상자를 그리지 않고 가장자리가 녹아 사라지는 타원으로 둔다. */
+.login-hero-content {
+  position: relative;
+  padding: 22px 6px 0;
+  max-width: 620px;
+}
+
+.login-hero-content::before {
+  content: "";
+  position: absolute;
+  inset: -40px -80px -30px -60px;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    62% 58% at 34% 46%,
+    rgba(var(--navy-950-rgb), 0.82) 0%,
+    rgba(var(--navy-950-rgb), 0.55) 45%,
+    rgba(var(--navy-950-rgb), 0) 76%
+  );
+}
+
+.login-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 13px;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(var(--blue-400-rgb), 0.4);
+  background: rgba(var(--blue-rgb), 0.16);
+  color: var(--blue-300);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.login-hero-content h1 {
+  margin: 16px 0 0;
+  font-size: clamp(30px, 3.5vw, 46px);
+  font-weight: 800;
+  line-height: 1.24;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+.login-hero-content h1 em {
+  font-style: normal;
+  background: linear-gradient(120deg, #8fbbf5 0%, #3b7dd8 55%, #8fbbf5 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: ops-shimmer 6s linear infinite;
+}
+
+.login-hero-content p {
+  margin: 14px 0 0;
+  max-width: 520px;
+  color: var(--text-inv-2);
+  font-size: 14.5px;
+  line-height: 1.72;
+}
+
+/* ── 로그인 카드 ──────────────────────────────────────── */
+.login-panel {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.login-card {
+  position: relative;
+  width: min(430px, 100%);
+  padding: 34px 34px 26px;
+  border-radius: 26px;
+  border: 1px solid rgba(var(--blue-300-rgb), 0.2);
+  background: linear-gradient(165deg, rgba(21, 55, 91, 0.82) 0%, rgba(9, 27, 46, 0.88) 100%);
+  box-shadow:
+    0 50px 110px -40px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  /* 뒤로 지나가는 스캔 점이 글자에 얼비치지 않게 충분히 흐린다. */
+  backdrop-filter: blur(24px) saturate(120%);
+  overflow: hidden;
+  animation: ops-rise 900ms 120ms var(--ease-out) both;
+}
+
+.login-card-glow {
+  position: absolute;
+  top: -120px;
+  left: 50%;
+  width: 320px;
+  height: 320px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--blue-rgb), 0.4) 0%, rgba(var(--blue-rgb), 0) 70%);
+  pointer-events: none;
+}
+
+.login-brand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.login-brand-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--grad-blue);
+  color: #fff;
+  box-shadow:
+    0 12px 26px -10px rgba(var(--blue-rgb), 0.95),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.login-brand strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.login-brand span {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-inv-3);
+}
+
+.login-card h2 {
+  position: relative;
+  margin: 26px 0 0;
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: #fff;
+}
+
+.login-form {
+  position: relative;
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.login-field > span {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-inv-2);
+  letter-spacing: 0.01em;
+}
+
+.login-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 14px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(var(--blue-300-rgb), 0.2);
+  background: rgba(4, 16, 29, 0.6);
+  color: var(--text-inv-3);
+  transition:
+    border-color 200ms var(--ease-out),
+    box-shadow 200ms var(--ease-out),
+    background 200ms var(--ease-out);
+}
+
+.login-input:focus-within {
+  border-color: rgba(var(--blue-400-rgb), 0.85);
+  background: rgba(4, 16, 29, 0.85);
+  box-shadow: 0 0 0 4px rgba(var(--blue-rgb), 0.2);
+}
+
+.login-input input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.login-input input::placeholder {
+  color: #5c7691;
+}
+
+.login-eye {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-inv-3);
+  cursor: pointer;
+  transition: color 160ms var(--ease-out), background 160ms var(--ease-out);
+}
+
+.login-eye:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(var(--danger-rgb), 0.42);
+  background: rgba(var(--danger-rgb), 0.14);
+  color: #ffb9bb;
+  font-size: 12.5px;
+  font-weight: 600;
+  animation: ops-rise 300ms var(--ease-out) both;
+}
+
+.login-submit {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 6px;
+  height: 50px;
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--grad-blue);
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: var(--shadow-blue);
+  transition:
+    transform 200ms var(--ease-out),
+    box-shadow 200ms var(--ease-out),
+    filter 200ms var(--ease-out);
+}
+
+.login-submit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0) 30%,
+    rgba(255, 255, 255, 0.32) 50%,
+    rgba(255, 255, 255, 0) 70%
+  );
+  background-size: 220% 100%;
+  animation: ops-shimmer 3.6s linear infinite;
+}
+
+.login-submit svg {
+  position: relative;
+  transition: transform 220ms var(--ease-out);
+}
+
+.login-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px -14px rgba(var(--blue-rgb), 0.85);
+}
+
+.login-submit:hover:not(:disabled) svg {
+  transform: translateX(3px);
+}
+
+.login-submit:disabled {
+  cursor: progress;
+  filter: grayscale(0.35) brightness(0.85);
+}
+
+/* ── 반응형 ───────────────────────────────────────────── */
+@media (max-width: 1120px) {
+  .login-layout {
+    grid-template-columns: 1fr;
+    align-content: center;
+    gap: 32px;
+    padding: 36px 24px;
+  }
+
+  .login-hero-content {
+    padding-top: 18px;
+  }
+
+  .login-panel {
+    justify-content: stretch;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .login-card {
+    padding: 26px 22px 22px;
+  }
+}
