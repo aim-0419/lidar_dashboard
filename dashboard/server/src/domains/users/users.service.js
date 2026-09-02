@@ -15,7 +15,7 @@ function normalizeRole(role) {
 }
 
 function normalizeRoleInput(role) {
-  const normalizedRole = String(role || "SUPER_ADMIN").trim().toUpperCase();
+  const normalizedRole = String(role || "MANAGER").trim().toUpperCase();
 
   if (!ALLOWED_ROLES.includes(normalizedRole)) {
     throw createHttpError(400, `role must be one of: ${ALLOWED_ROLES.join(", ")}.`);

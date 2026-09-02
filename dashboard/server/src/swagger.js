@@ -407,7 +407,7 @@
                   userId: { type: "string", example: "manager01" },
                   name: { type: "string", example: "manager" },
                   password: { type: "string", example: "password123" },
-                  role: { type: "string", example: "SUPER_ADMIN" },
+                  role: { type: "string", example: "MANAGER" },
                   isActive: { type: "boolean", example: true },
                 },
               },

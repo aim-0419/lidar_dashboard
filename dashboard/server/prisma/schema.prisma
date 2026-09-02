@@ -11,7 +11,7 @@ model User {
   userId           String         @unique @map("user_id")
   name             String
   passwordHash     String         @map("password_hash")
-  role             String         @default("SUPER_ADMIN")
+  role             String         @default("MANAGER")
   isActive         Boolean        @default(true) @map("is_active")
   sessionVersion   Int            @default(0) @map("session_version")
   lastLoginAt      DateTime?      @map("last_login_at")

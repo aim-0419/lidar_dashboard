@@ -28,7 +28,7 @@ const initialCreateForm = {
   userId: "",
   name: "",
   password: "",
-  role: "SUPER_ADMIN",
+  role: "MANAGER",
   isActive: true,
 };
 
@@ -648,7 +648,7 @@ export default function SettingsPage() {
               </label>
               <label className="settings-field">
                 <span>권한</span>
-                <select name="role" value={createForm.role || "SUPER_ADMIN"} onChange={handleCreateChange}>
+                <select name="role" value={createForm.role || "MANAGER"} onChange={handleCreateChange}>
                   {ROLE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
