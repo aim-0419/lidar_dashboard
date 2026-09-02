@@ -21,6 +21,11 @@ export async function getEventZones(options = {}) {
   return response.data?.zones || [];
 }
 
+export async function getEventDetail(eventId, options = {}) {
+  const response = await getJson(`/api/events/${eventId}`, options);
+  return response.data?.event || null;
+}
+
 export async function updateEventStatus(eventId, payload) {
   const response = await patchJson(`/api/events/${eventId}/status`, payload);
   return response.data;
