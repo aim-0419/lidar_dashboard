@@ -1,10 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import {
+  AlertCircle,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Lock,
+  Radar,
+  User,
+} from "lucide-react";
 import { useAuth } from "../../context/useAuth";
 import { useLanguage } from "../../context/useLanguage";
+import { LoginScanField } from "../../features/auth/components/LoginScanField";
+import { BrandMark } from "../../shared/components/BrandMark";
 import "./login.css";
-
-const LOGIN_BACKGROUND_VIDEO_SRC = "/videos/login-background.mp4";
 
 export default function LoginPage() {
   const { login, isLoggedIn, isInitializing } = useAuth();
@@ -18,6 +27,7 @@ export default function LoginPage() {
   });
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   const redirectPath = location.state?.from?.pathname || "/";
 
@@ -55,70 +65,109 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="login-page">
-      <div className="login-page__media" aria-hidden="true">
-        <video
-          className="login-page__video"
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="auto"
-        >
-          <source src={LOGIN_BACKGROUND_VIDEO_SRC} type="video/mp4" />
-        </video>
-        <div className="login-page__video-fallback" />
-        <div className="login-page__overlay" />
-        <div className="login-page__grid" />
-        <div className="login-page__scan login-page__scan--primary" />
-        <div className="login-page__scan login-page__scan--secondary" />
-        <div className="login-page__ring login-page__ring--one" />
-        <div className="login-page__ring login-page__ring--two" />
-        <div className="login-page__glow login-page__glow--left" />
-        <div className="login-page__glow login-page__glow--right" />
+    <div className="login-root">
+      <div className="login-backdrop" aria-hidden="true">
+        <span className="login-glow one" />
+        <span className="login-glow two" />
+        <span className="login-grid" />
       </div>
 
-      <main className="login-page__content">
+      <LoginScanField />
+
+      <div className="login-layout">
+        {/* 좌측: 라이다 스캔 3D 연출 히어로 */}
+        <section className="login-hero">
+          <div className="login-hero-content">
+            <div className="login-badge">
+              <Radar size={14} />
+              LiDAR WRONG-WAY PREVENTION
+            </div>
+            <h1>
+              회전교차로의 <em>역주행</em>을
+              <br />
+              실시간으로 잡아냅니다
+            </h1>
+            <p>
+              라이다 다중 객체 payload를 실시간으로 해석해 역주행·보행자 진입을 감지하고,
+              전광판과 차단기까지 한 화면에서 관제합니다.
+            </p>
+          </div>
+        </section>
+
+        {/* 우측: 인증 패널 */}
         <section className="login-panel">
-          <h3 className="login-panel__title">관리자 로그인</h3>
+          <div className="login-card">
+            <div className="login-card-glow" aria-hidden="true" />
 
-          <form className="login-panel__form" onSubmit={handleSubmit}>
-            <label className="login-panel__field">
-              <span className="login-panel__label">ID</span>
-              <input
-                name="userId"
-                placeholder="id"
-                value={form.userId}
-                onChange={handleChange}
-                className="login-panel__input"
-                autoComplete="username"
-              />
-            </label>
+            <div className="login-brand">
+              <div className="login-brand-icon">
+                <BrandMark size={22} />
+              </div>
+              <div>
+                <strong>{t("title.trafficside")}</strong>
+                <span>{t("title.trafficsub")}</span>
+              </div>
+            </div>
 
-            <label className="login-panel__field">
-              <span className="login-panel__label">비밀번호</span>
-              <input
-                name="password"
-                placeholder="password"
-                type="password"
-                value={form.password}
-                onChange={handleChange}
-                className="login-panel__input"
-                autoComplete="current-password"
-              />
-            </label>
+            <h2>{t("title.login")}</h2>
 
-            {errorMessage ? <p className="login-panel__error">{errorMessage}</p> : null}
+            <form onSubmit={handleSubmit} className="login-form">
+              <label className="login-field">
+                <span>사용자 ID</span>
+                <div className="login-input">
+                  <User size={16} />
+                  <input
+                    name="userId"
+                    placeholder="관제 계정 ID"
+                    value={form.userId}
+                    onChange={handleChange}
+                    autoComplete="username"
+                  />
+                </div>
+              </label>
 
-            <button type="submit" disabled={isSubmitting} className="login-panel__submit">
-              {isSubmitting ? "로그인 중..." : t("title.loginbtn")}
-            </button>
-            <Link to="/signup-request" className="login-panel__signup-link">
+              <label className="login-field">
+                <span>비밀번호</span>
+                <div className="login-input">
+                  <Lock size={16} />
+                  <input
+                    name="password"
+                    placeholder="비밀번호"
+                    type={isPasswordVisible ? "text" : "password"}
+                    value={form.password}
+                    onChange={handleChange}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    className="login-eye"
+                    onClick={() => setIsPasswordVisible((value) => !value)}
+                    aria-label={isPasswordVisible ? "비밀번호 숨기기" : "비밀번호 표시"}
+                  >
+                    {isPasswordVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </label>
+
+              {errorMessage ? (
+                <p className="login-error" role="alert">
+                  <AlertCircle size={15} />
+                  {errorMessage}
+                </p>
+              ) : null}
+
+              <button type="submit" disabled={isSubmitting} className="login-submit">
+                <span>{isSubmitting ? "로그인 중..." : t("title.loginbtn")}</span>
+                <ArrowRight size={17} />
+              </button>
+            </form>
+
+            <Link to="/signup-request" className="login-signup">
               관리자 계정 가입 신청
             </Link>
-          </form>
+          </div>
         </section>
-      </main>
+      </div>
     </div>
   );
 }
