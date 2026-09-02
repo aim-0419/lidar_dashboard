@@ -789,6 +789,23 @@
               },
             },
           },
+          429: {
+            description: "비밀번호 확인 요청 횟수 초과",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: {
+                      type: "string",
+                      example: "비밀번호 확인 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -886,6 +903,23 @@
                   properties: {
                     ok: { type: "boolean", example: false },
                     message: { type: "string", example: "You can only change your own password." },
+                  },
+                },
+              },
+            },
+          },
+          429: {
+            description: "비밀번호 확인 요청 횟수 초과",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: {
+                      type: "string",
+                      example: "비밀번호 확인 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+                    },
                   },
                 },
               },
