@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import {
   CircleHelp,
   Eye,
@@ -10,7 +10,7 @@ import {
   UserPlus,
   UserX,
 } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 import {
   createUserRequest,
   deactivateUserRequest,
@@ -149,10 +149,16 @@ export default function SettingsPage() {
   const newPasswordMismatchMessage = isNewPasswordMismatch
     ? "입력한 새 비밀번호가 일치하지 않습니다."
     : "";
+  const loadUsersOnRoleChange = useEffectEvent(() => {
+    void loadUsers();
+  });
+  const loadUserDetailOnSelectionChange = useEffectEvent((id) => {
+    void loadUserDetail(id);
+  });
 
   useEffect(() => {
     if (isSuperAdmin) {
-      void loadUsers();
+      loadUsersOnRoleChange();
       return;
     }
 
@@ -162,7 +168,7 @@ export default function SettingsPage() {
 
     setUsers([]);
     setSelectedUserId(user.id);
-    void loadUserDetail(user.id);
+    loadUserDetailOnSelectionChange(user.id);
   }, [isSuperAdmin, user?.id]);
 
   useEffect(() => {
@@ -170,7 +176,7 @@ export default function SettingsPage() {
       return;
     }
 
-    void loadUserDetail(selectedUserId);
+    loadUserDetailOnSelectionChange(selectedUserId);
   }, [isSuperAdmin, selectedUserId]);
 
   useEffect(() => {
@@ -512,17 +518,6 @@ export default function SettingsPage() {
     setErrorMessage("");
     setSuccessMessage("");
     setIsCreateModalOpen(true);
-  }
-
-  function openManageModal() {
-    if (!selectedUserId) {
-      setErrorMessage("먼저 사용자 목록에서 계정을 선택해 주세요.");
-      return;
-    }
-
-    setErrorMessage("");
-    setSuccessMessage("");
-    setIsManageModalOpen(true);
   }
 
   function closeCreateModal() {
