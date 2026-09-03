@@ -326,16 +326,43 @@ async function listSignupRequests({ status, page, limit }) {
 }
 
 async function approveSignupRequest({ id, reviewerId }) {
-  const request = await findSignupRequestById(id);
-  ensurePendingStatus(request);
-
-  if (!request.passwordHash) {
-    throw createHttpError(409, "Approval requires a pending password hash.");
-  }
-
   try {
-    const [, approvedRequest] = await prisma.$transaction([
-      prisma.user.create({
+    const approvedRequest = await prisma.$transaction(async (tx) => {
+      const request = await tx.signupRequest.findUnique({
+        where: { id },
+        select: getSignupRequestInternalSelect(),
+      });
+
+      if (!request) {
+        throw createHttpError(404, "가입 신청 정보를 찾을 수 없습니다.");
+      }
+
+      ensurePendingStatus(request);
+
+      if (!request.passwordHash) {
+        throw createHttpError(409, "승인할 가입 신청 비밀번호 정보가 없습니다.");
+      }
+
+      const reviewedAt = new Date();
+      const claimResult = await tx.signupRequest.updateMany({
+        where: {
+          id,
+          status: SIGNUP_REQUEST_STATUS.PENDING,
+        },
+        data: {
+          status: SIGNUP_REQUEST_STATUS.APPROVED,
+          reviewedByUserId: reviewerId,
+          reviewedAt,
+          rejectReason: null,
+          passwordHash: null,
+        },
+      });
+
+      if (claimResult.count !== 1) {
+        throw createHttpError(409, "이미 처리된 가입 신청입니다.");
+      }
+
+      await tx.user.create({
         data: {
           userId: request.userId,
           name: request.name,
@@ -345,19 +372,9 @@ async function approveSignupRequest({ id, reviewerId }) {
           role: request.requestedRole,
           isActive: true,
         },
-      }),
-      prisma.signupRequest.update({
-        where: { id },
-        data: {
-          status: SIGNUP_REQUEST_STATUS.APPROVED,
-          reviewedByUserId: reviewerId,
-          reviewedAt: new Date(),
-          rejectReason: null,
-          passwordHash: null,
-        },
-        select: getSignupRequestSelect(),
-      }),
-      prisma.eventLog.create({
+      });
+
+      await tx.eventLog.create({
         data: {
           userId: reviewerId,
           action: "SIGNUP_REQUEST_APPROVED",
@@ -367,8 +384,13 @@ async function approveSignupRequest({ id, reviewerId }) {
             requestedUserId: request.userId,
           },
         },
-      }),
-    ]);
+      });
+
+      return tx.signupRequest.findUnique({
+        where: { id },
+        select: getSignupRequestSelect(),
+      });
+    });
 
     return serializeSignupRequest(approvedRequest);
   } catch (error) {
@@ -377,15 +399,26 @@ async function approveSignupRequest({ id, reviewerId }) {
 }
 
 async function rejectSignupRequest({ id, reviewerId, rejectReason }) {
-  const request = await findSignupRequestById(id);
-  ensurePendingStatus(request);
-
   const normalizedRejectReason =
     typeof rejectReason === "string" && rejectReason.trim() !== "" ? rejectReason.trim() : null;
 
-  const [rejectedRequest] = await prisma.$transaction([
-    prisma.signupRequest.update({
+  const rejectedRequest = await prisma.$transaction(async (tx) => {
+    const request = await tx.signupRequest.findUnique({
       where: { id },
+      select: getSignupRequestInternalSelect(),
+    });
+
+    if (!request) {
+      throw createHttpError(404, "가입 신청 정보를 찾을 수 없습니다.");
+    }
+
+    ensurePendingStatus(request);
+
+    const claimResult = await tx.signupRequest.updateMany({
+      where: {
+        id,
+        status: SIGNUP_REQUEST_STATUS.PENDING,
+      },
       data: {
         status: SIGNUP_REQUEST_STATUS.REJECTED,
         reviewedByUserId: reviewerId,
@@ -393,9 +426,13 @@ async function rejectSignupRequest({ id, reviewerId, rejectReason }) {
         rejectReason: normalizedRejectReason,
         passwordHash: null,
       },
-      select: getSignupRequestSelect(),
-    }),
-    prisma.eventLog.create({
+    });
+
+    if (claimResult.count !== 1) {
+      throw createHttpError(409, "이미 처리된 가입 신청입니다.");
+    }
+
+    await tx.eventLog.create({
       data: {
         userId: reviewerId,
         action: "SIGNUP_REQUEST_REJECTED",
@@ -406,36 +443,63 @@ async function rejectSignupRequest({ id, reviewerId, rejectReason }) {
           rejectReason: normalizedRejectReason,
         },
       },
-    }),
-  ]);
+    });
+
+    return tx.signupRequest.findUnique({
+      where: { id },
+      select: getSignupRequestSelect(),
+    });
+  });
 
   return serializeSignupRequest(rejectedRequest);
 }
 
-async function cancelSignupRequest({ id, userId, phoneNumber }) {
-  if (isBlank(userId) || isBlank(phoneNumber)) {
-    throw createHttpError(400, "userId와 phoneNumber를 모두 입력해야 합니다.");
+async function cancelSignupRequest({ id, userId, password }) {
+  if (isBlank(userId) || isBlank(password)) {
+    throw createHttpError(400, "userId와 password를 모두 입력해야 합니다.");
   }
 
-  const request = await findSignupRequestById(id);
-  ensurePendingStatus(request);
+  const cancelledRequest = await prisma.$transaction(async (tx) => {
+    const request = await tx.signupRequest.findUnique({
+      where: { id },
+      select: getSignupRequestInternalSelect(),
+    });
 
-  if (request.userId !== String(userId).trim()) {
-    throw createHttpError(403, "본인 가입 신청만 취소할 수 있습니다.");
-  }
+    if (!request) {
+      throw createHttpError(404, "가입 신청 정보를 찾을 수 없습니다.");
+    }
 
-  if (request.phoneNumber !== normalizePhoneNumber(phoneNumber)) {
-    throw createHttpError(403, "본인 가입 신청만 취소할 수 있습니다.");
-  }
+    ensurePendingStatus(request);
 
-  const cancelledRequest = await prisma.signupRequest.update({
-    where: { id },
-    data: {
-      status: SIGNUP_REQUEST_STATUS.CANCELLED,
-      cancelledAt: new Date(),
-      passwordHash: null,
-    },
-    select: getSignupRequestSelect(),
+    if (request.userId !== String(userId).trim() || !request.passwordHash) {
+      throw createHttpError(401, "가입 신청 정보를 확인할 수 없습니다.");
+    }
+
+    const isPasswordMatched = await bcrypt.compare(password, request.passwordHash);
+    if (!isPasswordMatched) {
+      throw createHttpError(401, "가입 신청 정보를 확인할 수 없습니다.");
+    }
+
+    const claimResult = await tx.signupRequest.updateMany({
+      where: {
+        id,
+        status: SIGNUP_REQUEST_STATUS.PENDING,
+      },
+      data: {
+        status: SIGNUP_REQUEST_STATUS.CANCELLED,
+        cancelledAt: new Date(),
+        passwordHash: null,
+      },
+    });
+
+    if (claimResult.count !== 1) {
+      throw createHttpError(409, "이미 처리된 가입 신청입니다.");
+    }
+
+    return tx.signupRequest.findUnique({
+      where: { id },
+      select: getSignupRequestSelect(),
+    });
   });
 
   return serializeSignupRequest(cancelledRequest);
