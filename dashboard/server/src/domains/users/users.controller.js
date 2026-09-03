@@ -90,6 +90,7 @@ async function createUser(req, res) {
       password: req.body?.password,
       role: req.body?.role,
       isActive: req.body?.isActive,
+      requesterId: req.user?.id,
     });
 
     res.status(201).json({

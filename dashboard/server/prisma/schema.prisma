@@ -19,6 +19,8 @@ model User {
   updatedAt        DateTime       @updatedAt @map("updated_at")
   eventLogs        EventLog[]
   refreshTokens    RefreshToken[]
+  auditActions     UserAuditLog[] @relation("UserAuditActor")
+  auditTargets     UserAuditLog[] @relation("UserAuditTarget")
 
   @@map("users")
 }
@@ -310,4 +312,22 @@ model EventLog {
   @@index([action])
   @@index([createdAt])
   @@map("event_logs")
+}
+
+model UserAuditLog {
+  id           String   @id @default(cuid())
+  actorUserId  String?  @map("actor_user_id")
+  targetUserId String?  @map("target_user_id")
+  action       String
+  beforeData   Json?    @map("before_data")
+  afterData    Json?    @map("after_data")
+  createdAt    DateTime @default(now()) @map("created_at")
+  actor        User?    @relation("UserAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  target       User?    @relation("UserAuditTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([targetUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("user_audit_logs")
 }

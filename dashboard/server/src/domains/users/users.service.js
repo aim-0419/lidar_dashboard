@@ -39,6 +39,27 @@ function serializeUser(user) {
   };
 }
 
+function createUserAuditSnapshot(user) {
+  return {
+    userId: user.userId,
+    name: user.name,
+    role: user.role,
+    isActive: user.isActive,
+  };
+}
+
+async function createUserAuditLog(tx, { actorUserId, targetUserId, action, beforeData, afterData }) {
+  await tx.userAuditLog.create({
+    data: {
+      actorUserId: actorUserId || null,
+      targetUserId,
+      action,
+      beforeData,
+      afterData,
+    },
+  });
+}
+
 function isBlank(value) {
   return typeof value !== "string" || value.trim() === "";
 }
@@ -138,7 +159,7 @@ async function getUserDetail({ id }) {
   return findSerializedUserById(id);
 }
 
-async function createUser({ userId, name, password, role, isActive }) {
+async function createUser({ userId, name, password, role, isActive, requesterId }) {
   if (isBlank(userId) || isBlank(name) || isBlank(password)) {
     throw createHttpError(400, "userId, name, and password are required.");
   }
@@ -155,18 +176,29 @@ async function createUser({ userId, name, password, role, isActive }) {
   };
 
   try {
-    const user = await prisma.user.create({
-      data: userData,
-      select: {
-        id: true,
-        userId: true,
-        name: true,
-        role: true,
-        isActive: true,
-        lastLoginAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: userData,
+        select: {
+          id: true,
+          userId: true,
+          name: true,
+          role: true,
+          isActive: true,
+          lastLoginAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      await createUserAuditLog(tx, {
+        actorUserId: requesterId,
+        targetUserId: createdUser.id,
+        action: "USER_CREATED",
+        afterData: createUserAuditSnapshot(createdUser),
+      });
+
+      return createdUser;
     });
 
     return serializeUser(user);
@@ -229,11 +261,9 @@ async function updateUser({ id, userId, name, role, isActive, requesterId, reque
   const shouldDeactivateUser = existingUser.isActive && nextIsActive === false;
 
   try {
-    let user;
-
-    if (shouldDeactivateUser) {
-      const [, updatedUser] = await prisma.$transaction([
-        prisma.refreshToken.updateMany({
+    const user = await prisma.$transaction(async (tx) => {
+      if (shouldDeactivateUser) {
+        await tx.refreshToken.updateMany({
           where: {
             userId: id,
             revokedAt: null,
@@ -241,34 +271,20 @@ async function updateUser({ id, userId, name, role, isActive, requesterId, reque
           data: {
             revokedAt: new Date(),
           },
-        }),
-        prisma.user.update({
-          where: { id },
-          data: {
-            ...data,
-            isActive: false,
-            sessionVersion: {
-              increment: 1,
-            },
-          },
-          select: {
-            id: true,
-            userId: true,
-            name: true,
-            role: true,
-            isActive: true,
-            lastLoginAt: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        }),
-      ]);
+        });
+      }
 
-      user = updatedUser;
-    } else {
-      user = await prisma.user.update({
+      const updatedUser = await tx.user.update({
         where: { id },
-        data,
+        data: shouldDeactivateUser
+          ? {
+              ...data,
+              isActive: false,
+              sessionVersion: {
+                increment: 1,
+              },
+            }
+          : data,
         select: {
           id: true,
           userId: true,
@@ -280,7 +296,17 @@ async function updateUser({ id, userId, name, role, isActive, requesterId, reque
           updatedAt: true,
         },
       });
-    }
+
+      await createUserAuditLog(tx, {
+        actorUserId: requesterId,
+        targetUserId: updatedUser.id,
+        action: shouldDeactivateUser ? "USER_DEACTIVATED" : "USER_UPDATED",
+        beforeData: createUserAuditSnapshot(existingUser),
+        afterData: createUserAuditSnapshot(updatedUser),
+      });
+
+      return updatedUser;
+    });
 
     return serializeUser(user);
   } catch (error) {
@@ -289,14 +315,14 @@ async function updateUser({ id, userId, name, role, isActive, requesterId, reque
 }
 
 async function deactivateUser({ id, requesterId }) {
-  await findUserRecordById(id);
+  const existingUser = await findUserRecordById(id);
 
   if (requesterId === id) {
     throw createHttpError(403, "You cannot deactivate your own account.");
   }
 
-  const [, user] = await prisma.$transaction([
-    prisma.refreshToken.updateMany({
+  const user = await prisma.$transaction(async (tx) => {
+    await tx.refreshToken.updateMany({
       where: {
         userId: id,
         revokedAt: null,
@@ -304,8 +330,9 @@ async function deactivateUser({ id, requesterId }) {
       data: {
         revokedAt: new Date(),
       },
-    }),
-    prisma.user.update({
+    });
+
+    const updatedUser = await tx.user.update({
       where: { id },
       data: {
         isActive: false,
@@ -323,8 +350,18 @@ async function deactivateUser({ id, requesterId }) {
         createdAt: true,
         updatedAt: true,
       },
-    }),
-  ]);
+    });
+
+    await createUserAuditLog(tx, {
+      actorUserId: requesterId,
+      targetUserId: updatedUser.id,
+      action: "USER_DEACTIVATED",
+      beforeData: createUserAuditSnapshot(existingUser),
+      afterData: createUserAuditSnapshot(updatedUser),
+    });
+
+    return updatedUser;
+  });
 
   return serializeUser(user);
 }
@@ -392,8 +429,8 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
 
-  const [, user] = await prisma.$transaction([
-    prisma.refreshToken.updateMany({
+  const user = await prisma.$transaction(async (tx) => {
+    await tx.refreshToken.updateMany({
       where: {
         userId: id,
         revokedAt: null,
@@ -401,8 +438,9 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
       data: {
         revokedAt: new Date(),
       },
-    }),
-    prisma.user.update({
+    });
+
+    const updatedUser = await tx.user.update({
       where: { id },
       data: {
         passwordHash,
@@ -420,8 +458,17 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
         createdAt: true,
         updatedAt: true,
       },
-    }),
-  ]);
+    });
+
+    await createUserAuditLog(tx, {
+      actorUserId: requesterId,
+      targetUserId: updatedUser.id,
+      action: "USER_PASSWORD_CHANGED",
+      afterData: { sessionInvalidated: true },
+    });
+
+    return updatedUser;
+  });
 
   return serializeUser(user);
 }
@@ -453,8 +500,8 @@ async function resetUserPassword({ id, requesterId, newPassword }) {
   const passwordHash = await bcrypt.hash(newPassword, 10);
 
   // 초기화한 계정의 기존 로그인 세션을 모두 무효화한다.
-  const [, user] = await prisma.$transaction([
-    prisma.refreshToken.updateMany({
+  const user = await prisma.$transaction(async (tx) => {
+    await tx.refreshToken.updateMany({
       where: {
         userId: id,
         revokedAt: null,
@@ -462,8 +509,9 @@ async function resetUserPassword({ id, requesterId, newPassword }) {
       data: {
         revokedAt: new Date(),
       },
-    }),
-    prisma.user.update({
+    });
+
+    const updatedUser = await tx.user.update({
       where: { id },
       data: {
         passwordHash,
@@ -481,8 +529,17 @@ async function resetUserPassword({ id, requesterId, newPassword }) {
         createdAt: true,
         updatedAt: true,
       },
-    }),
-  ]);
+    });
+
+    await createUserAuditLog(tx, {
+      actorUserId: requesterId,
+      targetUserId: updatedUser.id,
+      action: "USER_PASSWORD_RESET",
+      afterData: { sessionInvalidated: true },
+    });
+
+    return updatedUser;
+  });
 
   return serializeUser(user);
 }
