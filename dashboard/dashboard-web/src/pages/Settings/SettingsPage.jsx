@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   CircleHelp,
   Eye,
@@ -90,6 +90,7 @@ export default function SettingsPage() {
   const [isActivateConfirmOpen, setIsActivateConfirmOpen] = useState(false);
   const [isDeactivateConfirmOpen, setIsDeactivateConfirmOpen] = useState(false);
   const [users, setUsers] = useState([]);
+  const listRequestId = useRef(0);
   const [userSearchKeyword, setUserSearchKeyword] = useState("");
   const [userStatusFilter, setUserStatusFilter] = useState("ALL");
   const [userPage, setUserPage] = useState(1);
@@ -106,6 +107,7 @@ export default function SettingsPage() {
   });
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
+  const detailRequestId = useRef(0);
   const [createForm, setCreateForm] = useState(initialCreateForm);
   const [editForm, setEditForm] = useState(initialEditForm);
   const [passwordForm, setPasswordForm] = useState(initialPasswordForm);
@@ -153,6 +155,9 @@ export default function SettingsPage() {
       confirmNewPasswordValue.trim()
   );
   const isManagingOwnAccount = selectedUserId === user?.id;
+  const canManageSelectedUser = Boolean(
+    !isDetailLoading && selectedUser && selectedUser.id === selectedUserId
+  );
   const isCurrentPasswordVerified = passwordVerifyMessage === "기존 비밀번호가 확인되었습니다.";
   const visibleUsers = isSuperAdmin ? users : selectedUser ? [selectedUser] : [];
   const visibleUserCount = isSuperAdmin ? userSummary.totalCount : visibleUsers.length;
@@ -200,7 +205,9 @@ export default function SettingsPage() {
   useEffect(() => {
     if (isSuperAdmin) {
       loadUsersOnRoleChange();
-      return;
+      return () => {
+        listRequestId.current += 1;
+      };
     }
 
     if (!user?.id) {
@@ -209,16 +216,19 @@ export default function SettingsPage() {
 
     setUsers([]);
     setSelectedUserId(user.id);
-    loadUserDetailOnSelectionChange(user.id);
   }, [isSuperAdmin, user?.id]);
 
   useEffect(() => {
-    if (!selectedUserId || !isSuperAdmin) {
+    if (!selectedUserId || (isSuperAdmin && !isManageModalOpen)) {
       return;
     }
 
     loadUserDetailOnSelectionChange(selectedUserId);
-  }, [isSuperAdmin, selectedUserId]);
+    return () => {
+      // 모달을 닫거나 선택을 바꾸면 이전 상세 응답을 무효화한다.
+      detailRequestId.current += 1;
+    };
+  }, [isSuperAdmin, isManageModalOpen, selectedUserId]);
 
   useEffect(() => {
     if (!manageToastMessage) {
@@ -275,25 +285,47 @@ export default function SettingsPage() {
     isUpdating,
   ]);
 
-  async function loadUsers(nextSelectedUserId, options = {}) {
+  // 목록 필터와 페이지 변경은 모달의 수정 대상 계정을 바꾸지 않는다.
+  async function loadUsers(options = {}) {
+    const requestId = ++listRequestId.current;
     setIsListLoading(true);
     setErrorMessage("");
 
     try {
       const nextPage = options.page ?? userPage;
       const nextStatusFilter = options.statusFilter ?? userStatusFilter;
-      const response = await fetchUsers({
+      let query = {
         page: nextPage,
         limit: 20,
         keyword: options.keyword ?? userSearchKeyword.trim(),
         ...(nextStatusFilter === "ACTIVE" ? { isActive: true } : {}),
         ...(nextStatusFilter === "INACTIVE" ? { isActive: false } : {}),
-      });
+      };
+      let response = await fetchUsers(query);
+      if (requestId !== listRequestId.current) {
+        return;
+      }
+
+      // 삭제·비활성화로 마지막 페이지가 사라지면 같은 필터로 한 번만 보정한다.
+      const lastPage = Math.max(1, response.pagination?.totalPages ?? 1);
+      if (response.pagination && (response.pagination.page ?? query.page) > lastPage) {
+        query = { ...query, page: lastPage };
+        response = await fetchUsers(query);
+        if (requestId !== listRequestId.current) {
+          return;
+        }
+
+        const correctedLastPage = Math.max(1, response.pagination?.totalPages ?? 1);
+        if ((response.pagination?.page ?? query.page) > correctedLastPage) {
+          throw new Error("사용자 목록이 다시 변경되었습니다. 다시 조회해 주세요.");
+        }
+      }
+
       const nextUsers = response.users || [];
       setUsers(nextUsers);
       setUserPagination(
         response.pagination || {
-          page: nextPage,
+          page: query.page,
           limit: 20,
           totalPages: 1,
           totalItems: nextUsers.length,
@@ -306,23 +338,25 @@ export default function SettingsPage() {
           inactiveCount: nextUsers.filter((item) => !item.isActive).length,
         },
       );
-      setUserPage(response.pagination?.page || nextPage);
-
-      const preferredId = nextSelectedUserId || selectedUserId;
-      const selectedExists = nextUsers.some((item) => item.id === preferredId);
-      const fallbackId = nextUsers[0]?.id || "";
-      setSelectedUserId(selectedExists ? preferredId : fallbackId);
+      setUserPage(response.pagination?.page || query.page);
     } catch (error) {
+      if (requestId !== listRequestId.current) {
+        return;
+      }
       setErrorMessage(error.message || "사용자 목록을 불러오지 못했습니다.");
     } finally {
-      setIsListLoading(false);
+      if (requestId === listRequestId.current) {
+        setIsListLoading(false);
+      }
     }
   }
 
   async function loadUserDetail(id) {
+    const requestId = ++detailRequestId.current;
+    setSelectedUser(null);
     if (!id) {
-      setSelectedUser(null);
       setEditForm(initialEditForm);
+      setIsDetailLoading(false);
       return;
     }
 
@@ -331,6 +365,12 @@ export default function SettingsPage() {
 
     try {
       const nextUser = isSuperAdmin ? (await fetchUserDetail(id)).user : await fetchMyProfile();
+      if (requestId !== detailRequestId.current) {
+        return;
+      }
+      if (!nextUser || nextUser.id !== id) {
+        throw new Error("선택한 사용자의 상세 정보를 확인할 수 없습니다.");
+      }
       setSelectedUser(nextUser);
       setEditForm({
         userId: nextUser.userId || "",
@@ -348,10 +388,15 @@ export default function SettingsPage() {
       setShowNewPassword(false);
       setShowResetPassword(false);
     } catch (error) {
+      if (requestId !== detailRequestId.current) {
+        return;
+      }
       setSelectedUser(null);
       setErrorMessage(error.message || "사용자 상세 정보를 불러오지 못했습니다.");
     } finally {
-      setIsDetailLoading(false);
+      if (requestId === detailRequestId.current) {
+        setIsDetailLoading(false);
+      }
     }
   }
 
@@ -381,14 +426,14 @@ export default function SettingsPage() {
   function handleUserSearchSubmit(event) {
     event.preventDefault();
     setUserPage(1);
-    void loadUsers(undefined, { page: 1 });
+    void loadUsers({ page: 1 });
   }
 
   function handleUserStatusFilterChange(event) {
     const nextStatusFilter = event.target.value;
     setUserStatusFilter(nextStatusFilter);
     setUserPage(1);
-    void loadUsers(undefined, { page: 1, statusFilter: nextStatusFilter });
+    void loadUsers({ page: 1, statusFilter: nextStatusFilter });
   }
 
   function handleUserPageChange(nextPage) {
@@ -397,7 +442,7 @@ export default function SettingsPage() {
     }
 
     setUserPage(nextPage);
-    void loadUsers(undefined, { page: nextPage });
+    void loadUsers({ page: nextPage });
   }
 
   function handlePasswordChange(event) {
@@ -432,7 +477,7 @@ export default function SettingsPage() {
   }
 
   async function handleVerifyCurrentPassword() {
-    if (!selectedUserId) {
+    if (!canManageSelectedUser) {
       return;
     }
 
@@ -456,6 +501,8 @@ export default function SettingsPage() {
         error.message === "currentPassword is required."
       ) {
         setPasswordErrorMessage("기존 비밀번호가 일치하지 않습니다.");
+      } else if (error.status === 429) {
+        setPasswordErrorMessage("비밀번호 확인 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.");
       } else {
         setPasswordErrorMessage("기존 비밀번호를 확인하지 못했습니다.");
       }
@@ -486,7 +533,7 @@ export default function SettingsPage() {
     setSuccessMessage("");
 
     try {
-      const response = await createUserRequest({
+      await createUserRequest({
         userId: nextUserId,
         name: nextName,
         password: nextPassword,
@@ -497,10 +544,7 @@ export default function SettingsPage() {
       setCreateForm(initialCreateForm);
       setSuccessMessage("사용자를 생성했습니다.");
       setIsCreateModalOpen(false);
-      await loadUsers(response.user?.id);
-      if (response.user?.id) {
-        await loadUserDetail(response.user.id);
-      }
+      await loadUsers();
     } catch (error) {
       setCreateErrorMessage(error.message || "필수 입력값을 확인한 뒤 다시 시도해 주세요.");
     } finally {
@@ -510,7 +554,7 @@ export default function SettingsPage() {
 
   async function handleUpdateUser(event) {
     event.preventDefault();
-    if (!selectedUserId) {
+    if (!canManageSelectedUser) {
       return;
     }
 
@@ -537,7 +581,7 @@ export default function SettingsPage() {
 
       // 사용자 목록 API는 최고 관리자 전용이므로 본인 수정 후에는 호출하지 않는다.
       if (isSuperAdmin) {
-        await loadUsers(response.user?.id || selectedUserId);
+        await loadUsers();
       }
       await loadUserDetail(response.user?.id || selectedUserId);
       setManageToastMessage("저장 완료됐습니다.");
@@ -550,7 +594,7 @@ export default function SettingsPage() {
 
   async function handleUpdatePassword(event) {
     event.preventDefault();
-    if (!selectedUserId) {
+    if (!canManageSelectedUser) {
       return;
     }
 
@@ -607,6 +651,8 @@ export default function SettingsPage() {
         setPasswordErrorMessage("기존 비밀번호와 새 비밀번호를 모두 입력해 주세요.");
       } else if (error.message === "New password must be different from current password.") {
         setPasswordErrorMessage("기존 비밀번호와 같은 비밀번호로 설정할 수 없습니다.");
+      } else if (error.status === 429) {
+        setPasswordErrorMessage("비밀번호 확인 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.");
       } else {
         setPasswordErrorMessage("사용자 비밀번호를 변경하지 못했습니다.");
       }
@@ -616,7 +662,7 @@ export default function SettingsPage() {
   }
 
   async function handleDeactivateUser() {
-    if (!selectedUserId || !selectedUser) {
+    if (!canManageSelectedUser) {
       return;
     }
 
@@ -625,12 +671,11 @@ export default function SettingsPage() {
     setSuccessMessage("");
 
     try {
-      const response = await deactivateUserRequest(selectedUserId);
+      await deactivateUserRequest(selectedUserId);
       setSuccessMessage("사용자를 비활성화했습니다.");
       setIsDeactivateConfirmOpen(false);
       setIsManageModalOpen(false);
-      await loadUsers(response.user?.id || selectedUserId);
-      await loadUserDetail(response.user?.id || selectedUserId);
+      await loadUsers();
     } catch (error) {
       setErrorMessage(error.message || "사용자를 비활성화하지 못했습니다.");
     } finally {
@@ -641,7 +686,7 @@ export default function SettingsPage() {
   async function handleResetUserPassword(event) {
     event.preventDefault();
 
-    if (!selectedUserId || !isSuperAdmin || isManagingOwnAccount) {
+    if (!canManageSelectedUser || !isSuperAdmin || isManagingOwnAccount) {
       return;
     }
 
@@ -677,7 +722,7 @@ export default function SettingsPage() {
   }
 
   async function handleActivateUser() {
-    if (!selectedUserId || !selectedUser) {
+    if (!canManageSelectedUser) {
       return;
     }
 
@@ -686,15 +731,14 @@ export default function SettingsPage() {
     setSuccessMessage("");
 
     try {
-      const response = await updateUserRequest(selectedUserId, {
+      await updateUserRequest(selectedUserId, {
         isActive: true,
       });
 
       setSuccessMessage("사용자를 활성화했습니다.");
       setIsActivateConfirmOpen(false);
       setIsManageModalOpen(false);
-      await loadUsers(response.user?.id || selectedUserId);
-      await loadUserDetail(response.user?.id || selectedUserId);
+      await loadUsers();
     } catch (error) {
       setErrorMessage(error.message || "사용자를 활성화하지 못했습니다.");
     } finally {
@@ -749,8 +793,18 @@ export default function SettingsPage() {
     setIsDeactivateConfirmOpen(false);
   }
 
+  function openManageModal(id) {
+    detailRequestId.current += 1;
+    setSelectedUser(null);
+    setIsDetailLoading(true);
+    setSelectedUserId(id);
+    setErrorMessage("");
+    setSuccessMessage("");
+    setIsManageModalOpen(true);
+  }
+
   function openActivateConfirmModal() {
-    if (selectedUser?.isActive || isActivating || isDeactivating) {
+    if (!canManageSelectedUser || selectedUser?.isActive || isActivating || isDeactivating) {
       return;
     }
 
@@ -766,7 +820,7 @@ export default function SettingsPage() {
   }
 
   function openDeactivateConfirmModal() {
-    if (!selectedUser?.isActive || isActivating || isDeactivating) {
+    if (!canManageSelectedUser || !selectedUser?.isActive || isActivating || isDeactivating) {
       return;
     }
 
@@ -937,7 +991,7 @@ export default function SettingsPage() {
 
           {isDetailLoading ? (
             <div className="settings-empty">사용자 상세 정보를 불러오는 중입니다.</div>
-          ) : !selectedUser ? (
+          ) : !canManageSelectedUser ? (
             <div className="settings-empty">사용자 상세 정보를 확인할 수 없습니다.</div>
           ) : (
             <div className="settings-stack">
@@ -998,6 +1052,7 @@ export default function SettingsPage() {
                     <button
                       type="submit"
                       disabled={
+                        !canManageSelectedUser ||
                         isUpdating ||
                         !hasUserChanges ||
                         (isGrantingSuperAdmin && !isEditSuperAdminConfirmed)
@@ -1037,6 +1092,7 @@ export default function SettingsPage() {
                             className="settings-secondary-button settings-password-verify-button"
                             onClick={() => void handleVerifyCurrentPassword()}
                             disabled={
+                              !canManageSelectedUser ||
                               isCurrentPasswordVerified ||
                               isVerifyingCurrentPassword ||
                               !passwordForm.currentPassword.trim()
@@ -1108,6 +1164,7 @@ export default function SettingsPage() {
                       <button
                         type="submit"
                         disabled={
+                          !canManageSelectedUser ||
                           isChangingPassword ||
                           !hasPasswordChange ||
                           isSamePassword ||
@@ -1181,6 +1238,7 @@ export default function SettingsPage() {
                       <button
                         type="submit"
                         disabled={
+                          !canManageSelectedUser ||
                           isResettingPassword ||
                           !resetPasswordForm.newPassword.trim() ||
                           !resetPasswordForm.confirmNewPassword.trim() ||
@@ -1206,7 +1264,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={openDeactivateConfirmModal}
-                    disabled={isActivating || isDeactivating}
+                    disabled={!canManageSelectedUser || isActivating || isDeactivating}
                     className="settings-danger-button"
                   >
                     <UserX size={15} />
@@ -1216,7 +1274,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={openActivateConfirmModal}
-                    disabled={isActivating || isDeactivating}
+                    disabled={!canManageSelectedUser || isActivating || isDeactivating}
                     className="settings-primary-button"
                   >
                     <Shield size={15} />
@@ -1275,7 +1333,7 @@ export default function SettingsPage() {
               type="button"
               className="settings-danger-button"
               onClick={() => void handleDeactivateUser()}
-              disabled={isDeactivating}
+              disabled={!canManageSelectedUser || isDeactivating}
             >
               {isDeactivating ? "비활성화 중..." : "비활성화 진행"}
             </button>
@@ -1329,7 +1387,7 @@ export default function SettingsPage() {
               type="button"
               className="settings-primary-button"
               onClick={() => void handleActivateUser()}
-              disabled={isActivating}
+              disabled={!canManageSelectedUser || isActivating}
             >
               {isActivating ? "활성화 중..." : "활성화 진행"}
             </button>
@@ -1374,12 +1432,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   className="settings-primary-button"
-                  onClick={() => {
-                    setSelectedUserId(selectedUser.id);
-                    setErrorMessage("");
-                    setSuccessMessage("");
-                    setIsManageModalOpen(true);
-                  }}
+                  onClick={() => openManageModal(selectedUser.id)}
                 >
                   내 정보 수정
                 </button>
@@ -1450,12 +1503,7 @@ export default function SettingsPage() {
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => {
-                      setSelectedUserId(item.id);
-                      setErrorMessage("");
-                      setSuccessMessage("");
-                      setIsManageModalOpen(true);
-                    }}
+                    onClick={() => openManageModal(item.id)}
                     className="settings-user-item"
                   >
                     <div className="settings-user-item__top">

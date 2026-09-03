@@ -808,8 +808,8 @@
               },
             },
           },
-          401: {
-            description: "기존 비밀번호가 일치하지 않음",
+          400: {
+            description: "기존 비밀번호 누락 또는 불일치",
             content: {
               "application/json": {
                 schema: {
@@ -821,6 +821,9 @@
                 },
               },
             },
+          },
+          401: {
+            description: "액세스 토큰 누락, 만료 또는 유효하지 않은 인증 정보",
           },
           403: {
             description: "다른 사용자의 비밀번호 확인 시도",
@@ -914,21 +917,7 @@
             },
           },
           400: {
-            description: "잘못된 요청 본문",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "currentPassword and newPassword are required." },
-                  },
-                },
-              },
-            },
-          },
-          401: {
-            description: "기존 비밀번호가 일치하지 않음",
+            description: "필수값 누락, 기존 비밀번호 불일치 또는 새 비밀번호 정책 위반",
             content: {
               "application/json": {
                 schema: {
@@ -936,6 +925,20 @@
                   properties: {
                     ok: { type: "boolean", example: false },
                     message: { type: "string", example: "Current password is incorrect." },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "액세스 토큰 누락, 만료 또는 유효하지 않은 인증 정보",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "유효하지 않은 토큰입니다." },
                   },
                 },
               },

@@ -467,7 +467,8 @@ async function verifyUserPassword({ id, requesterId, currentPassword }) {
 
   const isPasswordMatched = await bcrypt.compare(currentPassword, userRecord.passwordHash);
   if (!isPasswordMatched) {
-    throw createHttpError(401, "Current password is incorrect.");
+    // 입력값 불일치는 토큰 인증 실패(401)와 구분해 자동 재발급을 방지한다.
+    throw createHttpError(400, "Current password is incorrect.");
   }
 
   return { verified: true };
@@ -502,7 +503,7 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
 
   const isPasswordMatched = await bcrypt.compare(currentPassword, userRecord.passwordHash);
   if (!isPasswordMatched) {
-    throw createHttpError(401, "Current password is incorrect.");
+    throw createHttpError(400, "Current password is incorrect.");
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
