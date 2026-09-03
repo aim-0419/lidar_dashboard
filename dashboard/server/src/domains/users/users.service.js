@@ -5,6 +5,7 @@ const { prisma } = require("../../prisma/client");
 const ALLOWED_ROLES = ["SUPER_ADMIN", "MANAGER"];
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_BYTES = 72;
+const USER_ID_PATTERN = /^[A-Za-z0-9_-]{3,32}$/;
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -79,6 +80,15 @@ function validatePasswordPolicy(password) {
   }
 }
 
+function validateUserId(userId) {
+  if (!USER_ID_PATTERN.test(userId)) {
+    throw createHttpError(
+      400,
+      "사용자 ID는 영문, 숫자, 밑줄(_), 하이픈(-)만 사용하여 3~32자로 입력해 주세요.",
+    );
+  }
+}
+
 function parseOptionalBoolean(value) {
   if (typeof value === "boolean") {
     return value;
@@ -89,7 +99,7 @@ function parseOptionalBoolean(value) {
 
 function handlePrismaError(error) {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-    throw createHttpError(409, "User ID already exists.");
+    throw createHttpError(409, "이미 사용 중인 사용자 ID입니다.");
   }
 
   throw error;
@@ -165,6 +175,7 @@ async function createUser({ userId, name, password, role, isActive, requesterId 
   }
 
   validatePasswordPolicy(password);
+  validateUserId(userId.trim());
 
   const passwordHash = await bcrypt.hash(password, 10);
   const userData = {
@@ -221,6 +232,7 @@ async function updateUser({ id, userId, name, role, isActive, requesterId, reque
     if (userId.trim() === "") {
       throw createHttpError(400, "userId cannot be empty.");
     }
+    validateUserId(userId.trim());
     data.userId = userId.trim();
   }
 
