@@ -6,6 +6,8 @@ const ALLOWED_ROLES = ["SUPER_ADMIN", "MANAGER"];
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_BYTES = 72;
 const USER_ID_PATTERN = /^[A-Za-z0-9_-]{3,32}$/;
+const DEFAULT_USER_LIST_LIMIT = 20;
+const MAX_USER_LIST_LIMIT = 100;
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -97,6 +99,35 @@ function parseOptionalBoolean(value) {
   return undefined;
 }
 
+function parseUserListNumber(value, defaultValue, maximum) {
+  if (value === undefined || value === null || value === "") {
+    return defaultValue;
+  }
+
+  const parsedValue = Number(value);
+  if (!Number.isInteger(parsedValue) || parsedValue < 1 || parsedValue > maximum) {
+    throw createHttpError(400, "Invalid user list pagination value.");
+  }
+
+  return parsedValue;
+}
+
+function parseUserListActiveFilter(value) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  if (value === true || value === "true") {
+    return true;
+  }
+
+  if (value === false || value === "false") {
+    return false;
+  }
+
+  throw createHttpError(400, "Invalid user active status filter.");
+}
+
 function handlePrismaError(error) {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
     throw createHttpError(409, "이미 사용 중인 사용자 ID입니다.");
@@ -142,26 +173,53 @@ async function getMyProfile({ id }) {
   return user;
 }
 
-async function listUsers() {
-  const users = await prisma.user.findMany({
-    orderBy: {
-      createdAt: "desc",
-    },
-    select: {
-      id: true,
-      userId: true,
-      name: true,
-      role: true,
-      isActive: true,
-      lastLoginAt: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
+async function listUsers({ page, limit, keyword, isActive } = {}) {
+  const nextPage = parseUserListNumber(page, 1, Number.MAX_SAFE_INTEGER);
+  const nextLimit = parseUserListNumber(limit, DEFAULT_USER_LIST_LIMIT, MAX_USER_LIST_LIMIT);
+  const nextKeyword = typeof keyword === "string" ? keyword.trim() : "";
+  const nextIsActive = parseUserListActiveFilter(isActive);
+  const where = {
+    ...(typeof nextIsActive === "boolean" ? { isActive: nextIsActive } : {}),
+    ...(nextKeyword
+      ? {
+          OR: [
+            { userId: { contains: nextKeyword, mode: "insensitive" } },
+            { name: { contains: nextKeyword, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+
+  const [count, users] = await prisma.$transaction([
+    prisma.user.count({ where }),
+    prisma.user.findMany({
+      where,
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip: (nextPage - 1) * nextLimit,
+      take: nextLimit,
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        role: true,
+        isActive: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+  ]);
 
   return {
-    count: users.length,
+    count,
     users: users.map(serializeUser),
+    pagination: {
+      page: nextPage,
+      limit: nextLimit,
+      totalPages: Math.max(1, Math.ceil(count / nextLimit)),
+    },
   };
 }
 

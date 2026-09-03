@@ -206,8 +206,27 @@ export async function fetchWebSocketTicket() {
   return postJson("/api/auth/ws-ticket", {});
 }
 
-export async function fetchUsers() {
-  return getJson("/api/users");
+export async function fetchUsers(options = {}) {
+  const searchParams = new URLSearchParams();
+
+  if (options.page) {
+    searchParams.set("page", String(options.page));
+  }
+
+  if (options.limit) {
+    searchParams.set("limit", String(options.limit));
+  }
+
+  if (options.keyword) {
+    searchParams.set("keyword", options.keyword);
+  }
+
+  if (typeof options.isActive === "boolean") {
+    searchParams.set("isActive", String(options.isActive));
+  }
+
+  const query = searchParams.toString();
+  return getJson(`/api/users${query ? `?${query}` : ""}`);
 }
 
 export async function fetchStatisticsSummary(period, options = {}) {

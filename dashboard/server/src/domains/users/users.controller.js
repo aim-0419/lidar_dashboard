@@ -34,12 +34,18 @@ async function getMe(req, res) {
 
 async function getUsers(req, res) {
   try {
-    const result = await usersService.listUsers();
+    const result = await usersService.listUsers({
+      page: req.query?.page,
+      limit: req.query?.limit,
+      keyword: req.query?.keyword,
+      isActive: req.query?.isActive,
+    });
 
     res.status(200).json({
       ok: true,
       count: result.count,
       users: result.users,
+      pagination: result.pagination,
     });
   } catch (error) {
     logger.error("get users list failed", {
