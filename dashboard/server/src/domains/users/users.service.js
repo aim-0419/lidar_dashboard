@@ -1,6 +1,12 @@
 const bcrypt = require("bcrypt");
 const { Prisma } = require("@prisma/client");
 const { prisma } = require("../../prisma/client");
+const {
+  MIN_PASSWORD_LENGTH,
+  isValidPassword,
+  normalizePhoneNumber,
+  isValidPhoneNumber,
+} = require("../../utils/credential-policy");
 
 const ALLOWED_ROLES = ["SUPER_ADMIN", "MANAGER"];
 
@@ -14,8 +20,12 @@ function normalizeRole(role) {
   return String(role || "").toLowerCase();
 }
 
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
 function normalizeRoleInput(role) {
-  const normalizedRole = String(role || "SUPER_ADMIN").trim().toUpperCase();
+  const normalizedRole = String(role || "MANAGER").trim().toUpperCase();
 
   if (!ALLOWED_ROLES.includes(normalizedRole)) {
     throw createHttpError(400, `role must be one of: ${ALLOWED_ROLES.join(", ")}.`);
@@ -29,6 +39,8 @@ function serializeUser(user) {
     id: user.id,
     userId: user.userId,
     name: user.name,
+    email: user.email ?? null,
+    phoneNumber: user.phoneNumber ?? null,
     role: normalizeRole(user.role),
     isActive: user.isActive,
     lastLoginAt: user.lastLoginAt,
@@ -49,9 +61,43 @@ function parseOptionalBoolean(value) {
   return undefined;
 }
 
+function validateEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    throw createHttpError(400, "email must be a valid email address.");
+  }
+
+  return normalizedEmail;
+}
+
+function validatePhoneNumber(phoneNumber) {
+  const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
+
+  if (!isValidPhoneNumber(normalizedPhoneNumber)) {
+    throw createHttpError(400, "phoneNumber must be a valid phone number.");
+  }
+
+  return normalizedPhoneNumber;
+}
+
 function handlePrismaError(error) {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-    throw createHttpError(409, "User ID already exists.");
+    const target = Array.isArray(error.meta?.target) ? error.meta.target.join(",") : String(error.meta?.target || "");
+
+    if (target.includes("user_id")) {
+      throw createHttpError(409, "User ID already exists.");
+    }
+
+    if (target.includes("email")) {
+      throw createHttpError(409, "Email already exists.");
+    }
+
+    if (target.includes("phone_number")) {
+      throw createHttpError(409, "Phone number already exists.");
+    }
+
+    throw createHttpError(409, "A duplicate value already exists.");
   }
 
   throw error;
@@ -64,6 +110,8 @@ async function findUserRecordById(id) {
       id: true,
       userId: true,
       name: true,
+      email: true,
+      phoneNumber: true,
       role: true,
       isActive: true,
       lastLoginAt: true,
@@ -103,6 +151,8 @@ async function listUsers() {
       id: true,
       userId: true,
       name: true,
+      email: true,
+      phoneNumber: true,
       role: true,
       isActive: true,
       lastLoginAt: true,
@@ -121,9 +171,13 @@ async function getUserDetail({ id }) {
   return findSerializedUserById(id);
 }
 
-async function createUser({ userId, name, password, role, isActive }) {
+async function createUser({ userId, name, password, email, phoneNumber, role, isActive }) {
   if (isBlank(userId) || isBlank(name) || isBlank(password)) {
     throw createHttpError(400, "userId, name, and password are required.");
+  }
+
+  if (!isValidPassword(password)) {
+    throw createHttpError(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -131,6 +185,9 @@ async function createUser({ userId, name, password, role, isActive }) {
     userId: userId.trim(),
     name: name.trim(),
     passwordHash,
+    email: typeof email === "string" && email.trim() !== "" ? validateEmail(email) : null,
+    phoneNumber:
+      typeof phoneNumber === "string" && phoneNumber.trim() !== "" ? validatePhoneNumber(phoneNumber) : null,
     role: normalizeRoleInput(role),
     isActive: typeof isActive === "boolean" ? isActive : true,
   };
@@ -142,6 +199,8 @@ async function createUser({ userId, name, password, role, isActive }) {
         id: true,
         userId: true,
         name: true,
+        email: true,
+        phoneNumber: true,
         role: true,
         isActive: true,
         lastLoginAt: true,
@@ -156,7 +215,7 @@ async function createUser({ userId, name, password, role, isActive }) {
   }
 }
 
-async function updateUser({ id, userId, name, role, isActive, requesterId, requesterRole }) {
+async function updateUser({ id, userId, name, email, phoneNumber, role, isActive, requesterId, requesterRole }) {
   const existingUser = await findUserRecordById(id);
   const isSelfUpdate = requesterId === id;
   const isRequesterSuperAdmin = normalizeRole(requesterRole) === "super_admin";
@@ -178,6 +237,14 @@ async function updateUser({ id, userId, name, role, isActive, requesterId, reque
       throw createHttpError(400, "name cannot be empty.");
     }
     data.name = name.trim();
+  }
+
+  if (typeof email === "string") {
+    data.email = email.trim() === "" ? null : validateEmail(email);
+  }
+
+  if (typeof phoneNumber === "string") {
+    data.phoneNumber = phoneNumber.trim() === "" ? null : validatePhoneNumber(phoneNumber);
   }
 
   if (typeof role === "string") {
@@ -236,6 +303,8 @@ async function updateUser({ id, userId, name, role, isActive, requesterId, reque
             id: true,
             userId: true,
             name: true,
+            email: true,
+            phoneNumber: true,
             role: true,
             isActive: true,
             lastLoginAt: true,
@@ -254,6 +323,8 @@ async function updateUser({ id, userId, name, role, isActive, requesterId, reque
           id: true,
           userId: true,
           name: true,
+          email: true,
+          phoneNumber: true,
           role: true,
           isActive: true,
           lastLoginAt: true,
@@ -298,6 +369,8 @@ async function deactivateUser({ id, requesterId }) {
         id: true,
         userId: true,
         name: true,
+        email: true,
+        phoneNumber: true,
         role: true,
         isActive: true,
         lastLoginAt: true,
@@ -348,6 +421,10 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
     throw createHttpError(400, "currentPassword and newPassword are required.");
   }
 
+  if (!isValidPassword(newPassword)) {
+    throw createHttpError(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+  }
+
   if (currentPassword === newPassword) {
     throw createHttpError(400, "New password must be different from current password.");
   }
@@ -390,10 +467,12 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
         },
       },
       select: {
-        id: true,
-        userId: true,
-        name: true,
-        role: true,
+      id: true,
+      userId: true,
+      name: true,
+      email: true,
+      phoneNumber: true,
+      role: true,
         isActive: true,
         lastLoginAt: true,
         createdAt: true,
