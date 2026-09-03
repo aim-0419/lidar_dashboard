@@ -17,6 +17,7 @@ import {
   fetchUserDetail,
   fetchMyProfile,
   fetchUsers,
+  resetUserPasswordRequest,
   updateUserPasswordRequest,
   updateUserRequest,
   verifyUserPasswordRequest,
@@ -41,6 +42,11 @@ const initialEditForm = {
 
 const initialPasswordForm = {
   currentPassword: "",
+  newPassword: "",
+  confirmNewPassword: "",
+};
+
+const initialResetPasswordForm = {
   newPassword: "",
   confirmNewPassword: "",
 };
@@ -89,23 +95,27 @@ export default function SettingsPage() {
   const [createForm, setCreateForm] = useState(initialCreateForm);
   const [editForm, setEditForm] = useState(initialEditForm);
   const [passwordForm, setPasswordForm] = useState(initialPasswordForm);
+  const [resetPasswordForm, setResetPasswordForm] = useState(initialResetPasswordForm);
   const [isListLoading, setIsListLoading] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [isVerifyingCurrentPassword, setIsVerifyingCurrentPassword] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [createErrorMessage, setCreateErrorMessage] = useState("");
   const [manageToastMessage, setManageToastMessage] = useState("");
   const [passwordErrorMessage, setPasswordErrorMessage] = useState("");
+  const [resetPasswordErrorMessage, setResetPasswordErrorMessage] = useState("");
   const [passwordVerifyMessage, setPasswordVerifyMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   const isSuperAdmin = user?.role === "super_admin";
 
@@ -142,6 +152,11 @@ export default function SettingsPage() {
     newPasswordValue.trim() &&
       confirmNewPasswordValue.trim() &&
       newPasswordValue !== confirmNewPasswordValue
+  );
+  const isResetPasswordMismatch = Boolean(
+    resetPasswordForm.newPassword.trim() &&
+      resetPasswordForm.confirmNewPassword.trim() &&
+      resetPasswordForm.newPassword !== resetPasswordForm.confirmNewPassword
   );
   const samePasswordMessage = isSamePassword
     ? "기존 비밀번호와 같은 비밀번호로 설정할 수 없습니다."
@@ -193,6 +208,47 @@ export default function SettingsPage() {
     };
   }, [manageToastMessage]);
 
+  useEffect(() => {
+    function handleEscapeKey(event) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      if (isDeactivateConfirmOpen && !isDeactivating) {
+        setIsDeactivateConfirmOpen(false);
+        return;
+      }
+
+      if (isActivateConfirmOpen && !isActivating) {
+        setIsActivateConfirmOpen(false);
+        return;
+      }
+
+      if (isManageModalOpen && !isUpdating && !isChangingPassword && !isResettingPassword) {
+        setIsManageModalOpen(false);
+        return;
+      }
+
+      if (isCreateModalOpen && !isCreating) {
+        setIsCreateModalOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleEscapeKey);
+    return () => window.removeEventListener("keydown", handleEscapeKey);
+  }, [
+    isActivateConfirmOpen,
+    isActivating,
+    isChangingPassword,
+    isCreateModalOpen,
+    isCreating,
+    isDeactivateConfirmOpen,
+    isDeactivating,
+    isManageModalOpen,
+    isResettingPassword,
+    isUpdating,
+  ]);
+
   async function loadUsers(nextSelectedUserId) {
     setIsListLoading(true);
     setErrorMessage("");
@@ -233,10 +289,13 @@ export default function SettingsPage() {
         isActive: Boolean(nextUser.isActive),
       });
       setPasswordForm(initialPasswordForm);
+      setResetPasswordForm(initialResetPasswordForm);
       setPasswordErrorMessage("");
+      setResetPasswordErrorMessage("");
       setPasswordVerifyMessage("");
       setShowCurrentPassword(false);
       setShowNewPassword(false);
+      setShowResetPassword(false);
     } catch (error) {
       setSelectedUser(null);
       setErrorMessage(error.message || "사용자 상세 정보를 불러오지 못했습니다.");
@@ -282,6 +341,15 @@ export default function SettingsPage() {
         [name]: value,
       };
     });
+  }
+
+  function handleResetPasswordChange(event) {
+    const { name, value } = event.target;
+    setResetPasswordErrorMessage("");
+    setResetPasswordForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   }
 
   async function handleVerifyCurrentPassword() {
@@ -481,6 +549,44 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleResetUserPassword(event) {
+    event.preventDefault();
+
+    if (!selectedUserId || !isSuperAdmin || isManagingOwnAccount) {
+      return;
+    }
+
+    const nextPassword = resetPasswordForm.newPassword.trim();
+    const confirmPassword = resetPasswordForm.confirmNewPassword.trim();
+
+    if (!nextPassword || !confirmPassword) {
+      setResetPasswordErrorMessage("임시 비밀번호와 확인 값을 모두 입력해 주세요.");
+      return;
+    }
+
+    if (nextPassword !== confirmPassword) {
+      setResetPasswordErrorMessage("입력한 임시 비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
+    setIsResettingPassword(true);
+    setResetPasswordErrorMessage("");
+
+    try {
+      await resetUserPasswordRequest(selectedUserId, {
+        newPassword: nextPassword,
+      });
+      setResetPasswordForm(initialResetPasswordForm);
+      setManageToastMessage("임시 비밀번호를 설정했습니다.");
+    } catch (error) {
+      setResetPasswordErrorMessage(
+        error.message || "사용자 비밀번호를 초기화하지 못했습니다.",
+      );
+    } finally {
+      setIsResettingPassword(false);
+    }
+  }
+
   async function handleActivateUser() {
     if (!selectedUserId || !selectedUser) {
       return;
@@ -538,14 +644,16 @@ export default function SettingsPage() {
   }
 
   function closeManageModal() {
-    if (isUpdating || isChangingPassword || isActivating || isDeactivating) {
+    if (isUpdating || isChangingPassword || isResettingPassword || isActivating || isDeactivating) {
       return;
     }
 
     setShowCurrentPassword(false);
     setShowNewPassword(false);
     setPasswordErrorMessage("");
+    setResetPasswordErrorMessage("");
     setPasswordVerifyMessage("");
+    setResetPasswordForm(initialResetPasswordForm);
     setIsManageModalOpen(false);
     setIsActivateConfirmOpen(false);
     setIsDeactivateConfirmOpen(false);
@@ -590,7 +698,12 @@ export default function SettingsPage() {
 
     return (
       <div className="settings-modal-overlay" onClick={closeCreateModal}>
-        <div className="settings-modal" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="settings-modal"
+          role="dialog"
+          aria-modal="true"
+          onClick={(event) => event.stopPropagation()}
+        >
           <div className="settings-modal__head">
             <div>
               <h2>사용자 생성</h2>
@@ -682,7 +795,12 @@ export default function SettingsPage() {
 
     return (
       <div className="settings-modal-overlay" onClick={closeManageModal}>
-          <div className="settings-modal settings-modal--wide" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="settings-modal settings-modal--wide"
+            role="dialog"
+            aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
+          >
           <div className="settings-modal__head">
             <div>
               <div className="settings-title-row">
@@ -880,6 +998,78 @@ export default function SettingsPage() {
                       >
                         <KeyRound size={15} />
                         {isChangingPassword ? "변경 중..." : "비밀번호 저장"}
+                      </button>
+                    </form>
+                  ) : null}
+
+                  {isSuperAdmin && !isManagingOwnAccount ? (
+                    <form
+                      className="settings-form-stack settings-divider"
+                      onSubmit={handleResetUserPassword}
+                    >
+                      <div className="settings-reset-copy">
+                        <strong>비밀번호 초기화</strong>
+                        <span>임시 비밀번호를 설정한 뒤 안전한 방법으로 해당 사용자에게 전달해 주세요.</span>
+                      </div>
+                      <label className="settings-field">
+                        <span>임시 비밀번호</span>
+                        <div className="settings-password-field">
+                          <input
+                            type={showResetPassword ? "text" : "password"}
+                            name="newPassword"
+                            value={resetPasswordForm.newPassword || ""}
+                            onChange={handleResetPasswordChange}
+                            placeholder="8자 이상 입력"
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            className="settings-password-toggle"
+                            onClick={() => setShowResetPassword((prev) => !prev)}
+                            aria-label={showResetPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                          >
+                            {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                      </label>
+                      <label className="settings-field">
+                        <span>임시 비밀번호 확인</span>
+                        <div className="settings-password-field">
+                          <input
+                            type={showResetPassword ? "text" : "password"}
+                            name="confirmNewPassword"
+                            value={resetPasswordForm.confirmNewPassword || ""}
+                            onChange={handleResetPasswordChange}
+                            placeholder="임시 비밀번호를 다시 입력"
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            className="settings-password-toggle"
+                            onClick={() => setShowResetPassword((prev) => !prev)}
+                            aria-label={showResetPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                          >
+                            {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                        {isResetPasswordMismatch || resetPasswordErrorMessage ? (
+                          <small className="settings-field-error">
+                            {resetPasswordErrorMessage || "입력한 임시 비밀번호가 일치하지 않습니다."}
+                          </small>
+                        ) : null}
+                      </label>
+                      <button
+                        type="submit"
+                        disabled={
+                          isResettingPassword ||
+                          !resetPasswordForm.newPassword.trim() ||
+                          !resetPasswordForm.confirmNewPassword.trim() ||
+                          isResetPasswordMismatch
+                        }
+                        className="settings-secondary-button"
+                      >
+                        <KeyRound size={15} />
+                        {isResettingPassword ? "초기화 중..." : "임시 비밀번호 설정"}
                       </button>
                     </form>
                   ) : null}

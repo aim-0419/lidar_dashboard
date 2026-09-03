@@ -307,6 +307,10 @@ export async function updateUserPasswordRequest(id, payload) {
   return patchJson(`/api/users/${id}/password`, payload);
 }
 
+export async function resetUserPasswordRequest(id, payload) {
+  return patchJson(`/api/users/${id}/password/reset`, payload);
+}
+
 export async function deactivateUserRequest(id) {
   return deleteJson(`/api/users/${id}`);
 }
