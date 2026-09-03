@@ -378,7 +378,10 @@ export default function SettingsPage() {
         updateCurrentUser(response.user);
       }
 
-      await loadUsers(response.user?.id || selectedUserId);
+      // 사용자 목록 API는 최고 관리자 전용이므로 본인 수정 후에는 호출하지 않는다.
+      if (isSuperAdmin) {
+        await loadUsers(response.user?.id || selectedUserId);
+      }
       await loadUserDetail(response.user?.id || selectedUserId);
       setManageToastMessage("저장 완료됐습니다.");
     } catch (error) {
