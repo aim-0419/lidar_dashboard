@@ -3,6 +3,8 @@ const { Prisma } = require("@prisma/client");
 const { prisma } = require("../../prisma/client");
 
 const ALLOWED_ROLES = ["SUPER_ADMIN", "MANAGER"];
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_BYTES = 72;
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -39,6 +41,21 @@ function serializeUser(user) {
 
 function isBlank(value) {
   return typeof value !== "string" || value.trim() === "";
+}
+
+function validatePasswordPolicy(password) {
+  if (isBlank(password)) {
+    throw createHttpError(400, "비밀번호를 입력해 주세요.");
+  }
+
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    throw createHttpError(400, `비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상 입력해 주세요.`);
+  }
+
+  // bcrypt는 72바이트 이후 문자열을 해시에 반영하지 않는다.
+  if (Buffer.byteLength(password, "utf8") > MAX_PASSWORD_BYTES) {
+    throw createHttpError(400, `비밀번호는 ${MAX_PASSWORD_BYTES}바이트 이하로 입력해 주세요.`);
+  }
 }
 
 function parseOptionalBoolean(value) {
@@ -125,6 +142,8 @@ async function createUser({ userId, name, password, role, isActive }) {
   if (isBlank(userId) || isBlank(name) || isBlank(password)) {
     throw createHttpError(400, "userId, name, and password are required.");
   }
+
+  validatePasswordPolicy(password);
 
   const passwordHash = await bcrypt.hash(password, 10);
   const userData = {
@@ -351,6 +370,8 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
   if (currentPassword === newPassword) {
     throw createHttpError(400, "New password must be different from current password.");
   }
+
+  validatePasswordPolicy(newPassword);
 
   const userRecord = await prisma.user.findUnique({
     where: { id },
