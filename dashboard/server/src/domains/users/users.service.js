@@ -190,7 +190,7 @@ async function listUsers({ page, limit, keyword, isActive } = {}) {
       : {}),
   };
 
-  const [count, users] = await prisma.$transaction([
+  const [count, users, activeCount, inactiveCount] = await prisma.$transaction([
     prisma.user.count({ where }),
     prisma.user.findMany({
       where,
@@ -210,15 +210,23 @@ async function listUsers({ page, limit, keyword, isActive } = {}) {
         updatedAt: true,
       },
     }),
+    prisma.user.count({ where: { isActive: true } }),
+    prisma.user.count({ where: { isActive: false } }),
   ]);
 
   return {
     count,
     users: users.map(serializeUser),
+    summary: {
+      totalCount: activeCount + inactiveCount,
+      activeCount,
+      inactiveCount,
+    },
     pagination: {
       page: nextPage,
       limit: nextLimit,
       totalPages: Math.max(1, Math.ceil(count / nextLimit)),
+      totalItems: count,
     },
   };
 }
@@ -555,11 +563,16 @@ async function resetUserPassword({ id, requesterId, newPassword }) {
     select: {
       id: true,
       passwordHash: true,
+      isActive: true,
     },
   });
 
   if (!userRecord) {
     throw createHttpError(404, "사용자를 찾을 수 없습니다.");
+  }
+
+  if (!userRecord.isActive) {
+    throw createHttpError(400, "비활성화된 계정은 먼저 활성화한 뒤 비밀번호를 초기화해 주세요.");
   }
 
   const isSamePassword = await bcrypt.compare(newPassword, userRecord.passwordHash);

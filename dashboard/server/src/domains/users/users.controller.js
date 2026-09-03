@@ -45,6 +45,7 @@ async function getUsers(req, res) {
       ok: true,
       count: result.count,
       users: result.users,
+      summary: result.summary,
       pagination: result.pagination,
     });
   } catch (error) {

@@ -90,6 +90,20 @@ export default function SettingsPage() {
   const [isActivateConfirmOpen, setIsActivateConfirmOpen] = useState(false);
   const [isDeactivateConfirmOpen, setIsDeactivateConfirmOpen] = useState(false);
   const [users, setUsers] = useState([]);
+  const [userSearchKeyword, setUserSearchKeyword] = useState("");
+  const [userStatusFilter, setUserStatusFilter] = useState("ALL");
+  const [userPage, setUserPage] = useState(1);
+  const [userPagination, setUserPagination] = useState({
+    page: 1,
+    limit: 20,
+    totalPages: 1,
+    totalItems: 0,
+  });
+  const [userSummary, setUserSummary] = useState({
+    totalCount: 0,
+    activeCount: 0,
+    inactiveCount: 0,
+  });
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
   const [createForm, setCreateForm] = useState(initialCreateForm);
@@ -116,6 +130,8 @@ export default function SettingsPage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [isCreateSuperAdminConfirmed, setIsCreateSuperAdminConfirmed] = useState(false);
+  const [isEditSuperAdminConfirmed, setIsEditSuperAdminConfirmed] = useState(false);
 
   const isSuperAdmin = user?.role === "super_admin";
 
@@ -139,9 +155,13 @@ export default function SettingsPage() {
   const isManagingOwnAccount = selectedUserId === user?.id;
   const isCurrentPasswordVerified = passwordVerifyMessage === "기존 비밀번호가 확인되었습니다.";
   const visibleUsers = isSuperAdmin ? users : selectedUser ? [selectedUser] : [];
-  const visibleUserCount = visibleUsers.length;
-  const visibleActiveUserCount = visibleUsers.filter((item) => item.isActive).length;
-  const visibleInactiveUserCount = visibleUsers.filter((item) => !item.isActive).length;
+  const visibleUserCount = isSuperAdmin ? userSummary.totalCount : visibleUsers.length;
+  const visibleActiveUserCount = isSuperAdmin
+    ? userSummary.activeCount
+    : visibleUsers.filter((item) => item.isActive).length;
+  const visibleInactiveUserCount = isSuperAdmin
+    ? userSummary.inactiveCount
+    : visibleUsers.filter((item) => !item.isActive).length;
   const isSamePassword = Boolean(
     isCurrentPasswordVerified &&
     currentPasswordValue.trim() &&
@@ -157,6 +177,12 @@ export default function SettingsPage() {
     resetPasswordForm.newPassword.trim() &&
       resetPasswordForm.confirmNewPassword.trim() &&
       resetPasswordForm.newPassword !== resetPasswordForm.confirmNewPassword
+  );
+  const isCreatingSuperAdmin = String(createForm.role || "").toUpperCase() === "SUPER_ADMIN";
+  const isGrantingSuperAdmin = Boolean(
+    selectedUser &&
+      String(selectedUser.role || "").toUpperCase() !== "SUPER_ADMIN" &&
+      String(editForm.role || "").toUpperCase() === "SUPER_ADMIN"
   );
   const samePasswordMessage = isSamePassword
     ? "기존 비밀번호와 같은 비밀번호로 설정할 수 없습니다."
@@ -249,14 +275,38 @@ export default function SettingsPage() {
     isUpdating,
   ]);
 
-  async function loadUsers(nextSelectedUserId) {
+  async function loadUsers(nextSelectedUserId, options = {}) {
     setIsListLoading(true);
     setErrorMessage("");
 
     try {
-      const response = await fetchUsers();
+      const nextPage = options.page ?? userPage;
+      const nextStatusFilter = options.statusFilter ?? userStatusFilter;
+      const response = await fetchUsers({
+        page: nextPage,
+        limit: 20,
+        keyword: options.keyword ?? userSearchKeyword.trim(),
+        ...(nextStatusFilter === "ACTIVE" ? { isActive: true } : {}),
+        ...(nextStatusFilter === "INACTIVE" ? { isActive: false } : {}),
+      });
       const nextUsers = response.users || [];
       setUsers(nextUsers);
+      setUserPagination(
+        response.pagination || {
+          page: nextPage,
+          limit: 20,
+          totalPages: 1,
+          totalItems: nextUsers.length,
+        },
+      );
+      setUserSummary(
+        response.summary || {
+          totalCount: nextUsers.length,
+          activeCount: nextUsers.filter((item) => item.isActive).length,
+          inactiveCount: nextUsers.filter((item) => !item.isActive).length,
+        },
+      );
+      setUserPage(response.pagination?.page || nextPage);
 
       const preferredId = nextSelectedUserId || selectedUserId;
       const selectedExists = nextUsers.some((item) => item.id === preferredId);
@@ -288,6 +338,7 @@ export default function SettingsPage() {
         role: String(nextUser.role || "super_admin").toUpperCase(),
         isActive: Boolean(nextUser.isActive),
       });
+      setIsEditSuperAdminConfirmed(false);
       setPasswordForm(initialPasswordForm);
       setResetPasswordForm(initialResetPasswordForm);
       setPasswordErrorMessage("");
@@ -307,6 +358,9 @@ export default function SettingsPage() {
   function handleCreateChange(event) {
     const { name, value, type, checked } = event.target;
     setCreateErrorMessage("");
+    if (name === "role" && value !== "SUPER_ADMIN") {
+      setIsCreateSuperAdminConfirmed(false);
+    }
     setCreateForm((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -315,10 +369,35 @@ export default function SettingsPage() {
 
   function handleEditChange(event) {
     const { name, value, type, checked } = event.target;
+    if (name === "role" && value !== "SUPER_ADMIN") {
+      setIsEditSuperAdminConfirmed(false);
+    }
     setEditForm((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
+  }
+
+  function handleUserSearchSubmit(event) {
+    event.preventDefault();
+    setUserPage(1);
+    void loadUsers(undefined, { page: 1 });
+  }
+
+  function handleUserStatusFilterChange(event) {
+    const nextStatusFilter = event.target.value;
+    setUserStatusFilter(nextStatusFilter);
+    setUserPage(1);
+    void loadUsers(undefined, { page: 1, statusFilter: nextStatusFilter });
+  }
+
+  function handleUserPageChange(nextPage) {
+    if (nextPage < 1 || nextPage > userPagination.totalPages || nextPage === userPage) {
+      return;
+    }
+
+    setUserPage(nextPage);
+    void loadUsers(undefined, { page: nextPage });
   }
 
   function handlePasswordChange(event) {
@@ -396,6 +475,11 @@ export default function SettingsPage() {
       return;
     }
 
+    if (isCreatingSuperAdmin && !isCreateSuperAdminConfirmed) {
+      setCreateErrorMessage("최고 관리자 권한 부여 여부를 확인해 주세요.");
+      return;
+    }
+
     setIsCreating(true);
     setCreateErrorMessage("");
     setErrorMessage("");
@@ -427,6 +511,11 @@ export default function SettingsPage() {
   async function handleUpdateUser(event) {
     event.preventDefault();
     if (!selectedUserId) {
+      return;
+    }
+
+    if (isGrantingSuperAdmin && !isEditSuperAdminConfirmed) {
+      setErrorMessage("최고 관리자 권한 부여 여부를 확인해 주세요.");
       return;
     }
 
@@ -627,6 +716,7 @@ export default function SettingsPage() {
 
   function openCreateModal() {
     setCreateForm(initialCreateForm);
+    setIsCreateSuperAdminConfirmed(false);
     setCreateErrorMessage("");
     setErrorMessage("");
     setSuccessMessage("");
@@ -773,11 +863,26 @@ export default function SettingsPage() {
               </label>
             </div>
 
+            {isCreatingSuperAdmin ? (
+              <label className="settings-role-confirm">
+                <input
+                  type="checkbox"
+                  checked={isCreateSuperAdminConfirmed}
+                  onChange={(event) => setIsCreateSuperAdminConfirmed(event.target.checked)}
+                />
+                <span>최고 관리자 권한을 부여하는 것을 확인했습니다.</span>
+              </label>
+            ) : null}
+
             <div className="settings-modal__actions">
               <button type="button" className="settings-secondary-button" onClick={closeCreateModal}>
                 취소
               </button>
-              <button type="submit" disabled={isCreating} className="settings-primary-button">
+              <button
+                type="submit"
+                disabled={isCreating || (isCreatingSuperAdmin && !isCreateSuperAdminConfirmed)}
+                className="settings-primary-button"
+              >
                 <UserPlus size={15} />
                 {isCreating ? "생성 중..." : "사용자 생성"}
               </button>
@@ -879,9 +984,24 @@ export default function SettingsPage() {
                       </label>
                     </div>
 
+                    {isGrantingSuperAdmin ? (
+                      <label className="settings-role-confirm">
+                        <input
+                          type="checkbox"
+                          checked={isEditSuperAdminConfirmed}
+                          onChange={(event) => setIsEditSuperAdminConfirmed(event.target.checked)}
+                        />
+                        <span>선택한 사용자를 최고 관리자로 변경하는 것을 확인했습니다.</span>
+                      </label>
+                    ) : null}
+
                     <button
                       type="submit"
-                      disabled={isUpdating || !hasUserChanges}
+                      disabled={
+                        isUpdating ||
+                        !hasUserChanges ||
+                        (isGrantingSuperAdmin && !isEditSuperAdminConfirmed)
+                      }
                       className="settings-primary-button"
                     >
                       {isUpdating ? "저장 중..." : "변경사항 저장"}
@@ -1120,6 +1240,8 @@ export default function SettingsPage() {
       <div className="settings-modal-overlay" onClick={closeDeactivateConfirmModal}>
         <div
           className="settings-modal settings-modal--compact"
+          role="dialog"
+          aria-modal="true"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="settings-modal__head">
@@ -1172,6 +1294,8 @@ export default function SettingsPage() {
       <div className="settings-modal-overlay" onClick={closeActivateConfirmModal}>
         <div
           className="settings-modal settings-modal--compact"
+          role="dialog"
+          aria-modal="true"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="settings-modal__head">
@@ -1299,6 +1423,22 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          <form className="settings-user-filters" onSubmit={handleUserSearchSubmit}>
+            <input
+              value={userSearchKeyword}
+              onChange={(event) => setUserSearchKeyword(event.target.value)}
+              placeholder="사용자 ID 또는 이름 검색"
+            />
+            <select value={userStatusFilter} onChange={handleUserStatusFilterChange}>
+              <option value="ALL">전체 상태</option>
+              <option value="ACTIVE">활성 계정</option>
+              <option value="INACTIVE">비활성 계정</option>
+            </select>
+            <button type="submit" className="settings-secondary-button">
+              검색
+            </button>
+          </form>
+
           {isListLoading ? (
             <div className="settings-empty">사용자 목록을 불러오는 중입니다.</div>
           ) : users.length === 0 ? (
@@ -1340,6 +1480,30 @@ export default function SettingsPage() {
               })}
             </div>
           )}
+
+          {userPagination.totalPages > 1 ? (
+            <div className="settings-pagination" aria-label="사용자 목록 페이지 이동">
+              <button
+                type="button"
+                className="settings-action-button"
+                onClick={() => handleUserPageChange(userPage - 1)}
+                disabled={isListLoading || userPage <= 1}
+              >
+                이전
+              </button>
+              <span>
+                {userPage} / {userPagination.totalPages}
+              </span>
+              <button
+                type="button"
+                className="settings-action-button"
+                onClick={() => handleUserPageChange(userPage + 1)}
+                disabled={isListLoading || userPage >= userPagination.totalPages}
+              >
+                다음
+              </button>
+            </div>
+          ) : null}
         </section>
       </div>
     );
@@ -1363,7 +1527,7 @@ export default function SettingsPage() {
           <div>
             <span>등록 계정</span>
             <strong>{visibleUserCount}</strong>
-            <small>{isSuperAdmin ? "현재 조회된 관리자 계정 수" : "현재 로그인한 계정 수"}</small>
+            <small>{isSuperAdmin ? "전체 관리자 계정 수" : "현재 로그인한 계정 수"}</small>
           </div>
         </article>
 

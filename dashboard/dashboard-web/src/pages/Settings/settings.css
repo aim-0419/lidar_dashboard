@@ -232,6 +232,62 @@
   gap: 10px;
 }
 
+.settings-user-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px auto;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.settings-user-filters input,
+.settings-user-filters select {
+  min-width: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: #1e293b;
+  font: inherit;
+}
+
+.settings-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.settings-pagination span {
+  min-width: 54px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.settings-role-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 2px 0 0;
+  border: 1px solid #f59e0b;
+  border-radius: 9px;
+  padding: 10px 12px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.settings-role-confirm input {
+  width: 15px;
+  height: 15px;
+  margin: 1px 0 0;
+  accent-color: #d97706;
+}
+
 .settings-user-item {
   width: 100%;
   border: 1px solid #dbe4f0;
@@ -656,6 +712,10 @@
   .settings-form-grid,
   .settings-user-summary__grid,
   .settings-user-item__meta {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-user-filters {
     grid-template-columns: 1fr;
   }
 

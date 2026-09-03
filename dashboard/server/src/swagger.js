@@ -330,6 +330,36 @@
         summary: "사용자 목록 조회",
         description: "관리자가 사용자 목록을 조회합니다.",
         security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "page",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, default: 1 },
+            description: "조회할 페이지 번호",
+          },
+          {
+            name: "limit",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+            description: "페이지당 사용자 수",
+          },
+          {
+            name: "keyword",
+            in: "query",
+            required: false,
+            schema: { type: "string", example: "manager" },
+            description: "사용자 ID 또는 이름 검색어",
+          },
+          {
+            name: "isActive",
+            in: "query",
+            required: false,
+            schema: { type: "boolean", example: true },
+            description: "계정 활성 상태 필터",
+          },
+        ],
         responses: {
           200: {
             description: "사용자 목록 조회 성공",
@@ -340,6 +370,23 @@
                   properties: {
                     ok: { type: "boolean", example: true },
                     count: { type: "integer", example: 1 },
+                    summary: {
+                      type: "object",
+                      properties: {
+                        totalCount: { type: "integer", example: 12 },
+                        activeCount: { type: "integer", example: 10 },
+                        inactiveCount: { type: "integer", example: 2 },
+                      },
+                    },
+                    pagination: {
+                      type: "object",
+                      properties: {
+                        page: { type: "integer", example: 1 },
+                        limit: { type: "integer", example: 20 },
+                        totalPages: { type: "integer", example: 1 },
+                        totalItems: { type: "integer", example: 12 },
+                      },
+                    },
                     users: {
                       type: "array",
                       items: {
