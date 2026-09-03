@@ -942,6 +942,67 @@
         },
       },
     },
+    "/api/users/{id}/password/reset": {
+      patch: {
+        tags: ["Users"],
+        summary: "다른 사용자 비밀번호 초기화",
+        description:
+          "SUPER_ADMIN만 다른 사용자의 임시 비밀번호를 지정할 수 있습니다. 초기화가 완료되면 대상 사용자의 기존 로그인 세션은 모두 무효화됩니다. 임시 비밀번호 메일 발송은 아직 연동되지 않았습니다.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "user_id",
+            description: "비밀번호를 초기화할 사용자 ID",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["newPassword"],
+                properties: {
+                  newPassword: {
+                    type: "string",
+                    minLength: 8,
+                    maxLength: 72,
+                    example: "temporaryPassword123",
+                    description: "8자 이상, 72바이트 이하의 임시 비밀번호",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "비밀번호 초기화 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: { $ref: "#/components/schemas/LoginUser" },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: "비밀번호 정책 위반, 기존 비밀번호와 동일함 또는 본인 초기화 시도" },
+          401: { description: "인증 토큰이 없거나 유효하지 않음" },
+          403: { description: "SUPER_ADMIN 권한이 필요함" },
+          404: { description: "사용자를 찾을 수 없음" },
+          429: { description: "비밀번호 초기화 요청 횟수 초과" },
+          500: { description: "사용자 비밀번호 초기화 오류" },
+        },
+      },
+    },
     "/api/database/health": {
       get: {
         tags: ["Database"],

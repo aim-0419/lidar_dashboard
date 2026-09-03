@@ -230,6 +230,34 @@ async function updateUserPassword(req, res) {
   }
 }
 
+async function resetUserPassword(req, res) {
+  try {
+    const user = await usersService.resetUserPassword({
+      id: req.params.id,
+      requesterId: req.user?.id,
+      newPassword: req.body?.newPassword,
+    });
+
+    res.status(200).json({
+      ok: true,
+      user,
+    });
+  } catch (error) {
+    logger.error("reset user password failed", {
+      requesterId: req.user?.id,
+      requesterUserId: req.user?.userId,
+      targetUserId: req.params.id,
+      statusCode: error.statusCode,
+      message: error.message,
+    });
+
+    res.status(error.statusCode || 500).json({
+      ok: false,
+      message: getPublicMessage(error, "사용자 비밀번호 초기화 중 오류가 발생했습니다."),
+    });
+  }
+}
+
 module.exports = {
   getMe,
   getUsers,
@@ -239,4 +267,5 @@ module.exports = {
   deactivateUser,
   verifyUserPassword,
   updateUserPassword,
+  resetUserPassword,
 };

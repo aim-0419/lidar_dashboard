@@ -426,6 +426,67 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
   return serializeUser(user);
 }
 
+async function resetUserPassword({ id, requesterId, newPassword }) {
+  if (requesterId === id) {
+    throw createHttpError(400, "본인 비밀번호는 비밀번호 변경 기능을 사용해 주세요.");
+  }
+
+  validatePasswordPolicy(newPassword);
+
+  const userRecord = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      passwordHash: true,
+    },
+  });
+
+  if (!userRecord) {
+    throw createHttpError(404, "사용자를 찾을 수 없습니다.");
+  }
+
+  const isSamePassword = await bcrypt.compare(newPassword, userRecord.passwordHash);
+  if (isSamePassword) {
+    throw createHttpError(400, "기존 비밀번호와 같은 비밀번호로 초기화할 수 없습니다.");
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+
+  // 초기화한 계정의 기존 로그인 세션을 모두 무효화한다.
+  const [, user] = await prisma.$transaction([
+    prisma.refreshToken.updateMany({
+      where: {
+        userId: id,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    }),
+    prisma.user.update({
+      where: { id },
+      data: {
+        passwordHash,
+        sessionVersion: {
+          increment: 1,
+        },
+      },
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        role: true,
+        isActive: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+  ]);
+
+  return serializeUser(user);
+}
+
 module.exports = {
   getMyProfile,
   listUsers,
@@ -435,4 +496,5 @@ module.exports = {
   deactivateUser,
   verifyUserPassword,
   updateUserPassword,
+  resetUserPassword,
 };
