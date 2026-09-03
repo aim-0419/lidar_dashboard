@@ -292,6 +292,36 @@ export async function deactivateUserRequest(id) {
   return deleteJson(`/api/users/${id}`);
 }
 
+export async function createSignupRequest(payload) {
+  return postJson("/api/signup-requests", payload);
+}
+
+export async function checkSignupRequestUserId(userId) {
+  const query = new URLSearchParams({ userId: String(userId || "").trim() });
+  return getJson(`/api/signup-requests/availability?${query.toString()}`);
+}
+
+export async function fetchSignupRequests(status, page = 1, limit = 20) {
+  const query = new URLSearchParams();
+
+  if (status) {
+    query.set("status", status);
+  }
+
+  query.set("page", String(page));
+  query.set("limit", String(limit));
+
+  return getJson(`/api/signup-requests?${query.toString()}`);
+}
+
+export async function approveSignupRequest(id) {
+  return patchJson(`/api/signup-requests/${id}/approve`);
+}
+
+export async function rejectSignupRequest(id, rejectReason) {
+  return patchJson(`/api/signup-requests/${id}/reject`, { rejectReason });
+}
+
 export async function initializeAccessToken() {
   // 새로고침 후 메모리 토큰이 비어 있으면 refresh cookie로 다시 복구한다.
   if (accessToken) {

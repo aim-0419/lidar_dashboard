@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useLanguage } from "../../context/LanguageContext";
 
@@ -82,6 +82,9 @@ export default function LoginPage() {
         <button type="submit" disabled={isSubmitting} style={btn}>
           {isSubmitting ? "로그인 중..." : t("title.loginbtn")}
         </button>
+        <Link to="/signup-request" style={signupLink}>
+          관리자 계정 가입 신청
+        </Link>
       </form>
     </div>
   );
@@ -132,4 +135,12 @@ const btn = {
   border: "none",
   fontWeight: 700,
   cursor: "pointer",
+};
+
+const signupLink = {
+  color: "#a7f3d0",
+  fontSize: 13,
+  fontWeight: 700,
+  textAlign: "center",
+  textDecoration: "none",
 };

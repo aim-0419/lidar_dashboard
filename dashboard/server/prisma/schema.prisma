@@ -11,7 +11,9 @@ model User {
   userId           String         @unique @map("user_id")
   name             String
   passwordHash     String         @map("password_hash")
-  role             String         @default("SUPER_ADMIN")
+  email            String?        @unique
+  phoneNumber      String?        @unique @map("phone_number")
+  role             String         @default("MANAGER")
   isActive         Boolean        @default(true) @map("is_active")
   sessionVersion   Int            @default(0) @map("session_version")
   lastLoginAt      DateTime?      @map("last_login_at")
@@ -19,6 +21,7 @@ model User {
   updatedAt        DateTime       @updatedAt @map("updated_at")
   eventLogs        EventLog[]
   refreshTokens    RefreshToken[]
+  reviewedSignupRequests SignupRequest[] @relation("SignupRequestReviewer")
 
   @@map("users")
 }
@@ -37,6 +40,30 @@ model RefreshToken {
   @@index([expiresAt])
   @@index([revokedAt])
   @@map("refresh_tokens")
+}
+
+model SignupRequest {
+  id               String    @id @default(cuid())
+  userId           String    @unique @map("user_id")
+  name             String
+  passwordHash     String?   @map("password_hash")
+  email            String    @unique
+  phoneNumber      String    @unique @map("phone_number")
+  requestedRole    String    @default("MANAGER") @map("requested_role")
+  status           String    @default("PENDING")
+  reviewedByUserId String?   @map("reviewed_by_user_id")
+  reviewedAt       DateTime? @map("reviewed_at")
+  rejectReason     String?   @map("reject_reason")
+  cancelledAt      DateTime? @map("cancelled_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  reviewedBy User? @relation("SignupRequestReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([reviewedByUserId])
+  @@map("signup_requests")
 }
 
 model Site {

@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import RequireAuth from "../features/auth/RequireAuth";
 
 import LoginPage from "../pages/Login/LoginPage";
+import SignupRequestPage from "../pages/SignupRequest/SignupRequestPage";
+import SignupRequestsPage from "../pages/SignupRequests/SignupRequestsPage";
 import DashboardPage from "../pages/Dashboard/DashboardPage";
 import StatisticsPage from "../pages/Statistics/StatisticsPage";
 import WrongwayLogPage from "../pages/Dashboard/WrongwayLogPage";
@@ -19,6 +21,7 @@ export default function AppRouter() {
       <Routes>
         {/* 로그인 화면은 인증 없이 접근할 수 있다. */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup-request" element={<SignupRequestPage />} />
 
         {/* 아래 라우트들은 로그인한 사용자만 접근할 수 있다. */}
         <Route
@@ -35,6 +38,7 @@ export default function AppRouter() {
           <Route path="/events" element={<EventLogPage />} />
           <Route path="/devices" element={<DevicesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/signup-requests" element={<SignupRequestsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

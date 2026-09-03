@@ -14,6 +14,7 @@
   tags: [
     { name: "Health", description: "서버 상태 확인" },
     { name: "Auth", description: "로그인과 인증 토큰 발급" },
+    { name: "Signup Requests", description: "가입 신청 등록과 승인/반려 관리" },
     { name: "Users", description: "User management and profile APIs" },
     { name: "Database", description: "DB 연결과 기본 테이블 확인" },
     { name: "Sites", description: "현장 정보 조회" },
@@ -178,6 +179,8 @@
                         id: { type: "string", example: "user_id" },
                         userId: { type: "string", example: "admin" },
                         name: { type: "string", example: "관리자" },
+                        email: { type: "string", format: "email", nullable: true, example: "admin@example.com" },
+                        phoneNumber: { type: "string", nullable: true, example: "010-1234-5678" },
                         role: { type: "string", example: "super_admin" },
                         isActive: { type: "boolean", example: true },
                         lastLoginAt: { type: "string", format: "date-time", nullable: true },
@@ -251,6 +254,355 @@
                     message: { type: "string", example: "로그아웃 처리 중 오류가 발생했습니다." },
                   },
                 },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/signup-requests": {
+      post: {
+        tags: ["Signup Requests"],
+        summary: "가입 신청",
+        description: "관리자 계정 생성을 위한 가입 신청을 등록합니다.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/SignupRequestCreateRequest" },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: "가입 신청 등록 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestSingleResponse" },
+              },
+            },
+          },
+          400: {
+            description: "필수 항목 누락 또는 형식 오류",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          409: {
+            description: "이미 사용 중이거나 신청 이력이 있는 사용자 ID",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          429: {
+            description: "가입 신청 요청 횟수 초과",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+      get: {
+        tags: ["Signup Requests"],
+        summary: "가입 신청 목록 조회",
+        description: "최고 관리자가 가입 신청 목록을 조회합니다.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "status",
+            in: "query",
+            required: false,
+            schema: {
+              type: "string",
+              enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED"],
+            },
+            description: "특정 상태의 신청만 조회할 때 사용합니다.",
+          },
+          {
+            name: "page",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, default: 1 },
+            description: "조회할 페이지 번호입니다.",
+          },
+          {
+            name: "limit",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+            description: "페이지당 조회 건수입니다.",
+          },
+        ],
+        responses: {
+          200: {
+            description: "가입 신청 목록 조회 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestListResponse" },
+              },
+            },
+          },
+          401: {
+            description: "인증 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          403: {
+            description: "권한 없음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/signup-requests/availability": {
+      get: {
+        tags: ["Signup Requests"],
+        summary: "가입 신청 ID 사용 가능 여부 확인",
+        description: "users와 가입 신청 이력에 동일한 사용자 ID가 없는지 확인합니다.",
+        parameters: [
+          {
+            name: "userId",
+            in: "query",
+            required: true,
+            schema: { type: "string" },
+            example: "manager01",
+          },
+        ],
+        responses: {
+          200: {
+            description: "사용 가능 여부 확인 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestUserIdAvailabilityResponse" },
+              },
+            },
+          },
+          400: {
+            description: "사용자 ID 누락",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          429: {
+            description: "조회 횟수 제한 초과",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/signup-requests/{id}/approve": {
+      patch: {
+        tags: ["Signup Requests"],
+        summary: "가입 신청 승인",
+        description: "최고 관리자가 대기 중인 가입 신청을 승인하고 실제 사용자 계정을 생성합니다.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "cm_signup_request_id",
+          },
+        ],
+        responses: {
+          200: {
+            description: "가입 신청 승인 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestSingleResponse" },
+              },
+            },
+          },
+          401: {
+            description: "인증 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          403: {
+            description: "권한 없음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          404: {
+            description: "가입 신청을 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          409: {
+            description: "이미 처리된 가입 신청",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/signup-requests/{id}/reject": {
+      patch: {
+        tags: ["Signup Requests"],
+        summary: "가입 신청 반려",
+        description: "최고 관리자가 대기 중인 가입 신청을 반려합니다.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "cm_signup_request_id",
+          },
+        ],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/SignupRequestRejectRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "가입 신청 반려 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestSingleResponse" },
+              },
+            },
+          },
+          401: {
+            description: "인증 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          403: {
+            description: "권한 없음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          404: {
+            description: "가입 신청을 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          409: {
+            description: "이미 처리된 가입 신청",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/signup-requests/{id}/cancel": {
+      patch: {
+        tags: ["Signup Requests"],
+        summary: "가입 신청 취소",
+        description: "신청자가 본인 userId와 가입 신청 시 입력한 비밀번호를 확인한 뒤 대기 중인 가입 신청을 취소합니다.",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "cm_signup_request_id",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/SignupRequestCancelRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "가입 신청 취소 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestSingleResponse" },
+              },
+            },
+          },
+          400: {
+            description: "필수 항목 누락",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          401: {
+            description: "가입 신청 정보 확인 실패",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          404: {
+            description: "가입 신청을 찾을 수 없음",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          409: {
+            description: "이미 처리된 가입 신청",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          429: {
+            description: "가입 신청 취소 요청 횟수 초과",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
               },
             },
           },
@@ -348,6 +700,8 @@
                           id: { type: "string", example: "user_id" },
                           userId: { type: "string", example: "admin" },
                           name: { type: "string", example: "admin" },
+                          email: { type: "string", format: "email", nullable: true, example: "admin@example.com" },
+                          phoneNumber: { type: "string", nullable: true, example: "010-1234-5678" },
                           role: { type: "string", example: "super_admin" },
                           isActive: { type: "boolean", example: true },
                           lastLoginAt: { type: "string", format: "date-time", nullable: true },
@@ -407,7 +761,9 @@
                   userId: { type: "string", example: "manager01" },
                   name: { type: "string", example: "manager" },
                   password: { type: "string", example: "password123" },
-                  role: { type: "string", example: "SUPER_ADMIN" },
+                  email: { type: "string", format: "email", nullable: true, example: "manager01@example.com" },
+                  phoneNumber: { type: "string", nullable: true, example: "010-1234-5678" },
+                  role: { type: "string", example: "MANAGER" },
                   isActive: { type: "boolean", example: true },
                 },
               },
@@ -429,6 +785,8 @@
                         id: { type: "string", example: "user_id" },
                         userId: { type: "string", example: "manager01" },
                         name: { type: "string", example: "manager" },
+                        email: { type: "string", format: "email", nullable: true, example: "manager01@example.com" },
+                        phoneNumber: { type: "string", nullable: true, example: "010-1234-5678" },
                         role: { type: "string", example: "super_admin" },
                         isActive: { type: "boolean", example: true },
                         lastLoginAt: { type: "string", format: "date-time", nullable: true },
@@ -456,14 +814,14 @@
             },
           },
           409: {
-            description: "이미 존재하는 사용자 ID",
+            description: "이미 존재하는 사용자 ID, 이메일 또는 전화번호",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "이미 존재하는 사용자 ID입니다." },
+                    message: { type: "string", example: "이미 존재하는 이메일입니다." },
                   },
                 },
               },
@@ -502,6 +860,8 @@
                         id: { type: "string", example: "user_id" },
                         userId: { type: "string", example: "admin" },
                         name: { type: "string", example: "admin" },
+                        email: { type: "string", format: "email", nullable: true, example: "admin@example.com" },
+                        phoneNumber: { type: "string", nullable: true, example: "010-1234-5678" },
                         role: { type: "string", example: "super_admin" },
                         isActive: { type: "boolean", example: true },
                         lastLoginAt: { type: "string", format: "date-time", nullable: true },
@@ -581,6 +941,8 @@
                 properties: {
                   userId: { type: "string", example: "manager02" },
                   name: { type: "string", example: "updated manager" },
+                  email: { type: "string", format: "email", nullable: true, example: "manager02@example.com" },
+                  phoneNumber: { type: "string", nullable: true, example: "010-9876-5432" },
                   role: { type: "string", example: "SUPER_ADMIN" },
                   isActive: { type: "boolean", example: true },
                 },
@@ -603,6 +965,8 @@
                         id: { type: "string", example: "user_id" },
                         userId: { type: "string", example: "manager02" },
                         name: { type: "string", example: "updated manager" },
+                        email: { type: "string", format: "email", nullable: true, example: "manager02@example.com" },
+                        phoneNumber: { type: "string", nullable: true, example: "010-9876-5432" },
                         role: { type: "string", example: "super_admin" },
                         isActive: { type: "boolean", example: true },
                         lastLoginAt: { type: "string", format: "date-time", nullable: true },
@@ -644,14 +1008,14 @@
             },
           },
           409: {
-            description: "이미 존재하는 사용자 ID",
+            description: "이미 존재하는 사용자 ID, 이메일 또는 전화번호",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "이미 존재하는 사용자 ID입니다." },
+                    message: { type: "string", example: "이미 존재하는 전화번호입니다." },
                   },
                 },
               },
@@ -688,6 +1052,8 @@
                         id: { type: "string", example: "user_id" },
                         userId: { type: "string", example: "manager02" },
                         name: { type: "string", example: "updated manager" },
+                        email: { type: "string", format: "email", nullable: true, example: "manager02@example.com" },
+                        phoneNumber: { type: "string", nullable: true, example: "010-9876-5432" },
                         role: { type: "string", example: "super_admin" },
                         isActive: { type: "boolean", example: false },
                         lastLoginAt: { type: "string", format: "date-time", nullable: true },
@@ -720,8 +1086,8 @@
     "/api/users/{id}/password": {
       patch: {
         tags: ["Users"],
-        summary: "비밀번호 변경/초기화",
-        description: "관리자가 사용자 비밀번호를 변경하거나 초기화합니다.",
+        summary: "비밀번호 변경",
+        description: "로그인한 사용자가 본인 비밀번호를 변경합니다.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -738,9 +1104,10 @@
             "application/json": {
               schema: {
                 type: "object",
-                required: ["password"],
+                required: ["currentPassword", "newPassword"],
                 properties: {
-                  password: { type: "string", example: "newPassword123" },
+                  currentPassword: { type: "string", example: "password123" },
+                  newPassword: { type: "string", example: "newPassword123" },
                 },
               },
             },
@@ -761,6 +1128,8 @@
                         id: { type: "string", example: "user_id" },
                         userId: { type: "string", example: "manager02" },
                         name: { type: "string", example: "updated manager" },
+                        email: { type: "string", format: "email", nullable: true, example: "manager02@example.com" },
+                        phoneNumber: { type: "string", nullable: true, example: "010-9876-5432" },
                         role: { type: "string", example: "super_admin" },
                         isActive: { type: "boolean", example: true },
                         lastLoginAt: { type: "string", format: "date-time", nullable: true },
@@ -781,7 +1150,7 @@
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "password는 필수입니다." },
+                    message: { type: "string", example: "currentPassword와 newPassword는 필수입니다." },
                   },
                 },
               },
@@ -2273,6 +2642,103 @@
           ok: { type: "boolean", example: true },
           ticket: { type: "string", example: "jwt_websocket_ticket" },
           expiresInSeconds: { type: "integer", example: 30 },
+        },
+      },
+      SignupRequestCreateRequest: {
+        type: "object",
+        required: ["userId", "name", "password", "email", "phoneNumber"],
+        properties: {
+          userId: { type: "string", example: "manager01" },
+          name: { type: "string", example: "홍길동" },
+          password: { type: "string", example: "password123!" },
+          email: { type: "string", format: "email", example: "manager01@example.com" },
+          phoneNumber: { type: "string", example: "010-1234-5678" },
+        },
+      },
+      SignupRequestRejectRequest: {
+        type: "object",
+        properties: {
+          rejectReason: {
+            type: "string",
+            nullable: true,
+            example: "중복 신청으로 반려",
+          },
+        },
+      },
+      SignupRequestUserIdAvailabilityResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          userId: { type: "string", example: "manager01" },
+          available: { type: "boolean", example: true },
+        },
+      },
+      SignupRequestCancelRequest: {
+        type: "object",
+        required: ["userId", "password"],
+        properties: {
+          userId: { type: "string", example: "manager01" },
+          password: { type: "string", format: "password", example: "password123" },
+        },
+      },
+      SignupRequestItem: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "cm_signup_request_id" },
+          userId: { type: "string", example: "manager01" },
+          name: { type: "string", example: "홍길동" },
+          email: { type: "string", format: "email", example: "manager01@example.com" },
+          phoneNumber: { type: "string", example: "010-1234-5678" },
+          requestedRole: { type: "string", example: "MANAGER" },
+          status: {
+            type: "string",
+            enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED"],
+            example: "PENDING",
+          },
+          reviewedByUserId: { type: "string", nullable: true, example: "cm_admin_user_id" },
+          reviewedAt: { type: "string", format: "date-time", nullable: true },
+          rejectReason: { type: "string", nullable: true, example: "중복 신청" },
+          cancelledAt: { type: "string", format: "date-time", nullable: true },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+          reviewedBy: {
+            type: "object",
+            nullable: true,
+            properties: {
+              id: { type: "string", example: "cm_admin_user_id" },
+              userId: { type: "string", example: "admin" },
+              name: { type: "string", example: "관리자" },
+              role: { type: "string", example: "super_admin" },
+            },
+          },
+        },
+      },
+      SignupRequestSingleResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          request: { $ref: "#/components/schemas/SignupRequestItem" },
+        },
+      },
+      SignupRequestListResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          count: { type: "integer", example: 1 },
+          page: { type: "integer", example: 1 },
+          limit: { type: "integer", example: 20 },
+          totalPages: { type: "integer", example: 1 },
+          requests: {
+            type: "array",
+            items: { $ref: "#/components/schemas/SignupRequestItem" },
+          },
+        },
+      },
+      SignupRequestErrorResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: false },
+          message: { type: "string", example: "가입 신청 처리 중 오류가 발생했습니다." },
         },
       },
       LoginFailResponse: {

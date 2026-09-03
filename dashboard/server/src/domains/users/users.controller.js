@@ -88,6 +88,8 @@ async function createUser(req, res) {
       userId: req.body?.userId,
       name: req.body?.name,
       password: req.body?.password,
+      email: req.body?.email,
+      phoneNumber: req.body?.phoneNumber,
       role: req.body?.role,
       isActive: req.body?.isActive,
     });
@@ -118,6 +120,8 @@ async function updateUser(req, res) {
       id: req.params.id,
       userId: req.body?.userId,
       name: req.body?.name,
+      email: req.body?.email,
+      phoneNumber: req.body?.phoneNumber,
       role: req.body?.role,
       isActive: req.body?.isActive,
       requesterId: req.user.id,

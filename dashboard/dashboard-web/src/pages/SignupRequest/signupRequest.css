@@ -1,0 +1,133 @@
+.signup-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at top, #1c3b5c, #0b0f14 65%);
+}
+
+.signup-card {
+  width: min(100%, 460px);
+  display: grid;
+  gap: 14px;
+  padding: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  background: rgba(15, 35, 63, 0.9);
+  color: #f8fafc;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.signup-card h1,
+.signup-card p {
+  margin: 0;
+}
+
+.signup-eyebrow {
+  color: #67e8f9;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.signup-description {
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.signup-card label {
+  display: grid;
+  gap: 7px;
+  color: #dbeafe;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.signup-card input {
+  min-height: 42px;
+  box-sizing: border-box;
+  border: 1px solid rgba(191, 219, 254, 0.34);
+  border-radius: 9px;
+  padding: 0 12px;
+  background: rgba(2, 12, 27, 0.52);
+  color: #ffffff;
+}
+
+.signup-card input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.signup-user-id-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.signup-check-button {
+  min-height: 42px;
+  padding: 0 12px;
+  white-space: nowrap;
+  background: #334155 !important;
+}
+
+.signup-user-id-message {
+  margin: -7px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.signup-user-id-message.success {
+  color: #86efac;
+}
+
+.signup-user-id-message.error {
+  color: #fca5a5;
+}
+
+.signup-card button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 9px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.signup-card button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.signup-card > a {
+  color: #bfdbfe;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .signup-user-id-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.signup-message {
+  border-radius: 9px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.signup-message.error {
+  background: #7f1d1d;
+  color: #fee2e2;
+}
+
+.signup-message.success {
+  background: #14532d;
+  color: #dcfce7;
+}
