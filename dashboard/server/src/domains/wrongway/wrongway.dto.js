@@ -102,8 +102,8 @@ function createEventHistoryResponse({ events, page, limit, total, filters }) {
   };
 }
 
-function createEventDetailItem(event) {
-  return {
+function createEventDetailItem(event, { includeRawPayload = false } = {}) {
+  const item = {
     ...createEventHistoryItem(event),
     speedMs: event.speedMs,
     createdAt: event.createdAt,
@@ -126,15 +126,21 @@ function createEventDetailItem(event) {
           type: event.device.deviceType,
         }
       : null,
-    rawPayload: event.rawPayload,
   };
+
+  // 원본 라이다 payload에는 운영 환경에서 제한해야 할 상세 정보가 포함될 수 있다.
+  if (includeRawPayload) {
+    item.rawPayload = event.rawPayload;
+  }
+
+  return item;
 }
 
-function createEventDetailResponse(event) {
-  // 목록에서는 제외한 진단 필드와 원본 payload를 단건 상세 조회에서만 반환한다.
+function createEventDetailResponse(event, options) {
+  // 목록에서는 제외한 진단 필드를 단건 상세 조회에서 반환한다.
   return {
     success: true,
-    data: { event: createEventDetailItem(event) },
+    data: { event: createEventDetailItem(event, options) },
     message: "OK",
   };
 }

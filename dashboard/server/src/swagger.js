@@ -1981,7 +1981,7 @@
         tags: ["Wrongway"],
         summary: "이벤트 상세 조회",
         description:
-          "관제 화면에서 선택한 이벤트의 객체·시간·구역·라이다 PC 정보와 저장된 원본 payload를 조회합니다. 목록 API에는 원본 payload를 포함하지 않습니다.",
+          "관제 화면에서 선택한 이벤트의 객체·시간·구역·라이다 PC 정보를 조회합니다. 저장된 원본 payload는 SUPER_ADMIN에게만 반환하며, MANAGER 응답에서는 제외됩니다.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -2795,7 +2795,7 @@
               rawPayload: {
                 type: "object",
                 additionalProperties: true,
-                description: "해당 이벤트의 상위 snapshot 요약과 라이다 객체 원본 데이터",
+                description: "SUPER_ADMIN에게만 반환되는 이벤트의 상위 snapshot 요약과 라이다 객체 원본 데이터",
               },
             },
           },
