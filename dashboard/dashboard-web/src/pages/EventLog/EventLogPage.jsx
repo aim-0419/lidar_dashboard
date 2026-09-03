@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "../../context/useAuth";
 import {
   AlertTriangle,
   ArrowDown,
@@ -77,6 +78,8 @@ function todayDateInputValue() {
 }
 
 export default function EventLogPage() {
+  const { user } = useAuth();
+  const canEditEventStatus = user?.role === "super_admin";
   const [activeFilter, setActiveFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -273,7 +276,7 @@ export default function EventLogPage() {
   }
 
   async function saveEventStatus() {
-    if (!selected || statusSaving || !hasStatusUpdate) return;
+    if (!canEditEventStatus || !selected || statusSaving || !hasStatusUpdate) return;
 
     setStatusSaving(true);
     setStatusMessage("");
@@ -519,34 +522,43 @@ export default function EventLogPage() {
                   </button>
                 </>
               )}
-              <div className="event-status-editor">
-                <label>
-                  <span>관리 상태</span>
-                  <select value={statusDraft} onChange={(event) => setStatusDraft(event.target.value)}>
-                    <option value="NEW">신규</option>
-                    <option value="CONFIRMED">확인</option>
-                    <option value="RESOLVED">처리 완료</option>
-                    <option value="FALSE_ALARM">오탐</option>
-                  </select>
-                </label>
-                <label>
-                  <span>변경 사유</span>
-                  <textarea
-                    value={statusMemo}
-                    onChange={(event) => setStatusMemo(event.target.value)}
-                    placeholder="확인 내용 또는 변경 사유"
-                    rows="3"
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={saveEventStatus}
-                  disabled={statusSaving || !hasStatusUpdate}
-                >
-                  {statusSaving ? "저장 중" : "상태 저장"}
-                </button>
-                {statusMessage && <p className="event-status-message">{statusMessage}</p>}
-              </div>
+              {canEditEventStatus ? (
+                <div className="event-status-editor">
+                  <label>
+                    <span>관리 상태</span>
+                    <select value={statusDraft} onChange={(event) => setStatusDraft(event.target.value)}>
+                      <option value="NEW">신규</option>
+                      <option value="CONFIRMED">확인</option>
+                      <option value="RESOLVED">처리 완료</option>
+                      <option value="FALSE_ALARM">오탐</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>변경 사유</span>
+                    <textarea
+                      value={statusMemo}
+                      onChange={(event) => setStatusMemo(event.target.value)}
+                      placeholder="확인 내용 또는 변경 사유"
+                      rows="3"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={saveEventStatus}
+                    disabled={statusSaving || !hasStatusUpdate}
+                  >
+                    {statusSaving ? "저장 중" : "상태 저장"}
+                  </button>
+                  {statusMessage && <p className="event-status-message">{statusMessage}</p>}
+                </div>
+              ) : (
+                <dl className="event-detail-list">
+                  <div>
+                    <dt>관리 상태</dt>
+                    <dd>{statusText(selected.status)}</dd>
+                  </div>
+                </dl>
+              )}
             </>
           ) : (
             <p className="event-empty">조회된 이벤트가 없습니다.</p>
