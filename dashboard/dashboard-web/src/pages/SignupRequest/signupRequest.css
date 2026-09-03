@@ -108,6 +108,64 @@
   text-align: center;
 }
 
+.signup-cancel-card {
+  width: min(100%, 460px);
+  box-sizing: border-box;
+  margin-top: 16px;
+  padding: 16px 18px;
+  border: 1px solid rgba(191, 219, 254, 0.2);
+  border-radius: 14px;
+  background: rgba(15, 35, 63, 0.78);
+  color: #e2e8f0;
+}
+
+.signup-cancel-card summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.signup-cancel-card > p {
+  margin: 12px 0 0;
+  color: #cbd5e1;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.signup-cancel-card form {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.signup-cancel-card label {
+  display: grid;
+  gap: 6px;
+  color: #dbeafe;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.signup-cancel-card input {
+  min-height: 40px;
+  box-sizing: border-box;
+  border: 1px solid rgba(191, 219, 254, 0.34);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: rgba(2, 12, 27, 0.52);
+  color: #ffffff;
+}
+
+.signup-cancel-button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: #475569;
+  color: #ffffff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 @media (max-width: 480px) {
   .signup-user-id-row {
     grid-template-columns: 1fr;

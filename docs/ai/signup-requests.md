@@ -9,8 +9,9 @@
 
 ## 중복 방지와 보안
 
-- `signup_requests.user_id`, `email`, `phone_number`는 각각 중복될 수 없는 DB 값이다.
-- 신청 생성 전에는 `users`와 `signup_requests`를 모두 조회해 중복을 안내한다.
+- `users.user_id`, `email`, `phone_number`에 이미 존재하는 값은 가입 신청에 사용할 수 없다.
+- `signup_requests`에서는 `PENDING` 상태인 신청에만 동일한 `user_id`, `email`, `phone_number`를 허용하지 않는다.
+- `REJECTED`, `CANCELLED` 신청은 이력으로 보관하고 같은 정보로 재신청할 수 있다.
 - 가입 신청 API는 IP 기준 10분 동안 최대 5회 요청할 수 있다.
 - 비밀번호는 bcrypt 해시로만 저장한다.
 - 승인 시 해시는 `users.password_hash`로 복사하고 `signup_requests.password_hash`에서는 제거한다.
@@ -20,5 +21,5 @@
 
 - 반려 또는 취소된 신청 데이터의 보관 기간
 - 이메일 및 전화번호 소유 확인 절차
-- 가입 신청 취소 시 신청자를 안전하게 식별하는 방식
+- 가입 신청 취소 시 신청 번호와 신청 당시의 사용자 ID·비밀번호를 함께 확인한다.
 - 가입 신청 목록의 페이지네이션 정책

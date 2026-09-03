@@ -137,14 +137,17 @@ async function ensureUserIdAvailable(userId) {
       where: { userId: trimmedUserId },
       select: { id: true },
     }),
-    prisma.signupRequest.findUnique({
-      where: { userId: trimmedUserId },
+    prisma.signupRequest.findFirst({
+      where: {
+        userId: trimmedUserId,
+        status: SIGNUP_REQUEST_STATUS.PENDING,
+      },
       select: { id: true },
     }),
   ]);
 
   if (existingUser || existingRequest) {
-    throw createHttpError(409, "이미 사용 중이거나 신청 이력이 있는 사용자 ID입니다.");
+    throw createHttpError(409, "이미 사용 중이거나 대기 중인 가입 신청이 있는 사용자 ID입니다.");
   }
 
   return trimmedUserId;
@@ -162,8 +165,11 @@ async function checkUserIdAvailability(userId) {
       where: { userId: trimmedUserId },
       select: { id: true },
     }),
-    prisma.signupRequest.findUnique({
-      where: { userId: trimmedUserId },
+    prisma.signupRequest.findFirst({
+      where: {
+        userId: trimmedUserId,
+        status: SIGNUP_REQUEST_STATUS.PENDING,
+      },
       select: { id: true },
     }),
   ]);
@@ -182,14 +188,17 @@ async function ensureEmailAvailable(email) {
       where: { email: normalizedEmail },
       select: { id: true },
     }),
-    prisma.signupRequest.findUnique({
-      where: { email: normalizedEmail },
+    prisma.signupRequest.findFirst({
+      where: {
+        email: normalizedEmail,
+        status: SIGNUP_REQUEST_STATUS.PENDING,
+      },
       select: { id: true },
     }),
   ]);
 
   if (existingUser || existingRequest) {
-    throw createHttpError(409, "이미 사용 중이거나 신청 이력이 있는 이메일입니다.");
+    throw createHttpError(409, "이미 사용 중이거나 대기 중인 가입 신청이 있는 이메일입니다.");
   }
 
   return normalizedEmail;
@@ -203,14 +212,17 @@ async function ensurePhoneNumberAvailable(phoneNumber) {
       where: { phoneNumber: normalizedPhoneNumber },
       select: { id: true },
     }),
-    prisma.signupRequest.findUnique({
-      where: { phoneNumber: normalizedPhoneNumber },
+    prisma.signupRequest.findFirst({
+      where: {
+        phoneNumber: normalizedPhoneNumber,
+        status: SIGNUP_REQUEST_STATUS.PENDING,
+      },
       select: { id: true },
     }),
   ]);
 
   if (existingUser || existingRequest) {
-    throw createHttpError(409, "이미 사용 중이거나 신청 이력이 있는 전화번호입니다.");
+    throw createHttpError(409, "이미 사용 중이거나 대기 중인 가입 신청이 있는 전화번호입니다.");
   }
 
   return normalizedPhoneNumber;

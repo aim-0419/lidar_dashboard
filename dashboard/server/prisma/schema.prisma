@@ -44,11 +44,11 @@ model RefreshToken {
 
 model SignupRequest {
   id               String    @id @default(cuid())
-  userId           String    @unique @map("user_id")
+  userId           String    @map("user_id")
   name             String
   passwordHash     String?   @map("password_hash")
-  email            String    @unique
-  phoneNumber      String    @unique @map("phone_number")
+  email            String
+  phoneNumber      String    @map("phone_number")
   requestedRole    String    @default("MANAGER") @map("requested_role")
   status           String    @default("PENDING")
   reviewedByUserId String?   @map("reviewed_by_user_id")
@@ -61,6 +61,9 @@ model SignupRequest {
   reviewedBy User? @relation("SignupRequestReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
 
   @@index([status])
+  @@index([userId, status])
+  @@index([email, status])
+  @@index([phoneNumber, status])
   @@index([createdAt])
   @@index([reviewedByUserId])
   @@map("signup_requests")
