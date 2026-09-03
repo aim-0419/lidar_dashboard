@@ -43,9 +43,11 @@ export default function MainLayout() {
     }
 
     void loadPendingSignupCount();
+    window.addEventListener("signup-request-count-changed", loadPendingSignupCount);
 
     return () => {
       isMounted = false;
+      window.removeEventListener("signup-request-count-changed", loadPendingSignupCount);
     };
   }, [isSuperAdmin]);
 

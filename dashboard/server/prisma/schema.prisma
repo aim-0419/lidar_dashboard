@@ -47,20 +47,24 @@ model SignupRequest {
   userId           String    @map("user_id")
   name             String
   passwordHash     String?   @map("password_hash")
-  email            String
-  phoneNumber      String    @map("phone_number")
+  email            String?
+  phoneNumber      String?   @map("phone_number")
   requestedRole    String    @default("MANAGER") @map("requested_role")
   status           String    @default("PENDING")
+  expiresAt        DateTime? @map("expires_at")
   reviewedByUserId String?   @map("reviewed_by_user_id")
   reviewedAt       DateTime? @map("reviewed_at")
   rejectReason     String?   @map("reject_reason")
   cancelledAt      DateTime? @map("cancelled_at")
+  anonymizedAt     DateTime? @map("anonymized_at")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
   reviewedBy User? @relation("SignupRequestReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
 
   @@index([status])
+  @@index([expiresAt])
+  @@index([anonymizedAt])
   @@index([userId, status])
   @@index([email, status])
   @@index([phoneNumber, status])

@@ -14,6 +14,7 @@ const STATUS_LABELS = {
   APPROVED: "승인",
   REJECTED: "반려",
   CANCELLED: "취소",
+  EXPIRED: "만료",
 };
 
 function formatDate(value) {
@@ -76,6 +77,7 @@ export default function SignupRequestsPage() {
       await approveSignupRequest(id);
       setSuccessMessage("가입 신청을 승인했습니다.");
       await loadRequests();
+      window.dispatchEvent(new Event("signup-request-count-changed"));
     } catch (error) {
       setErrorMessage(error.message || "가입 신청을 승인하지 못했습니다.");
     } finally {
@@ -92,6 +94,7 @@ export default function SignupRequestsPage() {
       await rejectSignupRequest(id, rejectReason);
       setSuccessMessage("가입 신청을 반려했습니다.");
       await loadRequests();
+      window.dispatchEvent(new Event("signup-request-count-changed"));
     } catch (error) {
       setErrorMessage(error.message || "가입 신청을 반려하지 못했습니다.");
     } finally {
@@ -151,10 +154,12 @@ export default function SignupRequestsPage() {
               </b>
             </div>
             <dl>
-              <div><dt>이메일</dt><dd>{request.email}</dd></div>
-              <div><dt>전화번호</dt><dd>{request.phoneNumber}</dd></div>
+              <div><dt>이메일</dt><dd>{request.email || "-"}</dd></div>
+              <div><dt>전화번호</dt><dd>{request.phoneNumber || "-"}</dd></div>
               <div><dt>신청일</dt><dd>{formatDate(request.createdAt)}</dd></div>
               <div><dt>처리일</dt><dd>{formatDate(request.reviewedAt || request.cancelledAt)}</dd></div>
+              <div><dt>만료일</dt><dd>{formatDate(request.expiresAt)}</dd></div>
+              <div><dt>개인정보 삭제일</dt><dd>{formatDate(request.anonymizedAt)}</dd></div>
             </dl>
             {request.rejectReason ? <p className="signup-request-card__reason">반려 사유: {request.rejectReason}</p> : null}
             {request.status === "PENDING" ? (

@@ -11,11 +11,15 @@ const {
 const REQUESTED_ROLE = "MANAGER";
 const DEFAULT_LIST_LIMIT = 20;
 const MAX_LIST_LIMIT = 100;
+const SIGNUP_REQUEST_EXPIRATION_DAYS = 30;
+const SIGNUP_REQUEST_RETENTION_DAYS = 90;
+const SIGNUP_REQUEST_MAINTENANCE_INTERVAL_MS = 60 * 60 * 1000;
 const SIGNUP_REQUEST_STATUS = {
   PENDING: "PENDING",
   APPROVED: "APPROVED",
   REJECTED: "REJECTED",
   CANCELLED: "CANCELLED",
+  EXPIRED: "EXPIRED",
 };
 
 function createHttpError(statusCode, message) {
@@ -66,6 +70,12 @@ function validatePhoneNumber(phoneNumber) {
   return normalizedPhoneNumber;
 }
 
+function addDays(date, days) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
 function serializeSignupRequest(request) {
   return {
     id: request.id,
@@ -75,10 +85,12 @@ function serializeSignupRequest(request) {
     phoneNumber: request.phoneNumber,
     requestedRole: request.requestedRole,
     status: request.status,
+    expiresAt: request.expiresAt,
     reviewedByUserId: request.reviewedByUserId,
     reviewedAt: request.reviewedAt,
     rejectReason: request.rejectReason,
     cancelledAt: request.cancelledAt,
+    anonymizedAt: request.anonymizedAt,
     createdAt: request.createdAt,
     updatedAt: request.updatedAt,
     reviewedBy: request.reviewedBy
@@ -101,10 +113,12 @@ function getSignupRequestSelect() {
     phoneNumber: true,
     requestedRole: true,
     status: true,
+    expiresAt: true,
     reviewedByUserId: true,
     reviewedAt: true,
     rejectReason: true,
     cancelledAt: true,
+    anonymizedAt: true,
     createdAt: true,
     updatedAt: true,
     reviewedBy: {
@@ -154,6 +168,8 @@ async function ensureUserIdAvailable(userId) {
 }
 
 async function checkUserIdAvailability(userId) {
+  await runSignupRequestMaintenance();
+
   const trimmedUserId = String(userId || "").trim();
 
   if (!trimmedUserId) {
@@ -247,6 +263,49 @@ function ensurePendingStatus(request) {
   }
 }
 
+// 만료된 대기 신청과 보관 기간이 지난 완료 신청의 민감 정보를 정리한다.
+async function runSignupRequestMaintenance(now = new Date()) {
+  const retentionCutoff = addDays(now, -SIGNUP_REQUEST_RETENTION_DAYS);
+
+  const [expiredResult, anonymizedResult] = await prisma.$transaction([
+    prisma.signupRequest.updateMany({
+      where: {
+        status: SIGNUP_REQUEST_STATUS.PENDING,
+        expiresAt: { lte: now },
+      },
+      data: {
+        status: SIGNUP_REQUEST_STATUS.EXPIRED,
+        passwordHash: null,
+      },
+    }),
+    prisma.signupRequest.updateMany({
+      where: {
+        status: {
+          in: [
+            SIGNUP_REQUEST_STATUS.REJECTED,
+            SIGNUP_REQUEST_STATUS.CANCELLED,
+            SIGNUP_REQUEST_STATUS.EXPIRED,
+          ],
+        },
+        anonymizedAt: null,
+        updatedAt: { lte: retentionCutoff },
+      },
+      data: {
+        name: "개인정보 삭제됨",
+        email: null,
+        phoneNumber: null,
+        rejectReason: null,
+        anonymizedAt: now,
+      },
+    }),
+  ]);
+
+  return {
+    expiredCount: expiredResult.count,
+    anonymizedCount: anonymizedResult.count,
+  };
+}
+
 function handlePrismaError(error) {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
     const target = Array.isArray(error.meta?.target) ? error.meta.target.join(",") : String(error.meta?.target || "");
@@ -270,6 +329,8 @@ function handlePrismaError(error) {
 }
 
 async function createSignupRequest({ userId, name, password, email, phoneNumber }) {
+  await runSignupRequestMaintenance();
+
   if (isBlank(userId) || isBlank(name) || isBlank(password) || isBlank(email) || isBlank(phoneNumber)) {
     throw createHttpError(400, "userId, name, password, email, phoneNumber를 모두 입력해야 합니다.");
   }
@@ -294,6 +355,7 @@ async function createSignupRequest({ userId, name, password, email, phoneNumber 
         phoneNumber: normalizedPhoneNumber,
         requestedRole: REQUESTED_ROLE,
         status: SIGNUP_REQUEST_STATUS.PENDING,
+        expiresAt: addDays(new Date(), SIGNUP_REQUEST_EXPIRATION_DAYS),
       },
       select: getSignupRequestSelect(),
     });
@@ -305,6 +367,8 @@ async function createSignupRequest({ userId, name, password, email, phoneNumber 
 }
 
 async function listSignupRequests({ status, page, limit }) {
+  await runSignupRequestMaintenance();
+
   const normalizedStatus = String(status || "").trim().toUpperCase();
   const where = {};
   const normalizedPage = parsePositiveInteger(page, 1, "page");
@@ -338,6 +402,8 @@ async function listSignupRequests({ status, page, limit }) {
 }
 
 async function approveSignupRequest({ id, reviewerId }) {
+  await runSignupRequestMaintenance();
+
   try {
     const approvedRequest = await prisma.$transaction(async (tx) => {
       const request = await tx.signupRequest.findUnique({
@@ -360,6 +426,7 @@ async function approveSignupRequest({ id, reviewerId }) {
         where: {
           id,
           status: SIGNUP_REQUEST_STATUS.PENDING,
+          expiresAt: { gt: reviewedAt },
         },
         data: {
           status: SIGNUP_REQUEST_STATUS.APPROVED,
@@ -411,6 +478,8 @@ async function approveSignupRequest({ id, reviewerId }) {
 }
 
 async function rejectSignupRequest({ id, reviewerId, rejectReason }) {
+  await runSignupRequestMaintenance();
+
   const normalizedRejectReason =
     typeof rejectReason === "string" && rejectReason.trim() !== "" ? rejectReason.trim() : null;
 
@@ -430,6 +499,7 @@ async function rejectSignupRequest({ id, reviewerId, rejectReason }) {
       where: {
         id,
         status: SIGNUP_REQUEST_STATUS.PENDING,
+        expiresAt: { gt: new Date() },
       },
       data: {
         status: SIGNUP_REQUEST_STATUS.REJECTED,
@@ -467,6 +537,8 @@ async function rejectSignupRequest({ id, reviewerId, rejectReason }) {
 }
 
 async function cancelSignupRequest({ id, userId, password }) {
+  await runSignupRequestMaintenance();
+
   if (isBlank(userId) || isBlank(password)) {
     throw createHttpError(400, "userId와 password를 모두 입력해야 합니다.");
   }
@@ -496,6 +568,7 @@ async function cancelSignupRequest({ id, userId, password }) {
       where: {
         id,
         status: SIGNUP_REQUEST_STATUS.PENDING,
+        expiresAt: { gt: new Date() },
       },
       data: {
         status: SIGNUP_REQUEST_STATUS.CANCELLED,
@@ -507,6 +580,17 @@ async function cancelSignupRequest({ id, userId, password }) {
     if (claimResult.count !== 1) {
       throw createHttpError(409, "이미 처리된 가입 신청입니다.");
     }
+
+    await tx.eventLog.create({
+      data: {
+        action: "SIGNUP_REQUEST_CANCELLED",
+        message: "Signup request cancelled.",
+        metadata: {
+          signupRequestId: id,
+          requestedUserId: request.userId,
+        },
+      },
+    });
 
     return tx.signupRequest.findUnique({
       where: { id },
@@ -524,4 +608,6 @@ module.exports = {
   approveSignupRequest,
   rejectSignupRequest,
   cancelSignupRequest,
+  runSignupRequestMaintenance,
+  SIGNUP_REQUEST_MAINTENANCE_INTERVAL_MS,
 };
