@@ -1939,9 +1939,9 @@
     "/api/events/{id}/status": {
       patch: {
         tags: ["Wrongway"],
-        summary: "관리자 이벤트 상태 및 변경 사유 기록",
+        summary: "최고 관리자 이벤트 상태 및 변경 사유 기록",
         description:
-          "관리자가 이벤트의 업무 처리 상태를 변경하거나, 현재 상태를 유지한 채 변경 사유만 event_logs에 기록합니다. 통합제어보드나 물리 장비는 제어하지 않습니다.",
+          "SUPER_ADMIN만 이벤트의 업무 처리 상태를 변경하거나, 현재 상태를 유지한 채 변경 사유만 event_logs에 기록할 수 있습니다. 통합제어보드나 물리 장비는 제어하지 않습니다.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -1971,6 +1971,7 @@
           },
           400: { description: "지원하지 않는 상태 값" },
           401: { description: "인증 토큰이 없거나 유효하지 않음" },
+          403: { description: "SUPER_ADMIN 권한이 필요함" },
           404: { description: "이벤트를 찾을 수 없음" },
           500: { description: "이벤트 상태 또는 변경 사유 기록 오류" },
         },
