@@ -1,4 +1,4 @@
-const rateLimit = require("express-rate-limit");
+const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
 
 const { logger } = require("../utils/logger");
 
@@ -17,7 +17,7 @@ const loginRateLimit = rateLimit({
   skipSuccessfulRequests: true,
   keyGenerator(req) {
     const userId = normalizeLoginKeyPart(req.body?.userId);
-    const ipAddress = normalizeLoginKeyPart(req.ip);
+    const ipAddress = normalizeLoginKeyPart(ipKeyGenerator(req.ip || ""));
     return `${userId}::${ipAddress}`;
   },
   handler(req, res) {
@@ -30,7 +30,7 @@ const loginRateLimit = rateLimit({
 
     res.status(429).json({
       ok: false,
-      message: "Too many login attempts. Please try again later.",
+      message: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.",
     });
   },
 });

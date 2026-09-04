@@ -1,11 +1,19 @@
 const bcrypt = require("bcrypt");
 const { Prisma } = require("@prisma/client");
 const { prisma } = require("../../prisma/client");
+const {
+  MIN_PASSWORD_LENGTH,
+  MAX_PASSWORD_BYTES,
+  MIN_USER_ID_LENGTH,
+  MAX_USER_ID_LENGTH,
+  getPasswordValidationError,
+  isValidPassword,
+  isValidUserId,
+  normalizePhoneNumber,
+  isValidPhoneNumber,
+} = require("../../utils/credential-policy");
 
 const ALLOWED_ROLES = ["SUPER_ADMIN", "MANAGER"];
-const MIN_PASSWORD_LENGTH = 8;
-const MAX_PASSWORD_BYTES = 72;
-const USER_ID_PATTERN = /^[A-Za-z0-9_-]{3,32}$/;
 const DEFAULT_USER_LIST_LIMIT = 20;
 const MAX_USER_LIST_LIMIT = 100;
 
@@ -17,6 +25,10 @@ function createHttpError(statusCode, message) {
 
 function normalizeRole(role) {
   return String(role || "").toLowerCase();
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
 }
 
 function normalizeRoleInput(role) {
@@ -34,6 +46,8 @@ function serializeUser(user) {
     id: user.id,
     userId: user.userId,
     name: user.name,
+    email: user.email ?? null,
+    phoneNumber: user.phoneNumber ?? null,
     role: normalizeRole(user.role),
     isActive: user.isActive,
     lastLoginAt: user.lastLoginAt,
@@ -67,27 +81,36 @@ function isBlank(value) {
   return typeof value !== "string" || value.trim() === "";
 }
 
+function validateUserId(userId) {
+  const normalizedUserId = String(userId || "").trim();
+
+  if (!isValidUserId(normalizedUserId)) {
+    throw createHttpError(
+      400,
+      `사용자 ID는 영문과 숫자만 사용해 ${MIN_USER_ID_LENGTH}~${MAX_USER_ID_LENGTH}자로 입력해야 합니다.`,
+    );
+  }
+
+  return normalizedUserId;
+}
+
+function getPasswordValidationMessage(password) {
+  return getPasswordValidationError(password) === "TOO_LONG"
+    ? `Password must be at most ${MAX_PASSWORD_BYTES} UTF-8 bytes.`
+    : `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+}
+
 function validatePasswordPolicy(password) {
   if (isBlank(password)) {
     throw createHttpError(400, "비밀번호를 입력해 주세요.");
   }
 
-  if (password.length < MIN_PASSWORD_LENGTH) {
+  if (getPasswordValidationError(password) === "TOO_SHORT") {
     throw createHttpError(400, `비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상 입력해 주세요.`);
   }
 
-  // bcrypt는 72바이트 이후 문자열을 해시에 반영하지 않는다.
-  if (Buffer.byteLength(password, "utf8") > MAX_PASSWORD_BYTES) {
+  if (getPasswordValidationError(password) === "TOO_LONG") {
     throw createHttpError(400, `비밀번호는 ${MAX_PASSWORD_BYTES}바이트 이하로 입력해 주세요.`);
-  }
-}
-
-function validateUserId(userId) {
-  if (!USER_ID_PATTERN.test(userId)) {
-    throw createHttpError(
-      400,
-      "사용자 ID는 영문, 숫자, 밑줄(_), 하이픈(-)만 사용하여 3~32자로 입력해 주세요.",
-    );
   }
 }
 
@@ -97,6 +120,26 @@ function parseOptionalBoolean(value) {
   }
 
   return undefined;
+}
+
+function validateEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    throw createHttpError(400, "email must be a valid email address.");
+  }
+
+  return normalizedEmail;
+}
+
+function validatePhoneNumber(phoneNumber) {
+  const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
+
+  if (!isValidPhoneNumber(normalizedPhoneNumber)) {
+    throw createHttpError(400, "phoneNumber must be a valid phone number.");
+  }
+
+  return normalizedPhoneNumber;
 }
 
 function parseUserListNumber(value, defaultValue, maximum) {
@@ -130,7 +173,21 @@ function parseUserListActiveFilter(value) {
 
 function handlePrismaError(error) {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-    throw createHttpError(409, "이미 사용 중인 사용자 ID입니다.");
+    const target = Array.isArray(error.meta?.target) ? error.meta.target.join(",") : String(error.meta?.target || "");
+
+    if (target.includes("user_id")) {
+      throw createHttpError(409, "User ID already exists.");
+    }
+
+    if (target.includes("email")) {
+      throw createHttpError(409, "Email already exists.");
+    }
+
+    if (target.includes("phone_number")) {
+      throw createHttpError(409, "Phone number already exists.");
+    }
+
+    throw createHttpError(409, "A duplicate value already exists.");
   }
 
   throw error;
@@ -143,6 +200,8 @@ async function findUserRecordById(id) {
       id: true,
       userId: true,
       name: true,
+      email: true,
+      phoneNumber: true,
       role: true,
       isActive: true,
       lastLoginAt: true,
@@ -203,6 +262,8 @@ async function listUsers({ page, limit, keyword, isActive } = {}) {
         id: true,
         userId: true,
         name: true,
+        email: true,
+        phoneNumber: true,
         role: true,
         isActive: true,
         lastLoginAt: true,
@@ -235,19 +296,24 @@ async function getUserDetail({ id }) {
   return findSerializedUserById(id);
 }
 
-async function createUser({ userId, name, password, role, isActive, requesterId }) {
+async function createUser({ userId, name, password, email, phoneNumber, role, isActive, requesterId }) {
   if (isBlank(userId) || isBlank(name) || isBlank(password)) {
     throw createHttpError(400, "userId, name, and password are required.");
   }
 
+  if (!isValidPassword(password)) {
+    throw createHttpError(400, getPasswordValidationMessage(password));
+  }
   validatePasswordPolicy(password);
-  validateUserId(userId.trim());
 
   const passwordHash = await bcrypt.hash(password, 10);
   const userData = {
-    userId: userId.trim(),
+    userId: validateUserId(userId),
     name: name.trim(),
     passwordHash,
+    email: typeof email === "string" && email.trim() !== "" ? validateEmail(email) : null,
+    phoneNumber:
+      typeof phoneNumber === "string" && phoneNumber.trim() !== "" ? validatePhoneNumber(phoneNumber) : null,
     role: normalizeRoleInput(role),
     isActive: typeof isActive === "boolean" ? isActive : true,
   };
@@ -260,6 +326,8 @@ async function createUser({ userId, name, password, role, isActive, requesterId 
           id: true,
           userId: true,
           name: true,
+          email: true,
+          phoneNumber: true,
           role: true,
           isActive: true,
           lastLoginAt: true,
@@ -284,7 +352,7 @@ async function createUser({ userId, name, password, role, isActive, requesterId 
   }
 }
 
-async function updateUser({ id, userId, name, role, isActive, requesterId, requesterRole }) {
+async function updateUser({ id, userId, name, email, phoneNumber, role, isActive, requesterId, requesterRole }) {
   const existingUser = await findUserRecordById(id);
   const isSelfUpdate = requesterId === id;
   const isRequesterSuperAdmin = normalizeRole(requesterRole) === "super_admin";
@@ -295,11 +363,7 @@ async function updateUser({ id, userId, name, role, isActive, requesterId, reque
   }
 
   if (typeof userId === "string") {
-    if (userId.trim() === "") {
-      throw createHttpError(400, "userId cannot be empty.");
-    }
-    validateUserId(userId.trim());
-    data.userId = userId.trim();
+    data.userId = validateUserId(userId);
   }
 
   if (typeof name === "string") {
@@ -307,6 +371,14 @@ async function updateUser({ id, userId, name, role, isActive, requesterId, reque
       throw createHttpError(400, "name cannot be empty.");
     }
     data.name = name.trim();
+  }
+
+  if (typeof email === "string") {
+    data.email = email.trim() === "" ? null : validateEmail(email);
+  }
+
+  if (typeof phoneNumber === "string") {
+    data.phoneNumber = phoneNumber.trim() === "" ? null : validatePhoneNumber(phoneNumber);
   }
 
   if (typeof role === "string") {
@@ -367,6 +439,8 @@ async function updateUser({ id, userId, name, role, isActive, requesterId, reque
           id: true,
           userId: true,
           name: true,
+          email: true,
+          phoneNumber: true,
           role: true,
           isActive: true,
           lastLoginAt: true,
@@ -422,6 +496,8 @@ async function deactivateUser({ id, requesterId }) {
         id: true,
         userId: true,
         name: true,
+        email: true,
+        phoneNumber: true,
         role: true,
         isActive: true,
         lastLoginAt: true,
@@ -483,6 +559,10 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
     throw createHttpError(400, "currentPassword and newPassword are required.");
   }
 
+  if (!isValidPassword(newPassword)) {
+    throw createHttpError(400, getPasswordValidationMessage(newPassword));
+  }
+
   if (currentPassword === newPassword) {
     throw createHttpError(400, "New password must be different from current password.");
   }
@@ -528,10 +608,12 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
         },
       },
       select: {
-        id: true,
-        userId: true,
-        name: true,
-        role: true,
+      id: true,
+      userId: true,
+      name: true,
+      email: true,
+      phoneNumber: true,
+      role: true,
         isActive: true,
         lastLoginAt: true,
         createdAt: true,

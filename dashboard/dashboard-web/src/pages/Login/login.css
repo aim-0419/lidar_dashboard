@@ -217,6 +217,17 @@
   box-shadow: none;
 }
 
+.login-panel__signup-link {
+  color: #a7f3d0;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.login-panel__signup-link:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 1100px) {
   .login-page__content {
     padding-top: 10px;

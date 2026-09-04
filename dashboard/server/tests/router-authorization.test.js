@@ -48,6 +48,12 @@ function createTestApp() {
         if (name.endsWith("/password-rate-limit.middleware")) {
           return { passwordRateLimit: (req, res, next) => next() };
         }
+        if (name.endsWith("/signup-rate-limit.middleware")) {
+          return {
+            signupRateLimit: (req, res, next) => next(),
+            signupAvailabilityRateLimit: (req, res, next) => next(),
+          };
+        }
         throw new Error(`Unexpected test dependency: ${name}`);
       },
     }, { filename });
