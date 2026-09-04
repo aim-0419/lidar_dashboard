@@ -163,11 +163,12 @@ POST /api/mock/lidar/events
 
 ## 인증/권한
 
-- 1차 개발은 `SUPER_ADMIN` 단일 권한을 전제로 합니다.
+- 권한 정책은 [authorization.md](authorization.md)를 기준으로 합니다.
 - JWT access token, refresh token 구조를 사용합니다.
 - 비밀번호는 bcrypt로 해시 처리합니다.
 - 원문 비밀번호를 DB, 로그, 응답에 남기지 않습니다.
-- 세부 권한은 운영 정책 확정 후 구현합니다.
+- `MANAGER`는 관제 데이터 조회와 본인 계정 관리만 할 수 있습니다.
+- 사용자 관리, 장비 제어, 테스트·데모 실행, 이벤트 상태 변경은 `SUPER_ADMIN`만 할 수 있습니다.
 
 ## IP 제한
 

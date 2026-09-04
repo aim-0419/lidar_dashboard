@@ -1,5 +1,4 @@
-/* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   clearAccessToken,
   fetchMyProfile,
@@ -9,8 +8,7 @@ import {
   setAccessToken,
   setUnauthorizedHandler,
 } from "../shared/api/http";
-
-const AuthContext = createContext(null);
+import { AuthContext } from "./auth-context-value";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -85,6 +83,10 @@ export function AuthProvider({ children }) {
     }
   }
 
+  function updateCurrentUser(nextUser) {
+    setUser((currentUser) => (currentUser ? { ...currentUser, ...nextUser } : currentUser));
+  }
+
   const value = useMemo(
     () => ({
       user,
@@ -92,13 +94,10 @@ export function AuthProvider({ children }) {
       isInitializing,
       login,
       logout,
+      updateCurrentUser,
     }),
     [isInitializing, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
 }

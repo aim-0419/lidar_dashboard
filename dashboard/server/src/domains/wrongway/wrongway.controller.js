@@ -46,6 +46,26 @@ async function getWrongWayHistory(req, res) {
   }
 }
 
+async function getWrongWayEventDetail(req, res) {
+  try {
+    const result = await wrongwayService.getEventDetail(req.params.id, {
+      // 원본 payload는 민감한 현장 진단 데이터이므로 최고 관리자에게만 제공한다.
+      includeRawPayload: req.user?.role === "SUPER_ADMIN",
+    });
+    res.json(result);
+  } catch (error) {
+    logger.error("wrongway event detail query failed", {
+      eventId: req.params.id,
+      userId: req.user?.id,
+      message: error.message,
+      details: error.details,
+    });
+    res
+      .status(error.statusCode || 500)
+      .json(createWrongwayErrorResponse(error, "이벤트 상세 조회 중 오류가 발생했습니다."));
+  }
+}
+
 async function updateWrongWayEventStatus(req, res) {
   try {
     const result = await wrongwayService.updateEventStatus({
@@ -111,6 +131,7 @@ async function sendWrongWayTest(req, res) {
 module.exports = {
   receiveWrongWay,
   getWrongWayHistory,
+  getWrongWayEventDetail,
   updateWrongWayEventStatus,
   getWrongWayTestPayloads,
   getNormalDrivingStreamStatus,

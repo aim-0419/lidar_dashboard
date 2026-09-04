@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import "./mainLayout.css";
-import { useLanguage } from "../context/LanguageContext";
-import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/useLanguage";
+import { useAuth } from "../context/useAuth";
 import { fetchSignupRequests } from "../shared/api/http";
 import {
   BarChart3,

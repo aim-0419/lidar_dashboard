@@ -14,6 +14,8 @@ const {
 } = require("../../utils/credential-policy");
 
 const ALLOWED_ROLES = ["SUPER_ADMIN", "MANAGER"];
+const DEFAULT_USER_LIST_LIMIT = 20;
+const MAX_USER_LIST_LIMIT = 100;
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -54,6 +56,27 @@ function serializeUser(user) {
   };
 }
 
+function createUserAuditSnapshot(user) {
+  return {
+    userId: user.userId,
+    name: user.name,
+    role: user.role,
+    isActive: user.isActive,
+  };
+}
+
+async function createUserAuditLog(tx, { actorUserId, targetUserId, action, beforeData, afterData }) {
+  await tx.userAuditLog.create({
+    data: {
+      actorUserId: actorUserId || null,
+      targetUserId,
+      action,
+      beforeData,
+      afterData,
+    },
+  });
+}
+
 function isBlank(value) {
   return typeof value !== "string" || value.trim() === "";
 }
@@ -75,6 +98,20 @@ function getPasswordValidationMessage(password) {
   return getPasswordValidationError(password) === "TOO_LONG"
     ? `Password must be at most ${MAX_PASSWORD_BYTES} UTF-8 bytes.`
     : `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+}
+
+function validatePasswordPolicy(password) {
+  if (isBlank(password)) {
+    throw createHttpError(400, "비밀번호를 입력해 주세요.");
+  }
+
+  if (getPasswordValidationError(password) === "TOO_SHORT") {
+    throw createHttpError(400, `비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상 입력해 주세요.`);
+  }
+
+  if (getPasswordValidationError(password) === "TOO_LONG") {
+    throw createHttpError(400, `비밀번호는 ${MAX_PASSWORD_BYTES}바이트 이하로 입력해 주세요.`);
+  }
 }
 
 function parseOptionalBoolean(value) {
@@ -103,6 +140,35 @@ function validatePhoneNumber(phoneNumber) {
   }
 
   return normalizedPhoneNumber;
+}
+
+function parseUserListNumber(value, defaultValue, maximum) {
+  if (value === undefined || value === null || value === "") {
+    return defaultValue;
+  }
+
+  const parsedValue = Number(value);
+  if (!Number.isInteger(parsedValue) || parsedValue < 1 || parsedValue > maximum) {
+    throw createHttpError(400, "Invalid user list pagination value.");
+  }
+
+  return parsedValue;
+}
+
+function parseUserListActiveFilter(value) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  if (value === true || value === "true") {
+    return true;
+  }
+
+  if (value === false || value === "false") {
+    return false;
+  }
+
+  throw createHttpError(400, "Invalid user active status filter.");
 }
 
 function handlePrismaError(error) {
@@ -166,28 +232,63 @@ async function getMyProfile({ id }) {
   return user;
 }
 
-async function listUsers() {
-  const users = await prisma.user.findMany({
-    orderBy: {
-      createdAt: "desc",
-    },
-    select: {
-      id: true,
-      userId: true,
-      name: true,
-      email: true,
-      phoneNumber: true,
-      role: true,
-      isActive: true,
-      lastLoginAt: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
+async function listUsers({ page, limit, keyword, isActive } = {}) {
+  const nextPage = parseUserListNumber(page, 1, Number.MAX_SAFE_INTEGER);
+  const nextLimit = parseUserListNumber(limit, DEFAULT_USER_LIST_LIMIT, MAX_USER_LIST_LIMIT);
+  const nextKeyword = typeof keyword === "string" ? keyword.trim() : "";
+  const nextIsActive = parseUserListActiveFilter(isActive);
+  const where = {
+    ...(typeof nextIsActive === "boolean" ? { isActive: nextIsActive } : {}),
+    ...(nextKeyword
+      ? {
+          OR: [
+            { userId: { contains: nextKeyword, mode: "insensitive" } },
+            { name: { contains: nextKeyword, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+
+  const [count, users, activeCount, inactiveCount] = await prisma.$transaction([
+    prisma.user.count({ where }),
+    prisma.user.findMany({
+      where,
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip: (nextPage - 1) * nextLimit,
+      take: nextLimit,
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        email: true,
+        phoneNumber: true,
+        role: true,
+        isActive: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.user.count({ where: { isActive: true } }),
+    prisma.user.count({ where: { isActive: false } }),
+  ]);
 
   return {
-    count: users.length,
+    count,
     users: users.map(serializeUser),
+    summary: {
+      totalCount: activeCount + inactiveCount,
+      activeCount,
+      inactiveCount,
+    },
+    pagination: {
+      page: nextPage,
+      limit: nextLimit,
+      totalPages: Math.max(1, Math.ceil(count / nextLimit)),
+      totalItems: count,
+    },
   };
 }
 
@@ -195,7 +296,7 @@ async function getUserDetail({ id }) {
   return findSerializedUserById(id);
 }
 
-async function createUser({ userId, name, password, email, phoneNumber, role, isActive }) {
+async function createUser({ userId, name, password, email, phoneNumber, role, isActive, requesterId }) {
   if (isBlank(userId) || isBlank(name) || isBlank(password)) {
     throw createHttpError(400, "userId, name, and password are required.");
   }
@@ -203,6 +304,7 @@ async function createUser({ userId, name, password, email, phoneNumber, role, is
   if (!isValidPassword(password)) {
     throw createHttpError(400, getPasswordValidationMessage(password));
   }
+  validatePasswordPolicy(password);
 
   const passwordHash = await bcrypt.hash(password, 10);
   const userData = {
@@ -217,20 +319,31 @@ async function createUser({ userId, name, password, email, phoneNumber, role, is
   };
 
   try {
-    const user = await prisma.user.create({
-      data: userData,
-      select: {
-        id: true,
-        userId: true,
-        name: true,
-        email: true,
-        phoneNumber: true,
-        role: true,
-        isActive: true,
-        lastLoginAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: userData,
+        select: {
+          id: true,
+          userId: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
+          role: true,
+          isActive: true,
+          lastLoginAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      await createUserAuditLog(tx, {
+        actorUserId: requesterId,
+        targetUserId: createdUser.id,
+        action: "USER_CREATED",
+        afterData: createUserAuditSnapshot(createdUser),
+      });
+
+      return createdUser;
     });
 
     return serializeUser(user);
@@ -298,11 +411,9 @@ async function updateUser({ id, userId, name, email, phoneNumber, role, isActive
   const shouldDeactivateUser = existingUser.isActive && nextIsActive === false;
 
   try {
-    let user;
-
-    if (shouldDeactivateUser) {
-      const [, updatedUser] = await prisma.$transaction([
-        prisma.refreshToken.updateMany({
+    const user = await prisma.$transaction(async (tx) => {
+      if (shouldDeactivateUser) {
+        await tx.refreshToken.updateMany({
           where: {
             userId: id,
             revokedAt: null,
@@ -310,36 +421,20 @@ async function updateUser({ id, userId, name, email, phoneNumber, role, isActive
           data: {
             revokedAt: new Date(),
           },
-        }),
-        prisma.user.update({
-          where: { id },
-          data: {
-            ...data,
-            isActive: false,
-            sessionVersion: {
-              increment: 1,
-            },
-          },
-          select: {
-            id: true,
-            userId: true,
-            name: true,
-            email: true,
-            phoneNumber: true,
-            role: true,
-            isActive: true,
-            lastLoginAt: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        }),
-      ]);
+        });
+      }
 
-      user = updatedUser;
-    } else {
-      user = await prisma.user.update({
+      const updatedUser = await tx.user.update({
         where: { id },
-        data,
+        data: shouldDeactivateUser
+          ? {
+              ...data,
+              isActive: false,
+              sessionVersion: {
+                increment: 1,
+              },
+            }
+          : data,
         select: {
           id: true,
           userId: true,
@@ -353,7 +448,17 @@ async function updateUser({ id, userId, name, email, phoneNumber, role, isActive
           updatedAt: true,
         },
       });
-    }
+
+      await createUserAuditLog(tx, {
+        actorUserId: requesterId,
+        targetUserId: updatedUser.id,
+        action: shouldDeactivateUser ? "USER_DEACTIVATED" : "USER_UPDATED",
+        beforeData: createUserAuditSnapshot(existingUser),
+        afterData: createUserAuditSnapshot(updatedUser),
+      });
+
+      return updatedUser;
+    });
 
     return serializeUser(user);
   } catch (error) {
@@ -362,14 +467,14 @@ async function updateUser({ id, userId, name, email, phoneNumber, role, isActive
 }
 
 async function deactivateUser({ id, requesterId }) {
-  await findUserRecordById(id);
+  const existingUser = await findUserRecordById(id);
 
   if (requesterId === id) {
     throw createHttpError(403, "You cannot deactivate your own account.");
   }
 
-  const [, user] = await prisma.$transaction([
-    prisma.refreshToken.updateMany({
+  const user = await prisma.$transaction(async (tx) => {
+    await tx.refreshToken.updateMany({
       where: {
         userId: id,
         revokedAt: null,
@@ -377,8 +482,9 @@ async function deactivateUser({ id, requesterId }) {
       data: {
         revokedAt: new Date(),
       },
-    }),
-    prisma.user.update({
+    });
+
+    const updatedUser = await tx.user.update({
       where: { id },
       data: {
         isActive: false,
@@ -398,8 +504,18 @@ async function deactivateUser({ id, requesterId }) {
         createdAt: true,
         updatedAt: true,
       },
-    }),
-  ]);
+    });
+
+    await createUserAuditLog(tx, {
+      actorUserId: requesterId,
+      targetUserId: updatedUser.id,
+      action: "USER_DEACTIVATED",
+      beforeData: createUserAuditSnapshot(existingUser),
+      afterData: createUserAuditSnapshot(updatedUser),
+    });
+
+    return updatedUser;
+  });
 
   return serializeUser(user);
 }
@@ -427,7 +543,8 @@ async function verifyUserPassword({ id, requesterId, currentPassword }) {
 
   const isPasswordMatched = await bcrypt.compare(currentPassword, userRecord.passwordHash);
   if (!isPasswordMatched) {
-    throw createHttpError(401, "Current password is incorrect.");
+    // 입력값 불일치는 토큰 인증 실패(401)와 구분해 자동 재발급을 방지한다.
+    throw createHttpError(400, "Current password is incorrect.");
   }
 
   return { verified: true };
@@ -450,6 +567,8 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
     throw createHttpError(400, "New password must be different from current password.");
   }
 
+  validatePasswordPolicy(newPassword);
+
   const userRecord = await prisma.user.findUnique({
     where: { id },
     select: {
@@ -464,13 +583,13 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
 
   const isPasswordMatched = await bcrypt.compare(currentPassword, userRecord.passwordHash);
   if (!isPasswordMatched) {
-    throw createHttpError(401, "Current password is incorrect.");
+    throw createHttpError(400, "Current password is incorrect.");
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
 
-  const [, user] = await prisma.$transaction([
-    prisma.refreshToken.updateMany({
+  const user = await prisma.$transaction(async (tx) => {
+    await tx.refreshToken.updateMany({
       where: {
         userId: id,
         revokedAt: null,
@@ -478,8 +597,9 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
       data: {
         revokedAt: new Date(),
       },
-    }),
-    prisma.user.update({
+    });
+
+    const updatedUser = await tx.user.update({
       where: { id },
       data: {
         passwordHash,
@@ -499,8 +619,93 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
         createdAt: true,
         updatedAt: true,
       },
-    }),
-  ]);
+    });
+
+    await createUserAuditLog(tx, {
+      actorUserId: requesterId,
+      targetUserId: updatedUser.id,
+      action: "USER_PASSWORD_CHANGED",
+      afterData: { sessionInvalidated: true },
+    });
+
+    return updatedUser;
+  });
+
+  return serializeUser(user);
+}
+
+async function resetUserPassword({ id, requesterId, newPassword }) {
+  if (requesterId === id) {
+    throw createHttpError(400, "본인 비밀번호는 비밀번호 변경 기능을 사용해 주세요.");
+  }
+
+  validatePasswordPolicy(newPassword);
+
+  const userRecord = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      passwordHash: true,
+      isActive: true,
+    },
+  });
+
+  if (!userRecord) {
+    throw createHttpError(404, "사용자를 찾을 수 없습니다.");
+  }
+
+  if (!userRecord.isActive) {
+    throw createHttpError(400, "비활성화된 계정은 먼저 활성화한 뒤 비밀번호를 초기화해 주세요.");
+  }
+
+  const isSamePassword = await bcrypt.compare(newPassword, userRecord.passwordHash);
+  if (isSamePassword) {
+    throw createHttpError(400, "기존 비밀번호와 같은 비밀번호로 초기화할 수 없습니다.");
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+
+  // 초기화한 계정의 기존 로그인 세션을 모두 무효화한다.
+  const user = await prisma.$transaction(async (tx) => {
+    await tx.refreshToken.updateMany({
+      where: {
+        userId: id,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+
+    const updatedUser = await tx.user.update({
+      where: { id },
+      data: {
+        passwordHash,
+        sessionVersion: {
+          increment: 1,
+        },
+      },
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        role: true,
+        isActive: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    await createUserAuditLog(tx, {
+      actorUserId: requesterId,
+      targetUserId: updatedUser.id,
+      action: "USER_PASSWORD_RESET",
+      afterData: { sessionInvalidated: true },
+    });
+
+    return updatedUser;
+  });
 
   return serializeUser(user);
 }
@@ -514,4 +719,5 @@ module.exports = {
   deactivateUser,
   verifyUserPassword,
   updateUserPassword,
+  resetUserPassword,
 };

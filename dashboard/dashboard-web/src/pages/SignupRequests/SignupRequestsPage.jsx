@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, RefreshCw, X } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 import {
   approveSignupRequest,
   fetchSignupRequests,

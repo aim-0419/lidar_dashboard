@@ -102,20 +102,78 @@ function createEventHistoryResponse({ events, page, limit, total, filters }) {
   };
 }
 
-function createEventStatusUpdateResponse({ event, previousStatus, changed }) {
+function createEventDetailItem(event, { includeRawPayload = false } = {}) {
+  const item = {
+    ...createEventHistoryItem(event),
+    speedMs: event.speedMs,
+    createdAt: event.createdAt,
+    updatedAt: event.updatedAt,
+    zone: event.zone
+      ? {
+          id: event.zone.id,
+          code: event.zone.zoneCode,
+          name: event.zone.name,
+          site: event.zone.site
+            ? { id: event.zone.site.id, name: event.zone.site.name }
+            : null,
+        }
+      : null,
+    device: event.device
+      ? {
+          id: event.device.id,
+          code: event.device.deviceCode,
+          name: event.device.name,
+          type: event.device.deviceType,
+        }
+      : null,
+  };
+
+  // 원본 라이다 payload에는 운영 환경에서 제한해야 할 상세 정보가 포함될 수 있다.
+  if (includeRawPayload) {
+    item.rawPayload = event.rawPayload;
+  }
+
+  return item;
+}
+
+function createEventDetailResponse(event, options) {
+  // 목록에서는 제외한 진단 필드를 단건 상세 조회에서 반환한다.
+  return {
+    success: true,
+    data: { event: createEventDetailItem(event, options) },
+    message: "OK",
+  };
+}
+
+function createEventStatusUpdateResponse({
+  event,
+  previousStatus,
+  changed,
+  statusChanged,
+  memoSaved,
+}) {
   // 관리자 상태 변경 결과만 반환하며 장비 제어 결과와 섞지 않는다.
+  const message = statusChanged
+    ? "이벤트 상태가 변경되었습니다."
+    : memoSaved
+      ? "이벤트 변경 사유가 기록되었습니다."
+      : "저장할 변경 사항이 없습니다.";
+
   return {
     success: true,
     data: {
       event: createEventHistoryItem(event),
       previousStatus,
       changed,
+      statusChanged,
+      memoSaved,
     },
-    message: changed ? "이벤트 상태가 변경되었습니다." : "이벤트 상태가 이미 동일합니다.",
+    message,
   };
 }
 
 module.exports = {
+  createEventDetailResponse,
   createEventHistoryResponse,
   createEventStatusUpdateResponse,
   createWrongwayErrorResponse,
