@@ -34,12 +34,19 @@ async function getMe(req, res) {
 
 async function getUsers(req, res) {
   try {
-    const result = await usersService.listUsers();
+    const result = await usersService.listUsers({
+      page: req.query?.page,
+      limit: req.query?.limit,
+      keyword: req.query?.keyword,
+      isActive: req.query?.isActive,
+    });
 
     res.status(200).json({
       ok: true,
       count: result.count,
       users: result.users,
+      summary: result.summary,
+      pagination: result.pagination,
     });
   } catch (error) {
     logger.error("get users list failed", {
@@ -90,6 +97,7 @@ async function createUser(req, res) {
       password: req.body?.password,
       role: req.body?.role,
       isActive: req.body?.isActive,
+      requesterId: req.user?.id,
     });
 
     res.status(201).json({
@@ -121,6 +129,7 @@ async function updateUser(req, res) {
       role: req.body?.role,
       isActive: req.body?.isActive,
       requesterId: req.user.id,
+      requesterRole: req.user.role,
     });
 
     res.status(200).json({
@@ -170,11 +179,43 @@ async function deactivateUser(req, res) {
   }
 }
 
+async function verifyUserPassword(req, res) {
+  try {
+    const result = await usersService.verifyUserPassword({
+      id: req.params.id,
+      requesterId: req.user?.id,
+      requesterRole: req.user?.role,
+      currentPassword: req.body?.currentPassword,
+    });
+
+    res.status(200).json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    logger.error("verify user password failed", {
+      requesterId: req.user?.id,
+      requesterUserId: req.user?.userId,
+      targetUserId: req.params.id,
+      statusCode: error.statusCode,
+      message: error.message,
+    });
+
+    res.status(error.statusCode || 500).json({
+      ok: false,
+      message: getPublicMessage(error, "Failed to verify user password."),
+    });
+  }
+}
+
 async function updateUserPassword(req, res) {
   try {
     const user = await usersService.updateUserPassword({
       id: req.params.id,
-      password: req.body?.password,
+      requesterId: req.user?.id,
+      requesterRole: req.user?.role,
+      currentPassword: req.body?.currentPassword,
+      newPassword: req.body?.newPassword,
     });
 
     res.status(200).json({
@@ -197,6 +238,34 @@ async function updateUserPassword(req, res) {
   }
 }
 
+async function resetUserPassword(req, res) {
+  try {
+    const user = await usersService.resetUserPassword({
+      id: req.params.id,
+      requesterId: req.user?.id,
+      newPassword: req.body?.newPassword,
+    });
+
+    res.status(200).json({
+      ok: true,
+      user,
+    });
+  } catch (error) {
+    logger.error("reset user password failed", {
+      requesterId: req.user?.id,
+      requesterUserId: req.user?.userId,
+      targetUserId: req.params.id,
+      statusCode: error.statusCode,
+      message: error.message,
+    });
+
+    res.status(error.statusCode || 500).json({
+      ok: false,
+      message: getPublicMessage(error, "사용자 비밀번호 초기화 중 오류가 발생했습니다."),
+    });
+  }
+}
+
 module.exports = {
   getMe,
   getUsers,
@@ -204,5 +273,7 @@ module.exports = {
   createUser,
   updateUser,
   deactivateUser,
+  verifyUserPassword,
   updateUserPassword,
+  resetUserPassword,
 };

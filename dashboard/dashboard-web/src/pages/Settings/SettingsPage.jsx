@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   CircleHelp,
+  Eye,
+  EyeOff,
   KeyRound,
   RefreshCw,
   Shield,
@@ -8,14 +10,17 @@ import {
   UserPlus,
   UserX,
 } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 import {
   createUserRequest,
   deactivateUserRequest,
   fetchUserDetail,
+  fetchMyProfile,
   fetchUsers,
+  resetUserPasswordRequest,
   updateUserPasswordRequest,
   updateUserRequest,
+  verifyUserPasswordRequest,
 } from "../../shared/api/http";
 import "../Dashboard/dashboard.css";
 import "./settings.css";
@@ -24,7 +29,7 @@ const initialCreateForm = {
   userId: "",
   name: "",
   password: "",
-  role: "SUPER_ADMIN",
+  role: "MANAGER",
   isActive: true,
 };
 
@@ -36,12 +41,25 @@ const initialEditForm = {
 };
 
 const initialPasswordForm = {
-  password: "",
+  currentPassword: "",
+  newPassword: "",
+  confirmNewPassword: "",
+};
+
+const initialResetPasswordForm = {
+  newPassword: "",
+  confirmNewPassword: "",
 };
 
 const ROLE_LABELS = {
   SUPER_ADMIN: "최고 관리자",
+  MANAGER: "관리자",
 };
+
+const ROLE_OPTIONS = [
+  { value: "SUPER_ADMIN", label: "SUPER_ADMIN" },
+  { value: "MANAGER", label: "MANAGER" },
+];
 
 function formatDateTime(value, fallback = "-") {
   if (!value) {
@@ -66,73 +84,279 @@ function getRoleLabel(role) {
 }
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, logout, updateCurrentUser } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isActivateConfirmOpen, setIsActivateConfirmOpen] = useState(false);
   const [isDeactivateConfirmOpen, setIsDeactivateConfirmOpen] = useState(false);
   const [users, setUsers] = useState([]);
+  const listRequestId = useRef(0);
+  const [userSearchKeyword, setUserSearchKeyword] = useState("");
+  const [userStatusFilter, setUserStatusFilter] = useState("ALL");
+  const [userPage, setUserPage] = useState(1);
+  const [userPagination, setUserPagination] = useState({
+    page: 1,
+    limit: 20,
+    totalPages: 1,
+    totalItems: 0,
+  });
+  const [userSummary, setUserSummary] = useState({
+    totalCount: 0,
+    activeCount: 0,
+    inactiveCount: 0,
+  });
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
+  const detailRequestId = useRef(0);
   const [createForm, setCreateForm] = useState(initialCreateForm);
   const [editForm, setEditForm] = useState(initialEditForm);
   const [passwordForm, setPasswordForm] = useState(initialPasswordForm);
+  const [resetPasswordForm, setResetPasswordForm] = useState(initialResetPasswordForm);
   const [isListLoading, setIsListLoading] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [isVerifyingCurrentPassword, setIsVerifyingCurrentPassword] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [createErrorMessage, setCreateErrorMessage] = useState("");
+  const [manageToastMessage, setManageToastMessage] = useState("");
+  const [passwordErrorMessage, setPasswordErrorMessage] = useState("");
+  const [resetPasswordErrorMessage, setResetPasswordErrorMessage] = useState("");
+  const [passwordVerifyMessage, setPasswordVerifyMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [isCreateSuperAdminConfirmed, setIsCreateSuperAdminConfirmed] = useState(false);
+  const [isEditSuperAdminConfirmed, setIsEditSuperAdminConfirmed] = useState(false);
 
   const isSuperAdmin = user?.role === "super_admin";
 
-  const activeUserCount = users.filter((item) => item.isActive).length;
-  const inactiveUserCount = users.filter((item) => !item.isActive).length;
-
-  useEffect(() => {
-    if (!isSuperAdmin) {
-      return;
-    }
-
+  const currentPasswordValue = passwordForm.currentPassword || "";
+  const newPasswordValue = passwordForm.newPassword || "";
+  const confirmNewPasswordValue = passwordForm.confirmNewPassword || "";
+  const hasUserChanges = Boolean(
+    selectedUser &&
+      (
+        editForm.userId.trim() !== (selectedUser.userId || "") ||
+        editForm.name.trim() !== (selectedUser.name || "") ||
+        String(editForm.role || "").toUpperCase() !== String(selectedUser.role || "").toUpperCase() ||
+        Boolean(editForm.isActive) !== Boolean(selectedUser.isActive)
+      )
+  );
+  const hasPasswordChange = Boolean(
+    currentPasswordValue.trim() &&
+      newPasswordValue.trim() &&
+      confirmNewPasswordValue.trim()
+  );
+  const isManagingOwnAccount = selectedUserId === user?.id;
+  const canManageSelectedUser = Boolean(
+    !isDetailLoading && selectedUser && selectedUser.id === selectedUserId
+  );
+  const isCurrentPasswordVerified = passwordVerifyMessage === "기존 비밀번호가 확인되었습니다.";
+  const visibleUsers = isSuperAdmin ? users : selectedUser ? [selectedUser] : [];
+  const visibleUserCount = isSuperAdmin ? userSummary.totalCount : visibleUsers.length;
+  const visibleActiveUserCount = isSuperAdmin
+    ? userSummary.activeCount
+    : visibleUsers.filter((item) => item.isActive).length;
+  const visibleInactiveUserCount = isSuperAdmin
+    ? userSummary.inactiveCount
+    : visibleUsers.filter((item) => !item.isActive).length;
+  const isSamePassword = Boolean(
+    isCurrentPasswordVerified &&
+    currentPasswordValue.trim() &&
+      newPasswordValue.trim() &&
+      currentPasswordValue === newPasswordValue
+  );
+  const isNewPasswordMismatch = Boolean(
+    newPasswordValue.trim() &&
+      confirmNewPasswordValue.trim() &&
+      newPasswordValue !== confirmNewPasswordValue
+  );
+  const isResetPasswordMismatch = Boolean(
+    resetPasswordForm.newPassword.trim() &&
+      resetPasswordForm.confirmNewPassword.trim() &&
+      resetPasswordForm.newPassword !== resetPasswordForm.confirmNewPassword
+  );
+  const isCreatingSuperAdmin = String(createForm.role || "").toUpperCase() === "SUPER_ADMIN";
+  const isGrantingSuperAdmin = Boolean(
+    selectedUser &&
+      String(selectedUser.role || "").toUpperCase() !== "SUPER_ADMIN" &&
+      String(editForm.role || "").toUpperCase() === "SUPER_ADMIN"
+  );
+  const samePasswordMessage = isSamePassword
+    ? "기존 비밀번호와 같은 비밀번호로 설정할 수 없습니다."
+    : "";
+  const newPasswordMismatchMessage = isNewPasswordMismatch
+    ? "입력한 새 비밀번호가 일치하지 않습니다."
+    : "";
+  const loadUsersOnRoleChange = useEffectEvent(() => {
     void loadUsers();
-  }, [isSuperAdmin]);
+  });
+  const loadUserDetailOnSelectionChange = useEffectEvent((id) => {
+    void loadUserDetail(id);
+  });
 
   useEffect(() => {
-    if (!selectedUserId || !isSuperAdmin) {
+    if (isSuperAdmin) {
+      loadUsersOnRoleChange();
+      return () => {
+        listRequestId.current += 1;
+      };
+    }
+
+    if (!user?.id) {
       return;
     }
 
-    void loadUserDetail(selectedUserId);
-  }, [isSuperAdmin, selectedUserId]);
+    setUsers([]);
+    setSelectedUserId(user.id);
+  }, [isSuperAdmin, user?.id]);
 
-  async function loadUsers(nextSelectedUserId) {
+  useEffect(() => {
+    if (!selectedUserId || (isSuperAdmin && !isManageModalOpen)) {
+      return;
+    }
+
+    loadUserDetailOnSelectionChange(selectedUserId);
+    return () => {
+      // 모달을 닫거나 선택을 바꾸면 이전 상세 응답을 무효화한다.
+      detailRequestId.current += 1;
+    };
+  }, [isSuperAdmin, isManageModalOpen, selectedUserId]);
+
+  useEffect(() => {
+    if (!manageToastMessage) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setManageToastMessage("");
+    }, 1800);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [manageToastMessage]);
+
+  useEffect(() => {
+    function handleEscapeKey(event) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      if (isDeactivateConfirmOpen && !isDeactivating) {
+        setIsDeactivateConfirmOpen(false);
+        return;
+      }
+
+      if (isActivateConfirmOpen && !isActivating) {
+        setIsActivateConfirmOpen(false);
+        return;
+      }
+
+      if (isManageModalOpen && !isUpdating && !isChangingPassword && !isResettingPassword) {
+        setIsManageModalOpen(false);
+        return;
+      }
+
+      if (isCreateModalOpen && !isCreating) {
+        setIsCreateModalOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleEscapeKey);
+    return () => window.removeEventListener("keydown", handleEscapeKey);
+  }, [
+    isActivateConfirmOpen,
+    isActivating,
+    isChangingPassword,
+    isCreateModalOpen,
+    isCreating,
+    isDeactivateConfirmOpen,
+    isDeactivating,
+    isManageModalOpen,
+    isResettingPassword,
+    isUpdating,
+  ]);
+
+  // 목록 필터와 페이지 변경은 모달의 수정 대상 계정을 바꾸지 않는다.
+  async function loadUsers(options = {}) {
+    const requestId = ++listRequestId.current;
     setIsListLoading(true);
     setErrorMessage("");
 
     try {
-      const response = await fetchUsers();
+      const nextPage = options.page ?? userPage;
+      const nextStatusFilter = options.statusFilter ?? userStatusFilter;
+      let query = {
+        page: nextPage,
+        limit: 20,
+        keyword: options.keyword ?? userSearchKeyword.trim(),
+        ...(nextStatusFilter === "ACTIVE" ? { isActive: true } : {}),
+        ...(nextStatusFilter === "INACTIVE" ? { isActive: false } : {}),
+      };
+      let response = await fetchUsers(query);
+      if (requestId !== listRequestId.current) {
+        return;
+      }
+
+      // 삭제·비활성화로 마지막 페이지가 사라지면 같은 필터로 한 번만 보정한다.
+      const lastPage = Math.max(1, response.pagination?.totalPages ?? 1);
+      if (response.pagination && (response.pagination.page ?? query.page) > lastPage) {
+        query = { ...query, page: lastPage };
+        response = await fetchUsers(query);
+        if (requestId !== listRequestId.current) {
+          return;
+        }
+
+        const correctedLastPage = Math.max(1, response.pagination?.totalPages ?? 1);
+        if ((response.pagination?.page ?? query.page) > correctedLastPage) {
+          throw new Error("사용자 목록이 다시 변경되었습니다. 다시 조회해 주세요.");
+        }
+      }
+
       const nextUsers = response.users || [];
       setUsers(nextUsers);
-
-      const preferredId = nextSelectedUserId || selectedUserId;
-      const selectedExists = nextUsers.some((item) => item.id === preferredId);
-      const fallbackId = nextUsers[0]?.id || "";
-      setSelectedUserId(selectedExists ? preferredId : fallbackId);
+      setUserPagination(
+        response.pagination || {
+          page: query.page,
+          limit: 20,
+          totalPages: 1,
+          totalItems: nextUsers.length,
+        },
+      );
+      setUserSummary(
+        response.summary || {
+          totalCount: nextUsers.length,
+          activeCount: nextUsers.filter((item) => item.isActive).length,
+          inactiveCount: nextUsers.filter((item) => !item.isActive).length,
+        },
+      );
+      setUserPage(response.pagination?.page || query.page);
     } catch (error) {
+      if (requestId !== listRequestId.current) {
+        return;
+      }
       setErrorMessage(error.message || "사용자 목록을 불러오지 못했습니다.");
     } finally {
-      setIsListLoading(false);
+      if (requestId === listRequestId.current) {
+        setIsListLoading(false);
+      }
     }
   }
 
   async function loadUserDetail(id) {
+    const requestId = ++detailRequestId.current;
+    setSelectedUser(null);
     if (!id) {
-      setSelectedUser(null);
       setEditForm(initialEditForm);
+      setIsDetailLoading(false);
       return;
     }
 
@@ -140,8 +364,13 @@ export default function SettingsPage() {
     setErrorMessage("");
 
     try {
-      const response = await fetchUserDetail(id);
-      const nextUser = response.user;
+      const nextUser = isSuperAdmin ? (await fetchUserDetail(id)).user : await fetchMyProfile();
+      if (requestId !== detailRequestId.current) {
+        return;
+      }
+      if (!nextUser || nextUser.id !== id) {
+        throw new Error("선택한 사용자의 상세 정보를 확인할 수 없습니다.");
+      }
       setSelectedUser(nextUser);
       setEditForm({
         userId: nextUser.userId || "",
@@ -149,18 +378,34 @@ export default function SettingsPage() {
         role: String(nextUser.role || "super_admin").toUpperCase(),
         isActive: Boolean(nextUser.isActive),
       });
+      setIsEditSuperAdminConfirmed(false);
       setPasswordForm(initialPasswordForm);
+      setResetPasswordForm(initialResetPasswordForm);
+      setPasswordErrorMessage("");
+      setResetPasswordErrorMessage("");
+      setPasswordVerifyMessage("");
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowResetPassword(false);
     } catch (error) {
+      if (requestId !== detailRequestId.current) {
+        return;
+      }
       setSelectedUser(null);
       setErrorMessage(error.message || "사용자 상세 정보를 불러오지 못했습니다.");
     } finally {
-      setIsDetailLoading(false);
+      if (requestId === detailRequestId.current) {
+        setIsDetailLoading(false);
+      }
     }
   }
 
   function handleCreateChange(event) {
     const { name, value, type, checked } = event.target;
     setCreateErrorMessage("");
+    if (name === "role" && value !== "SUPER_ADMIN") {
+      setIsCreateSuperAdminConfirmed(false);
+    }
     setCreateForm((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -169,18 +414,101 @@ export default function SettingsPage() {
 
   function handleEditChange(event) {
     const { name, value, type, checked } = event.target;
+    if (name === "role" && value !== "SUPER_ADMIN") {
+      setIsEditSuperAdminConfirmed(false);
+    }
     setEditForm((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
   }
 
+  function handleUserSearchSubmit(event) {
+    event.preventDefault();
+    setUserPage(1);
+    void loadUsers({ page: 1 });
+  }
+
+  function handleUserStatusFilterChange(event) {
+    const nextStatusFilter = event.target.value;
+    setUserStatusFilter(nextStatusFilter);
+    setUserPage(1);
+    void loadUsers({ page: 1, statusFilter: nextStatusFilter });
+  }
+
+  function handleUserPageChange(nextPage) {
+    if (nextPage < 1 || nextPage > userPagination.totalPages || nextPage === userPage) {
+      return;
+    }
+
+    setUserPage(nextPage);
+    void loadUsers({ page: nextPage });
+  }
+
   function handlePasswordChange(event) {
     const { name, value } = event.target;
-    setPasswordForm((prev) => ({
+    setPasswordErrorMessage("");
+    setPasswordForm((prev) => {
+      if (name === "currentPassword") {
+        // 기존 비밀번호가 바뀌면 검증 상태를 초기화하고 새 비밀번호 입력도 다시 받는다.
+        setPasswordVerifyMessage("");
+        return {
+          currentPassword: value,
+          newPassword: "",
+          confirmNewPassword: "",
+        };
+      }
+
+      // 새 비밀번호 입력 중에는 기존 비밀번호 확인 완료 문구를 유지한다.
+      return {
+        ...prev,
+        [name]: value,
+      };
+    });
+  }
+
+  function handleResetPasswordChange(event) {
+    const { name, value } = event.target;
+    setResetPasswordErrorMessage("");
+    setResetPasswordForm((prev) => ({
       ...prev,
       [name]: value,
     }));
+  }
+
+  async function handleVerifyCurrentPassword() {
+    if (!canManageSelectedUser) {
+      return;
+    }
+
+    if (!passwordForm.currentPassword.trim()) {
+      setPasswordErrorMessage("기존 비밀번호를 입력해 주세요.");
+      return;
+    }
+
+    setIsVerifyingCurrentPassword(true);
+    setPasswordErrorMessage("");
+    setPasswordVerifyMessage("");
+
+    try {
+      await verifyUserPasswordRequest(selectedUserId, {
+        currentPassword: passwordForm.currentPassword,
+      });
+      setPasswordVerifyMessage("기존 비밀번호가 확인되었습니다.");
+    } catch (error) {
+      if (
+        error.message === "Current password is incorrect." ||
+        error.message === "currentPassword is required."
+      ) {
+        setPasswordErrorMessage("기존 비밀번호가 일치하지 않습니다.");
+      } else if (error.status === 429) {
+        setPasswordErrorMessage("비밀번호 확인 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.");
+      } else {
+        setPasswordErrorMessage("기존 비밀번호를 확인하지 못했습니다.");
+      }
+    } finally {
+      setIsVerifyingCurrentPassword(false);
+    }
   }
 
   async function handleCreateUser(event) {
@@ -194,13 +522,18 @@ export default function SettingsPage() {
       return;
     }
 
+    if (isCreatingSuperAdmin && !isCreateSuperAdminConfirmed) {
+      setCreateErrorMessage("최고 관리자 권한 부여 여부를 확인해 주세요.");
+      return;
+    }
+
     setIsCreating(true);
     setCreateErrorMessage("");
     setErrorMessage("");
     setSuccessMessage("");
 
     try {
-      const response = await createUserRequest({
+      await createUserRequest({
         userId: nextUserId,
         name: nextName,
         password: nextPassword,
@@ -211,10 +544,7 @@ export default function SettingsPage() {
       setCreateForm(initialCreateForm);
       setSuccessMessage("사용자를 생성했습니다.");
       setIsCreateModalOpen(false);
-      await loadUsers(response.user?.id);
-      if (response.user?.id) {
-        await loadUserDetail(response.user.id);
-      }
+      await loadUsers();
     } catch (error) {
       setCreateErrorMessage(error.message || "필수 입력값을 확인한 뒤 다시 시도해 주세요.");
     } finally {
@@ -224,7 +554,12 @@ export default function SettingsPage() {
 
   async function handleUpdateUser(event) {
     event.preventDefault();
-    if (!selectedUserId) {
+    if (!canManageSelectedUser) {
+      return;
+    }
+
+    if (isGrantingSuperAdmin && !isEditSuperAdminConfirmed) {
+      setErrorMessage("최고 관리자 권한 부여 여부를 확인해 주세요.");
       return;
     }
 
@@ -240,9 +575,16 @@ export default function SettingsPage() {
         isActive: editForm.isActive,
       });
 
-      setSuccessMessage("사용자 정보를 수정했습니다.");
-      await loadUsers(response.user?.id || selectedUserId);
+      if (response.user?.id === user?.id) {
+        updateCurrentUser(response.user);
+      }
+
+      // 사용자 목록 API는 최고 관리자 전용이므로 본인 수정 후에는 호출하지 않는다.
+      if (isSuperAdmin) {
+        await loadUsers();
+      }
       await loadUserDetail(response.user?.id || selectedUserId);
+      setManageToastMessage("저장 완료됐습니다.");
     } catch (error) {
       setErrorMessage(error.message || "사용자 정보를 수정하지 못했습니다.");
     } finally {
@@ -252,30 +594,75 @@ export default function SettingsPage() {
 
   async function handleUpdatePassword(event) {
     event.preventDefault();
-    if (!selectedUserId) {
+    if (!canManageSelectedUser) {
+      return;
+    }
+
+    if (!passwordForm.currentPassword.trim() || !passwordForm.newPassword.trim()) {
+      setPasswordErrorMessage("기존 비밀번호와 새 비밀번호를 모두 입력해 주세요.");
+      return;
+    }
+
+    if (!passwordForm.confirmNewPassword.trim()) {
+      setPasswordErrorMessage("새 비밀번호 확인을 입력해 주세요.");
+      return;
+    }
+
+    if (!isCurrentPasswordVerified) {
+      setPasswordErrorMessage("기존 비밀번호 확인을 먼저 진행해 주세요.");
+      return;
+    }
+
+    if (passwordForm.currentPassword === passwordForm.newPassword) {
+      setPasswordErrorMessage("기존 비밀번호와 같은 비밀번호로 설정할 수 없습니다.");
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmNewPassword) {
+      setPasswordErrorMessage("입력한 새 비밀번호가 일치하지 않습니다.");
       return;
     }
 
     setIsChangingPassword(true);
+    setPasswordErrorMessage("");
     setErrorMessage("");
     setSuccessMessage("");
 
     try {
       await updateUserPasswordRequest(selectedUserId, {
-        password: passwordForm.password,
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
       });
       setPasswordForm(initialPasswordForm);
-      setSuccessMessage("사용자 비밀번호를 변경했습니다.");
+      if (selectedUserId === user?.id) {
+        await logout();
+        return;
+      }
+
       await loadUserDetail(selectedUserId);
+      setManageToastMessage("저장 완료됐습니다.");
     } catch (error) {
-      setErrorMessage(error.message || "사용자 비밀번호를 변경하지 못했습니다.");
+      if (error.message === "Current password is incorrect.") {
+        setPasswordErrorMessage("기존 비밀번호가 일치하지 않습니다.");
+      } else if (
+        error.message === "currentPassword and newPassword are required." ||
+        error.message === "password is required."
+      ) {
+        setPasswordErrorMessage("기존 비밀번호와 새 비밀번호를 모두 입력해 주세요.");
+      } else if (error.message === "New password must be different from current password.") {
+        setPasswordErrorMessage("기존 비밀번호와 같은 비밀번호로 설정할 수 없습니다.");
+      } else if (error.status === 429) {
+        setPasswordErrorMessage("비밀번호 확인 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.");
+      } else {
+        setPasswordErrorMessage("사용자 비밀번호를 변경하지 못했습니다.");
+      }
     } finally {
       setIsChangingPassword(false);
     }
   }
 
   async function handleDeactivateUser() {
-    if (!selectedUserId || !selectedUser) {
+    if (!canManageSelectedUser) {
       return;
     }
 
@@ -284,11 +671,11 @@ export default function SettingsPage() {
     setSuccessMessage("");
 
     try {
-      const response = await deactivateUserRequest(selectedUserId);
+      await deactivateUserRequest(selectedUserId);
       setSuccessMessage("사용자를 비활성화했습니다.");
       setIsDeactivateConfirmOpen(false);
-      await loadUsers(response.user?.id || selectedUserId);
-      await loadUserDetail(response.user?.id || selectedUserId);
+      setIsManageModalOpen(false);
+      await loadUsers();
     } catch (error) {
       setErrorMessage(error.message || "사용자를 비활성화하지 못했습니다.");
     } finally {
@@ -296,8 +683,46 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleResetUserPassword(event) {
+    event.preventDefault();
+
+    if (!canManageSelectedUser || !isSuperAdmin || isManagingOwnAccount) {
+      return;
+    }
+
+    const nextPassword = resetPasswordForm.newPassword.trim();
+    const confirmPassword = resetPasswordForm.confirmNewPassword.trim();
+
+    if (!nextPassword || !confirmPassword) {
+      setResetPasswordErrorMessage("임시 비밀번호와 확인 값을 모두 입력해 주세요.");
+      return;
+    }
+
+    if (nextPassword !== confirmPassword) {
+      setResetPasswordErrorMessage("입력한 임시 비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
+    setIsResettingPassword(true);
+    setResetPasswordErrorMessage("");
+
+    try {
+      await resetUserPasswordRequest(selectedUserId, {
+        newPassword: nextPassword,
+      });
+      setResetPasswordForm(initialResetPasswordForm);
+      setManageToastMessage("임시 비밀번호를 설정했습니다.");
+    } catch (error) {
+      setResetPasswordErrorMessage(
+        error.message || "사용자 비밀번호를 초기화하지 못했습니다.",
+      );
+    } finally {
+      setIsResettingPassword(false);
+    }
+  }
+
   async function handleActivateUser() {
-    if (!selectedUserId || !selectedUser) {
+    if (!canManageSelectedUser) {
       return;
     }
 
@@ -306,14 +731,14 @@ export default function SettingsPage() {
     setSuccessMessage("");
 
     try {
-      const response = await updateUserRequest(selectedUserId, {
+      await updateUserRequest(selectedUserId, {
         isActive: true,
       });
 
       setSuccessMessage("사용자를 활성화했습니다.");
       setIsActivateConfirmOpen(false);
-      await loadUsers(response.user?.id || selectedUserId);
-      await loadUserDetail(response.user?.id || selectedUserId);
+      setIsManageModalOpen(false);
+      await loadUsers();
     } catch (error) {
       setErrorMessage(error.message || "사용자를 활성화하지 못했습니다.");
     } finally {
@@ -335,21 +760,11 @@ export default function SettingsPage() {
 
   function openCreateModal() {
     setCreateForm(initialCreateForm);
+    setIsCreateSuperAdminConfirmed(false);
     setCreateErrorMessage("");
     setErrorMessage("");
     setSuccessMessage("");
     setIsCreateModalOpen(true);
-  }
-
-  function openManageModal() {
-    if (!selectedUserId) {
-      setErrorMessage("먼저 사용자 목록에서 계정을 선택해 주세요.");
-      return;
-    }
-
-    setErrorMessage("");
-    setSuccessMessage("");
-    setIsManageModalOpen(true);
   }
 
   function closeCreateModal() {
@@ -358,21 +773,38 @@ export default function SettingsPage() {
     }
 
     setCreateErrorMessage("");
+    setShowCreatePassword(false);
     setIsCreateModalOpen(false);
   }
 
   function closeManageModal() {
-    if (isUpdating || isChangingPassword || isActivating || isDeactivating) {
+    if (isUpdating || isChangingPassword || isResettingPassword || isActivating || isDeactivating) {
       return;
     }
 
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setPasswordErrorMessage("");
+    setResetPasswordErrorMessage("");
+    setPasswordVerifyMessage("");
+    setResetPasswordForm(initialResetPasswordForm);
     setIsManageModalOpen(false);
     setIsActivateConfirmOpen(false);
     setIsDeactivateConfirmOpen(false);
   }
 
+  function openManageModal(id) {
+    detailRequestId.current += 1;
+    setSelectedUser(null);
+    setIsDetailLoading(true);
+    setSelectedUserId(id);
+    setErrorMessage("");
+    setSuccessMessage("");
+    setIsManageModalOpen(true);
+  }
+
   function openActivateConfirmModal() {
-    if (selectedUser?.isActive || isActivating || isDeactivating) {
+    if (!canManageSelectedUser || selectedUser?.isActive || isActivating || isDeactivating) {
       return;
     }
 
@@ -388,7 +820,7 @@ export default function SettingsPage() {
   }
 
   function openDeactivateConfirmModal() {
-    if (!selectedUser?.isActive || isActivating || isDeactivating) {
+    if (!canManageSelectedUser || !selectedUser?.isActive || isActivating || isDeactivating) {
       return;
     }
 
@@ -410,7 +842,12 @@ export default function SettingsPage() {
 
     return (
       <div className="settings-modal-overlay" onClick={closeCreateModal}>
-        <div className="settings-modal" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="settings-modal"
+          role="dialog"
+          aria-modal="true"
+          onClick={(event) => event.stopPropagation()}
+        >
           <div className="settings-modal__head">
             <div>
               <h2>사용자 생성</h2>
@@ -431,7 +868,7 @@ export default function SettingsPage() {
                 <span>사용자 ID</span>
                 <input
                   name="userId"
-                  value={createForm.userId}
+                  value={createForm.userId || ""}
                   onChange={handleCreateChange}
                   placeholder="manager01"
                 />
@@ -440,7 +877,7 @@ export default function SettingsPage() {
                 <span>이름</span>
                 <input
                   name="name"
-                  value={createForm.name}
+                  value={createForm.name || ""}
                   onChange={handleCreateChange}
                   placeholder="manager"
                 />
@@ -450,27 +887,56 @@ export default function SettingsPage() {
             <div className="settings-form-grid">
               <label className="settings-field">
                 <span>비밀번호</span>
-                <input
-                  type="password"
-                  name="password"
-                  value={createForm.password}
-                  onChange={handleCreateChange}
-                  placeholder="password123"
-                />
+                <div className="settings-password-field">
+                  <input
+                    type={showCreatePassword ? "text" : "password"}
+                    name="password"
+                    value={createForm.password || ""}
+                    onChange={handleCreateChange}
+                    placeholder="password123"
+                  />
+                  <button
+                    type="button"
+                    className="settings-password-toggle"
+                    onClick={() => setShowCreatePassword((prev) => !prev)}
+                    aria-label={showCreatePassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                  >
+                    {showCreatePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </label>
               <label className="settings-field">
                 <span>권한</span>
-                <select name="role" value={createForm.role} onChange={handleCreateChange}>
-                  <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                <select name="role" value={createForm.role || "MANAGER"} onChange={handleCreateChange}>
+                  {ROLE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>
+
+            {isCreatingSuperAdmin ? (
+              <label className="settings-role-confirm">
+                <input
+                  type="checkbox"
+                  checked={isCreateSuperAdminConfirmed}
+                  onChange={(event) => setIsCreateSuperAdminConfirmed(event.target.checked)}
+                />
+                <span>최고 관리자 권한을 부여하는 것을 확인했습니다.</span>
+              </label>
+            ) : null}
 
             <div className="settings-modal__actions">
               <button type="button" className="settings-secondary-button" onClick={closeCreateModal}>
                 취소
               </button>
-              <button type="submit" disabled={isCreating} className="settings-primary-button">
+              <button
+                type="submit"
+                disabled={isCreating || (isCreatingSuperAdmin && !isCreateSuperAdminConfirmed)}
+                className="settings-primary-button"
+              >
                 <UserPlus size={15} />
                 {isCreating ? "생성 중..." : "사용자 생성"}
               </button>
@@ -488,11 +954,16 @@ export default function SettingsPage() {
 
     return (
       <div className="settings-modal-overlay" onClick={closeManageModal}>
-          <div className="settings-modal settings-modal--wide" onClick={(event) => event.stopPropagation()}>
-            <div className="settings-modal__head">
-              <div>
-                <div className="settings-title-row">
-                  <h2>사용자 관리</h2>
+          <div
+            className="settings-modal settings-modal--wide"
+            role="dialog"
+            aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
+          >
+          <div className="settings-modal__head">
+            <div>
+              <div className="settings-title-row">
+                <h2>사용자 관리</h2>
                   <div className="settings-tooltip">
                     <button
                       type="button"
@@ -512,9 +983,15 @@ export default function SettingsPage() {
             </button>
           </div>
 
+          {manageToastMessage ? (
+            <div className="settings-manage-toast" role="status">
+              {manageToastMessage}
+            </div>
+          ) : null}
+
           {isDetailLoading ? (
             <div className="settings-empty">사용자 상세 정보를 불러오는 중입니다.</div>
-          ) : !selectedUser ? (
+          ) : !canManageSelectedUser ? (
             <div className="settings-empty">사용자 상세 정보를 확인할 수 없습니다.</div>
           ) : (
             <div className="settings-stack">
@@ -529,76 +1006,281 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <form className="settings-form-stack" onSubmit={handleUpdateUser}>
-                <div className="settings-form-grid">
-                  <label className="settings-field">
-                    <span>사용자 ID</span>
-                    <input name="userId" value={editForm.userId} onChange={handleEditChange} />
-                  </label>
-                  <label className="settings-field">
-                    <span>이름</span>
-                    <input name="name" value={editForm.name} onChange={handleEditChange} />
-                  </label>
+              {selectedUser.isActive ? (
+                <>
+                  <form className="settings-form-stack" onSubmit={handleUpdateUser}>
+                    <div className="settings-form-grid">
+                      <label className="settings-field">
+                        <span>사용자 ID</span>
+                        <input name="userId" value={editForm.userId || ""} onChange={handleEditChange} />
+                      </label>
+                      <label className="settings-field">
+                        <span>이름</span>
+                        <input name="name" value={editForm.name || ""} onChange={handleEditChange} />
+                      </label>
+                    </div>
+
+                    <div className="settings-form-grid">
+                      <label className="settings-field">
+                        <span>권한</span>
+                          <select
+                            name="role"
+                            value={editForm.role || "SUPER_ADMIN"}
+                            onChange={handleEditChange}
+                            disabled={isManagingOwnAccount || !isSuperAdmin}
+                          >
+                            {ROLE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                      </label>
+                    </div>
+
+                    {isGrantingSuperAdmin ? (
+                      <label className="settings-role-confirm">
+                        <input
+                          type="checkbox"
+                          checked={isEditSuperAdminConfirmed}
+                          onChange={(event) => setIsEditSuperAdminConfirmed(event.target.checked)}
+                        />
+                        <span>선택한 사용자를 최고 관리자로 변경하는 것을 확인했습니다.</span>
+                      </label>
+                    ) : null}
+
+                    <button
+                      type="submit"
+                      disabled={
+                        !canManageSelectedUser ||
+                        isUpdating ||
+                        !hasUserChanges ||
+                        (isGrantingSuperAdmin && !isEditSuperAdminConfirmed)
+                      }
+                      className="settings-primary-button"
+                    >
+                      {isUpdating ? "저장 중..." : "변경사항 저장"}
+                    </button>
+                  </form>
+
+                  {isManagingOwnAccount ? (
+                    <form className="settings-form-stack settings-divider" onSubmit={handleUpdatePassword}>
+                      <label className="settings-field">
+                        <span>기존 비밀번호</span>
+                        <div className={`settings-password-row${isCurrentPasswordVerified ? " is-locked" : ""}`}>
+                          <div className="settings-password-field">
+                            <input
+                              type={showCurrentPassword ? "text" : "password"}
+                              name="currentPassword"
+                              value={passwordForm.currentPassword || ""}
+                              onChange={handlePasswordChange}
+                              placeholder="current password"
+                              disabled={isCurrentPasswordVerified}
+                            />
+                            <button
+                              type="button"
+                              className="settings-password-toggle"
+                              onClick={() => setShowCurrentPassword((prev) => !prev)}
+                              aria-label={showCurrentPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                              disabled={isCurrentPasswordVerified}
+                            >
+                              {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            className="settings-secondary-button settings-password-verify-button"
+                            onClick={() => void handleVerifyCurrentPassword()}
+                            disabled={
+                              !canManageSelectedUser ||
+                              isCurrentPasswordVerified ||
+                              isVerifyingCurrentPassword ||
+                              !passwordForm.currentPassword.trim()
+                            }
+                          >
+                            {isVerifyingCurrentPassword ? "확인 중..." : "기존 비밀번호 확인"}
+                          </button>
+                        </div>
+                        {passwordVerifyMessage ? (
+                          <small className="settings-field-success">{passwordVerifyMessage}</small>
+                        ) : null}
+                        {passwordErrorMessage ? (
+                          <small className="settings-field-error">{passwordErrorMessage}</small>
+                        ) : null}
+                      </label>
+
+                      <label className="settings-field">
+                        <span>새 비밀번호</span>
+                        <div className="settings-password-field">
+                          <input
+                            type={showNewPassword ? "text" : "password"}
+                            name="newPassword"
+                            value={passwordForm.newPassword || ""}
+                            onChange={handlePasswordChange}
+                            placeholder="new password"
+                            disabled={!isCurrentPasswordVerified}
+                          />
+                          <button
+                            type="button"
+                            className="settings-password-toggle"
+                            onClick={() => setShowNewPassword((prev) => !prev)}
+                            aria-label={showNewPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                            disabled={!isCurrentPasswordVerified}
+                          >
+                            {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                        {samePasswordMessage && !passwordErrorMessage ? (
+                          <small className="settings-field-error">{samePasswordMessage}</small>
+                        ) : null}
+                      </label>
+
+                      <label className="settings-field">
+                        <span>새 비밀번호 확인</span>
+                        <div className="settings-password-field">
+                          <input
+                            type={showNewPassword ? "text" : "password"}
+                            name="confirmNewPassword"
+                            value={passwordForm.confirmNewPassword || ""}
+                            onChange={handlePasswordChange}
+                            placeholder="confirm new password"
+                            disabled={!isCurrentPasswordVerified}
+                          />
+                          <button
+                            type="button"
+                            className="settings-password-toggle"
+                            onClick={() => setShowNewPassword((prev) => !prev)}
+                            aria-label={showNewPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                            disabled={!isCurrentPasswordVerified}
+                          >
+                            {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                        {newPasswordMismatchMessage && !passwordErrorMessage ? (
+                          <small className="settings-field-error">{newPasswordMismatchMessage}</small>
+                        ) : null}
+                      </label>
+
+                      <button
+                        type="submit"
+                        disabled={
+                          !canManageSelectedUser ||
+                          isChangingPassword ||
+                          !hasPasswordChange ||
+                          isSamePassword ||
+                          isNewPasswordMismatch ||
+                          !isCurrentPasswordVerified
+                        }
+                        className="settings-secondary-button"
+                      >
+                        <KeyRound size={15} />
+                        {isChangingPassword ? "변경 중..." : "비밀번호 저장"}
+                      </button>
+                    </form>
+                  ) : null}
+
+                  {isSuperAdmin && !isManagingOwnAccount ? (
+                    <form
+                      className="settings-form-stack settings-divider"
+                      onSubmit={handleResetUserPassword}
+                    >
+                      <div className="settings-reset-copy">
+                        <strong>비밀번호 초기화</strong>
+                        <span>임시 비밀번호를 설정한 뒤 안전한 방법으로 해당 사용자에게 전달해 주세요.</span>
+                      </div>
+                      <label className="settings-field">
+                        <span>임시 비밀번호</span>
+                        <div className="settings-password-field">
+                          <input
+                            type={showResetPassword ? "text" : "password"}
+                            name="newPassword"
+                            value={resetPasswordForm.newPassword || ""}
+                            onChange={handleResetPasswordChange}
+                            placeholder="8자 이상 입력"
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            className="settings-password-toggle"
+                            onClick={() => setShowResetPassword((prev) => !prev)}
+                            aria-label={showResetPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                          >
+                            {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                      </label>
+                      <label className="settings-field">
+                        <span>임시 비밀번호 확인</span>
+                        <div className="settings-password-field">
+                          <input
+                            type={showResetPassword ? "text" : "password"}
+                            name="confirmNewPassword"
+                            value={resetPasswordForm.confirmNewPassword || ""}
+                            onChange={handleResetPasswordChange}
+                            placeholder="임시 비밀번호를 다시 입력"
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            className="settings-password-toggle"
+                            onClick={() => setShowResetPassword((prev) => !prev)}
+                            aria-label={showResetPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                          >
+                            {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                        {isResetPasswordMismatch || resetPasswordErrorMessage ? (
+                          <small className="settings-field-error">
+                            {resetPasswordErrorMessage || "입력한 임시 비밀번호가 일치하지 않습니다."}
+                          </small>
+                        ) : null}
+                      </label>
+                      <button
+                        type="submit"
+                        disabled={
+                          !canManageSelectedUser ||
+                          isResettingPassword ||
+                          !resetPasswordForm.newPassword.trim() ||
+                          !resetPasswordForm.confirmNewPassword.trim() ||
+                          isResetPasswordMismatch
+                        }
+                        className="settings-secondary-button"
+                      >
+                        <KeyRound size={15} />
+                        {isResettingPassword ? "초기화 중..." : "임시 비밀번호 설정"}
+                      </button>
+                    </form>
+                  ) : null}
+                </>
+              ) : (
+                <div className="settings-confirm-copy">
+                  비활성화된 계정은 정보 수정과 비밀번호 변경을 할 수 없습니다. 다시 사용하려면 아래에서
+                  계정을 활성화해 주세요.
                 </div>
-
-                <div className="settings-form-grid">
-                  <label className="settings-field">
-                    <span>권한</span>
-                    <select name="role" value={editForm.role} onChange={handleEditChange}>
-                      <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                    </select>
-                  </label>
-                </div>
-
-                <button type="submit" disabled={isUpdating} className="settings-primary-button">
-                  {isUpdating ? "저장 중..." : "변경사항 저장"}
-                </button>
-              </form>
-
-              <form className="settings-form-stack settings-divider" onSubmit={handleUpdatePassword}>
-                <label className="settings-field">
-                  <span>비밀번호 변경</span>
-                  <input
-                    type="password"
-                    name="password"
-                    value={passwordForm.password}
-                    onChange={handlePasswordChange}
-                    placeholder="newPassword123"
-                  />
-                </label>
-
-                <button
-                  type="submit"
-                  disabled={isChangingPassword}
-                  className="settings-secondary-button"
-                >
-                  <KeyRound size={15} />
-                  {isChangingPassword ? "변경 중..." : "비밀번호 저장"}
-                </button>
-              </form>
+              )}
 
               <div className="settings-divider settings-modal__footer">
-                {selectedUser.isActive ? (
+                {isSuperAdmin && !isManagingOwnAccount && selectedUser.isActive ? (
                   <button
                     type="button"
                     onClick={openDeactivateConfirmModal}
-                    disabled={isActivating || isDeactivating}
+                    disabled={!canManageSelectedUser || isActivating || isDeactivating}
                     className="settings-danger-button"
                   >
                     <UserX size={15} />
                     {isDeactivating ? "비활성화 중..." : "사용자 비활성화"}
                   </button>
-                ) : (
+                ) : isSuperAdmin && !isManagingOwnAccount ? (
                   <button
                     type="button"
                     onClick={openActivateConfirmModal}
-                    disabled={isActivating || isDeactivating}
+                    disabled={!canManageSelectedUser || isActivating || isDeactivating}
                     className="settings-primary-button"
                   >
                     <Shield size={15} />
                     {isActivating ? "활성화 중..." : "사용자 활성화"}
                   </button>
-                )}
+                ) : null}
               </div>
             </div>
           )}
@@ -616,6 +1298,8 @@ export default function SettingsPage() {
       <div className="settings-modal-overlay" onClick={closeDeactivateConfirmModal}>
         <div
           className="settings-modal settings-modal--compact"
+          role="dialog"
+          aria-modal="true"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="settings-modal__head">
@@ -649,7 +1333,7 @@ export default function SettingsPage() {
               type="button"
               className="settings-danger-button"
               onClick={() => void handleDeactivateUser()}
-              disabled={isDeactivating}
+              disabled={!canManageSelectedUser || isDeactivating}
             >
               {isDeactivating ? "비활성화 중..." : "비활성화 진행"}
             </button>
@@ -668,6 +1352,8 @@ export default function SettingsPage() {
       <div className="settings-modal-overlay" onClick={closeActivateConfirmModal}>
         <div
           className="settings-modal settings-modal--compact"
+          role="dialog"
+          aria-modal="true"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="settings-modal__head">
@@ -701,7 +1387,7 @@ export default function SettingsPage() {
               type="button"
               className="settings-primary-button"
               onClick={() => void handleActivateUser()}
-              disabled={isActivating}
+              disabled={!canManageSelectedUser || isActivating}
             >
               {isActivating ? "활성화 중..." : "활성화 진행"}
             </button>
@@ -714,18 +1400,46 @@ export default function SettingsPage() {
   function renderUsersSection() {
     if (!isSuperAdmin) {
       return (
-        <section className="ops-card settings-placeholder-card">
-          <div className="ops-card-head">
-            <div>
-              <h2>사용자 관리</h2>
-              <p>현재 계정에는 사용자 관리 권한이 없습니다.</p>
+        <div className="settings-stack">
+          <section className="ops-card">
+            <div className="ops-card-head">
+              <div>
+                <h2>내 계정</h2>
+                <p>이름, 로그인 ID, 비밀번호를 직접 관리할 수 있습니다.</p>
+              </div>
             </div>
-          </div>
-          <div className="settings-placeholder-body">
-            <Shield size={18} />
-            <span>최고 관리자 계정으로 로그인해야 사용자 관리 기능을 사용할 수 있습니다.</span>
-          </div>
-        </section>
+            {renderNotice()}
+          </section>
+
+          <section className="ops-card">
+            <div className="ops-card-head">
+              <div>
+                <h2>내 정보 수정</h2>
+                <p>내 계정 정보와 비밀번호를 수정할 수 있습니다.</p>
+              </div>
+            </div>
+
+            {isDetailLoading ? (
+              <div className="settings-empty">내 계정 정보를 불러오는 중입니다.</div>
+            ) : !selectedUser ? (
+              <div className="settings-empty">내 계정 정보를 확인할 수 없습니다.</div>
+            ) : (
+              <div className="settings-placeholder-body">
+                <UserCog size={18} />
+                <span>
+                  현재 로그인한 계정은 {selectedUser.name} ({selectedUser.userId}) 입니다.
+                </span>
+                <button
+                  type="button"
+                  className="settings-primary-button"
+                  onClick={() => openManageModal(selectedUser.id)}
+                >
+                  내 정보 수정
+                </button>
+              </div>
+            )}
+          </section>
+        </div>
       );
     }
 
@@ -762,6 +1476,22 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          <form className="settings-user-filters" onSubmit={handleUserSearchSubmit}>
+            <input
+              value={userSearchKeyword}
+              onChange={(event) => setUserSearchKeyword(event.target.value)}
+              placeholder="사용자 ID 또는 이름 검색"
+            />
+            <select value={userStatusFilter} onChange={handleUserStatusFilterChange}>
+              <option value="ALL">전체 상태</option>
+              <option value="ACTIVE">활성 계정</option>
+              <option value="INACTIVE">비활성 계정</option>
+            </select>
+            <button type="submit" className="settings-secondary-button">
+              검색
+            </button>
+          </form>
+
           {isListLoading ? (
             <div className="settings-empty">사용자 목록을 불러오는 중입니다.</div>
           ) : users.length === 0 ? (
@@ -769,19 +1499,12 @@ export default function SettingsPage() {
           ) : (
             <div className="settings-user-list">
               {users.map((item) => {
-                const isSelected = item.id === selectedUserId;
-
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => {
-                      setSelectedUserId(item.id);
-                      setErrorMessage("");
-                      setSuccessMessage("");
-                      setIsManageModalOpen(true);
-                    }}
-                    className={`settings-user-item${isSelected ? " is-selected" : ""}`}
+                    onClick={() => openManageModal(item.id)}
+                    className="settings-user-item"
                   >
                     <div className="settings-user-item__top">
                       <div>
@@ -791,7 +1514,13 @@ export default function SettingsPage() {
                       <em>{getRoleLabel(item.role)}</em>
                     </div>
                     <div className="settings-user-item__meta">
-                      <span>{item.isActive ? "활성" : "비활성"}</span>
+                      <span
+                        className={`settings-status-badge ${
+                          item.isActive ? "active" : "inactive"
+                        }`}
+                      >
+                        {item.isActive ? "활성" : "비활성"}
+                      </span>
                       <span>{item.lastLoginAt ? formatDateTime(item.lastLoginAt, "로그인 이력 없음") : "로그인 이력 없음"}</span>
                     </div>
                   </button>
@@ -799,6 +1528,30 @@ export default function SettingsPage() {
               })}
             </div>
           )}
+
+          {userPagination.totalPages > 1 ? (
+            <div className="settings-pagination" aria-label="사용자 목록 페이지 이동">
+              <button
+                type="button"
+                className="settings-action-button"
+                onClick={() => handleUserPageChange(userPage - 1)}
+                disabled={isListLoading || userPage <= 1}
+              >
+                이전
+              </button>
+              <span>
+                {userPage} / {userPagination.totalPages}
+              </span>
+              <button
+                type="button"
+                className="settings-action-button"
+                onClick={() => handleUserPageChange(userPage + 1)}
+                disabled={isListLoading || userPage >= userPagination.totalPages}
+              >
+                다음
+              </button>
+            </div>
+          ) : null}
         </section>
       </div>
     );
@@ -821,8 +1574,8 @@ export default function SettingsPage() {
           </div>
           <div>
             <span>등록 계정</span>
-            <strong>{users.length}</strong>
-            <small>현재 조회된 관리자 계정 수</small>
+            <strong>{visibleUserCount}</strong>
+            <small>{isSuperAdmin ? "전체 관리자 계정 수" : "현재 로그인한 계정 수"}</small>
           </div>
         </article>
 
@@ -832,7 +1585,7 @@ export default function SettingsPage() {
           </div>
           <div>
             <span>활성 계정</span>
-            <strong>{activeUserCount}</strong>
+            <strong>{visibleActiveUserCount}</strong>
             <small>즉시 로그인 가능한 계정 수</small>
           </div>
         </article>
@@ -843,7 +1596,7 @@ export default function SettingsPage() {
           </div>
           <div>
             <span>비활성 계정</span>
-            <strong>{inactiveUserCount}</strong>
+            <strong>{visibleInactiveUserCount}</strong>
             <small>로그인할 수 없도록 비활성화된 계정 수</small>
           </div>
         </article>

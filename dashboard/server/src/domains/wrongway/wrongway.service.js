@@ -244,13 +244,13 @@ async function getEventHistory(query = {}) {
   });
 }
 
-async function getEventDetail(eventId) {
+async function getEventDetail(eventId, options) {
   const normalizedEventId = String(eventId || "").trim();
   if (!normalizedEventId) {
     throw createHttpError(400, "이벤트 ID가 필요합니다.", { field: "id" });
   }
 
-  // 관제 상세 화면에 필요한 현장·구역·라이다 PC 정보와 원본 payload를 한 번에 조회한다.
+  // 관제 상세 화면에 필요한 현장·구역·라이다 PC 정보를 한 번에 조회한다.
   const event = await prisma.trafficEvent.findUnique({
     where: { id: normalizedEventId },
     include: {
@@ -277,7 +277,7 @@ async function getEventDetail(eventId) {
     throw createHttpError(404, "이벤트를 찾을 수 없습니다.", { eventId: normalizedEventId });
   }
 
-  return createEventDetailResponse(event);
+  return createEventDetailResponse(event, options);
 }
 
 async function updateEventStatus({ eventId, status, memo, userId }) {

@@ -330,6 +330,36 @@
         summary: "사용자 목록 조회",
         description: "관리자가 사용자 목록을 조회합니다.",
         security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "page",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, default: 1 },
+            description: "조회할 페이지 번호",
+          },
+          {
+            name: "limit",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+            description: "페이지당 사용자 수",
+          },
+          {
+            name: "keyword",
+            in: "query",
+            required: false,
+            schema: { type: "string", example: "manager" },
+            description: "사용자 ID 또는 이름 검색어",
+          },
+          {
+            name: "isActive",
+            in: "query",
+            required: false,
+            schema: { type: "boolean", example: true },
+            description: "계정 활성 상태 필터",
+          },
+        ],
         responses: {
           200: {
             description: "사용자 목록 조회 성공",
@@ -340,6 +370,23 @@
                   properties: {
                     ok: { type: "boolean", example: true },
                     count: { type: "integer", example: 1 },
+                    summary: {
+                      type: "object",
+                      properties: {
+                        totalCount: { type: "integer", example: 12 },
+                        activeCount: { type: "integer", example: 10 },
+                        inactiveCount: { type: "integer", example: 2 },
+                      },
+                    },
+                    pagination: {
+                      type: "object",
+                      properties: {
+                        page: { type: "integer", example: 1 },
+                        limit: { type: "integer", example: 20 },
+                        totalPages: { type: "integer", example: 1 },
+                        totalItems: { type: "integer", example: 12 },
+                      },
+                    },
                     users: {
                       type: "array",
                       items: {
@@ -407,7 +454,7 @@
                   userId: { type: "string", example: "manager01" },
                   name: { type: "string", example: "manager" },
                   password: { type: "string", example: "password123" },
-                  role: { type: "string", example: "SUPER_ADMIN" },
+                  role: { type: "string", example: "MANAGER" },
                   isActive: { type: "boolean", example: true },
                 },
               },
@@ -717,11 +764,11 @@
         },
       },
     },
-    "/api/users/{id}/password": {
-      patch: {
+    "/api/users/{id}/password/verify": {
+      post: {
         tags: ["Users"],
-        summary: "비밀번호 변경/초기화",
-        description: "관리자가 사용자 비밀번호를 변경하거나 초기화합니다.",
+        summary: "기존 비밀번호 확인",
+        description: "로그인한 사용자가 자신의 기존 비밀번호가 맞는지 확인합니다.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -738,9 +785,105 @@
             "application/json": {
               schema: {
                 type: "object",
-                required: ["password"],
+                required: ["currentPassword"],
                 properties: {
-                  password: { type: "string", example: "newPassword123" },
+                  currentPassword: { type: "string", example: "currentPassword123" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "기존 비밀번호 확인 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    verified: { type: "boolean", example: true },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: "기존 비밀번호 누락 또는 불일치",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "Current password is incorrect." },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "액세스 토큰 누락, 만료 또는 유효하지 않은 인증 정보",
+          },
+          403: {
+            description: "다른 사용자의 비밀번호 확인 시도",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "You can only verify your own password." },
+                  },
+                },
+              },
+            },
+          },
+          429: {
+            description: "비밀번호 확인 요청 횟수 초과",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: {
+                      type: "string",
+                      example: "비밀번호 확인 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/users/{id}/password": {
+      patch: {
+        tags: ["Users"],
+        summary: "내 비밀번호 변경",
+        description: "로그인한 사용자가 기존 비밀번호를 확인한 뒤 자신의 새 비밀번호로 변경합니다.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "user_id",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["currentPassword", "newPassword"],
+                properties: {
+                  currentPassword: { type: "string", example: "currentPassword123" },
+                  newPassword: { type: "string", example: "newPassword123" },
                 },
               },
             },
@@ -774,14 +917,59 @@
             },
           },
           400: {
-            description: "잘못된 요청 본문",
+            description: "필수값 누락, 기존 비밀번호 불일치 또는 새 비밀번호 정책 위반",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     ok: { type: "boolean", example: false },
-                    message: { type: "string", example: "password는 필수입니다." },
+                    message: { type: "string", example: "Current password is incorrect." },
+                  },
+                },
+              },
+            },
+          },
+          401: {
+            description: "액세스 토큰 누락, 만료 또는 유효하지 않은 인증 정보",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "유효하지 않은 토큰입니다." },
+                  },
+                },
+              },
+            },
+          },
+          403: {
+            description: "다른 사용자의 비밀번호 변경 시도",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: { type: "string", example: "You can only change your own password." },
+                  },
+                },
+              },
+            },
+          },
+          429: {
+            description: "비밀번호 확인 요청 횟수 초과",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: false },
+                    message: {
+                      type: "string",
+                      example: "비밀번호 확인 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+                    },
                   },
                 },
               },
@@ -801,6 +989,67 @@
               },
             },
           },
+        },
+      },
+    },
+    "/api/users/{id}/password/reset": {
+      patch: {
+        tags: ["Users"],
+        summary: "다른 사용자 비밀번호 초기화",
+        description:
+          "SUPER_ADMIN만 다른 사용자의 임시 비밀번호를 지정할 수 있습니다. 초기화가 완료되면 대상 사용자의 기존 로그인 세션은 모두 무효화됩니다. 임시 비밀번호 메일 발송은 아직 연동되지 않았습니다.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "user_id",
+            description: "비밀번호를 초기화할 사용자 ID",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["newPassword"],
+                properties: {
+                  newPassword: {
+                    type: "string",
+                    minLength: 8,
+                    maxLength: 72,
+                    example: "temporaryPassword123",
+                    description: "8자 이상, 72바이트 이하의 임시 비밀번호",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "비밀번호 초기화 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    user: { $ref: "#/components/schemas/LoginUser" },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: "비밀번호 정책 위반, 기존 비밀번호와 동일함 또는 본인 초기화 시도" },
+          401: { description: "인증 토큰이 없거나 유효하지 않음" },
+          403: { description: "SUPER_ADMIN 권한이 필요함" },
+          404: { description: "사용자를 찾을 수 없음" },
+          429: { description: "비밀번호 초기화 요청 횟수 초과" },
+          500: { description: "사용자 비밀번호 초기화 오류" },
         },
       },
     },
@@ -1801,9 +2050,9 @@
     "/api/events/{id}/status": {
       patch: {
         tags: ["Wrongway"],
-        summary: "관리자 이벤트 상태 및 변경 사유 기록",
+        summary: "최고 관리자 이벤트 상태 및 변경 사유 기록",
         description:
-          "관리자가 이벤트의 업무 처리 상태를 변경하거나, 현재 상태를 유지한 채 변경 사유만 event_logs에 기록합니다. 통합제어보드나 물리 장비는 제어하지 않습니다.",
+          "SUPER_ADMIN만 이벤트의 업무 처리 상태를 변경하거나, 현재 상태를 유지한 채 변경 사유만 event_logs에 기록할 수 있습니다. 통합제어보드나 물리 장비는 제어하지 않습니다.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -1833,6 +2082,7 @@
           },
           400: { description: "지원하지 않는 상태 값" },
           401: { description: "인증 토큰이 없거나 유효하지 않음" },
+          403: { description: "SUPER_ADMIN 권한이 필요함" },
           404: { description: "이벤트를 찾을 수 없음" },
           500: { description: "이벤트 상태 또는 변경 사유 기록 오류" },
         },
@@ -1843,7 +2093,7 @@
         tags: ["Wrongway"],
         summary: "이벤트 상세 조회",
         description:
-          "관제 화면에서 선택한 이벤트의 객체·시간·구역·라이다 PC 정보와 저장된 원본 payload를 조회합니다. 목록 API에는 원본 payload를 포함하지 않습니다.",
+          "관제 화면에서 선택한 이벤트의 객체·시간·구역·라이다 PC 정보를 조회합니다. 저장된 원본 payload는 SUPER_ADMIN에게만 반환하며, MANAGER 응답에서는 제외됩니다.",
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -2657,7 +2907,7 @@
               rawPayload: {
                 type: "object",
                 additionalProperties: true,
-                description: "해당 이벤트의 상위 snapshot 요약과 라이다 객체 원본 데이터",
+                description: "SUPER_ADMIN에게만 반환되는 이벤트의 상위 snapshot 요약과 라이다 객체 원본 데이터",
               },
             },
           },

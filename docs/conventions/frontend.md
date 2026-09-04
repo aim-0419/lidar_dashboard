@@ -91,8 +91,9 @@ shared/api/httpClient.js
 ## 인증/권한
 
 - 로그인 여부가 필요한 페이지는 `features/auth/RequireAuth.jsx` 같은 보호 라우트를 사용합니다.
-- 1차 개발에서는 `SUPER_ADMIN` 단일 권한을 전제로 합니다.
-- 세부 권한은 추후 확장 가능하게 두되, 확정되지 않은 권한 정책을 미리 복잡하게 구현하지 않습니다.
+- 권한별 화면과 API 접근 범위는 [authorization.md](authorization.md)를 기준으로 합니다.
+- `MANAGER`에게는 관제 조회와 본인 정보 수정 화면만 제공합니다.
+- 사용자 관리와 제어·테스트 기능은 `SUPER_ADMIN`에게만 노출합니다.
 
 ## 스타일 기준
 

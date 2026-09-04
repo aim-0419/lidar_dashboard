@@ -48,7 +48,10 @@ async function getWrongWayHistory(req, res) {
 
 async function getWrongWayEventDetail(req, res) {
   try {
-    const result = await wrongwayService.getEventDetail(req.params.id);
+    const result = await wrongwayService.getEventDetail(req.params.id, {
+      // 원본 payload는 민감한 현장 진단 데이터이므로 최고 관리자에게만 제공한다.
+      includeRawPayload: req.user?.role === "SUPER_ADMIN",
+    });
     res.json(result);
   } catch (error) {
     logger.error("wrongway event detail query failed", {

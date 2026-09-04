@@ -1,16 +1,9 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { t as translate } from "../il8n/il8n";
-
-const LanguageContext = createContext(null);
+import { LanguageContext } from "./language-context-value";
 
 export function LanguageProvider({ children }) {
-    const [lang, setLang] = useState("ko");
-
-
-useEffect(() => {
-    const saved = localStorage.getItem("dashboard:lang");
-    if (saved) setLang(saved);
-}, []);
+    const [lang, setLang] = useState(() => localStorage.getItem("dashboard:lang") || "ko");
 
 useEffect(() => {
     localStorage.setItem("dashboard:lang", lang);
@@ -25,9 +18,5 @@ const value = useMemo(() => {
 }, [lang]);
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
-}
-
-export function useLanguage() {
-    return useContext(LanguageContext);
 }
 

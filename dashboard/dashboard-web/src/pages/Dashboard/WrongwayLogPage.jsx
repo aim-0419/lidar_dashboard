@@ -147,9 +147,13 @@ export default function WrongwayLogPage() {
 
     //선택 변경 애니메이션 
     useEffect(() => {
-        setIsAnimating(true);
-        const t = setTimeout(() => setIsAnimating(false), 200);
-        return () => clearTimeout(t);
+        const startTimer = setTimeout(() => setIsAnimating(true), 0);
+        const endTimer = setTimeout(() => setIsAnimating(false), 200);
+
+        return () => {
+            clearTimeout(startTimer);
+            clearTimeout(endTimer);
+        };
     }, [selectedEvent?.id]);
 
     const newCount = MOCK_VIOLATIONS.filter((v) => v.status ==="new").length;
