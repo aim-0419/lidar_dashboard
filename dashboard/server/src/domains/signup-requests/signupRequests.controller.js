@@ -5,6 +5,22 @@ function getPublicMessage(error, fallbackMessage) {
   return error?.statusCode && error.statusCode < 500 ? error.message : fallbackMessage;
 }
 
+function logRequestFailure(message, context, error) {
+  const details = {
+    ...context,
+    statusCode: error.statusCode,
+    message: error.message,
+  };
+
+  // 입력값·중복·이미 처리된 요청은 운영 장애가 아니므로 경고로 구분한다.
+  if (error?.statusCode && error.statusCode < 500) {
+    logger.warn(message, details);
+    return;
+  }
+
+  logger.error(message, details);
+}
+
 async function createSignupRequest(req, res) {
   try {
     const request = await signupRequestsService.createSignupRequest({
@@ -20,11 +36,9 @@ async function createSignupRequest(req, res) {
       request,
     });
   } catch (error) {
-    logger.error("create signup request failed", {
+    logRequestFailure("create signup request failed", {
       payloadUserId: req.body?.userId,
-      statusCode: error.statusCode,
-      message: error.message,
-    });
+    }, error);
 
     res.status(error.statusCode || 500).json({
       ok: false,
@@ -42,11 +56,9 @@ async function checkSignupRequestUserId(req, res) {
       ...result,
     });
   } catch (error) {
-    logger.warn("signup request user id availability check failed", {
+    logRequestFailure("signup request user id availability check failed", {
       userId: req.query?.userId,
-      statusCode: error.statusCode,
-      message: error.message,
-    });
+    }, error);
 
     res.status(error.statusCode || 500).json({
       ok: false,
@@ -72,12 +84,10 @@ async function getSignupRequests(req, res) {
       requests: result.requests,
     });
   } catch (error) {
-    logger.error("get signup requests failed", {
+    logRequestFailure("get signup requests failed", {
       requesterId: req.user?.id,
       requesterUserId: req.user?.userId,
-      statusCode: error.statusCode,
-      message: error.message,
-    });
+    }, error);
 
     res.status(error.statusCode || 500).json({
       ok: false,
@@ -98,13 +108,11 @@ async function approveSignupRequest(req, res) {
       request,
     });
   } catch (error) {
-    logger.error("approve signup request failed", {
+    logRequestFailure("approve signup request failed", {
       requesterId: req.user?.id,
       requesterUserId: req.user?.userId,
       signupRequestId: req.params.id,
-      statusCode: error.statusCode,
-      message: error.message,
-    });
+    }, error);
 
     res.status(error.statusCode || 500).json({
       ok: false,
@@ -126,13 +134,11 @@ async function rejectSignupRequest(req, res) {
       request,
     });
   } catch (error) {
-    logger.error("reject signup request failed", {
+    logRequestFailure("reject signup request failed", {
       requesterId: req.user?.id,
       requesterUserId: req.user?.userId,
       signupRequestId: req.params.id,
-      statusCode: error.statusCode,
-      message: error.message,
-    });
+    }, error);
 
     res.status(error.statusCode || 500).json({
       ok: false,

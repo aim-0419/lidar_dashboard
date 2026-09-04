@@ -4,6 +4,8 @@ const path = require("node:path");
 const { test } = require("node:test");
 const vm = require("node:vm");
 
+class PrismaClientKnownRequestError extends Error {}
+
 function clone(value) {
   return value ? { ...value, reviewedBy: value.reviewedBy || null } : null;
 }
@@ -22,7 +24,7 @@ function matchesWhere(row, where = {}) {
   });
 }
 
-function createFakePrisma({ requests = [], users = [] } = {}) {
+function createFakePrisma({ requests = [], users = [], createSignupRequestError = null } = {}) {
   const state = {
     requests: requests.map((request) => ({ ...request })),
     users: users.map((user) => ({ ...user })),
@@ -46,6 +48,10 @@ function createFakePrisma({ requests = [], users = [] } = {}) {
       findFirst: async ({ where }) => clone(state.requests.find((request) => matchesWhere(request, where))),
       findUnique: async ({ where }) => clone(state.requests.find((request) => request.id === where.id)),
       create: async ({ data }) => {
+        if (createSignupRequestError) {
+          throw createSignupRequestError;
+        }
+
         const request = {
           id: `request-${requestSequence++}`,
           reviewedByUserId: null,
@@ -94,9 +100,7 @@ function loadSignupRequestsService(prisma) {
     exports: loaded.exports,
     require(name) {
       if (name === "bcrypt") return { hash: async (password) => `hash:${password}` };
-      if (name === "@prisma/client") {
-        return { Prisma: { PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {} } };
-      }
+        if (name === "@prisma/client") return { Prisma: { PrismaClientKnownRequestError } };
       if (name === "../../prisma/client") return { prisma };
       if (name === "../../utils/credential-policy") {
         return {
@@ -165,6 +169,26 @@ test("가입 신청은 대기 상태로 저장되고 같은 대기 ID는 차단�
   );
 });
 
+test("DB 부분 고유 인덱스 충돌은 가입 신청 중복 오류로 반환한다", async () => {
+  const constraintError = new PrismaClientKnownRequestError("unique constraint failed");
+  constraintError.code = "P2002";
+  constraintError.meta = { target: ["signup_requests_pending_user_id_key"] };
+
+  const { prisma } = createFakePrisma({ createSignupRequestError: constraintError });
+  const service = loadSignupRequestsService(prisma);
+
+  await assert.rejects(
+    service.createSignupRequest({
+      userId: "manager02",
+      name: "김관리",
+      password: "password123!",
+      email: "manager02@example.com",
+      phoneNumber: "010-2345-6789",
+    }),
+    { statusCode: 409, message: "이미 사용 중인 사용자 ID입니다." },
+  );
+});
+
 test("승인 시 사용자 계정을 만들고 가입 신청 비밀번호 해시를 제거한다", async () => {
   const { prisma, state } = createFakePrisma({ requests: [createPendingRequest()] });
   const service = loadSignupRequestsService(prisma);
@@ -175,6 +199,10 @@ test("승인 시 사용자 계정을 만들고 가입 신청 비밀번호 해시
   assert.equal(state.users.length, 1);
   assert.equal(state.users[0].userId, "manager01");
   assert.equal(state.users[0].passwordHash, "hash:password123!");
+  assert.equal(state.users[0].email, "manager01@example.com");
+  assert.equal(state.users[0].phoneNumber, "01012345678");
+  assert.equal(state.users[0].role, "MANAGER");
+  assert.equal(state.users[0].isActive, true);
   assert.equal(state.requests[0].passwordHash, null);
   assert.equal(state.eventLogs[0].action, "SIGNUP_REQUEST_APPROVED");
 });

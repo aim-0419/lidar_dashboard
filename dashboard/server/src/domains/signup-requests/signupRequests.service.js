@@ -481,7 +481,7 @@ async function approveSignupRequest({ id, reviewerId }) {
 
       ensurePendingStatus(request);
 
-      if (!request.userId || !request.name || !request.passwordHash) {
+      if (!request.userId || !request.name || !request.passwordHash || !request.email || !request.phoneNumber) {
         throw createHttpError(409, "승인할 가입 신청 정보가 없습니다.");
       }
 
@@ -512,7 +512,8 @@ async function approveSignupRequest({ id, reviewerId }) {
           passwordHash: request.passwordHash,
           email: request.email,
           phoneNumber: request.phoneNumber,
-          role: request.requestedRole,
+          // 가입 신청으로 생성되는 계정은 항상 일반 관리자 권한으로 제한한다.
+          role: REQUESTED_ROLE,
           isActive: true,
         },
       });
