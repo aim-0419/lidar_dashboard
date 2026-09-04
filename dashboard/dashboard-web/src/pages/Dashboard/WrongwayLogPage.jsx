@@ -147,6 +147,7 @@ export default function WrongwayLogPage() {
 
     //선택 변경 애니메이션 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsAnimating(true);
         const t = setTimeout(() => setIsAnimating(false), 200);
         return () => clearTimeout(t);

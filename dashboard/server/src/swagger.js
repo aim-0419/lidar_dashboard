@@ -291,7 +291,7 @@
             },
           },
           409: {
-            description: "이미 사용 중이거나 신청 이력이 있는 사용자 ID",
+            description: "이미 사용 중인 사용자 ID·이메일·전화번호 또는 대기 중인 가입 신청",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
@@ -320,7 +320,7 @@
             required: false,
             schema: {
               type: "string",
-              enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED"],
+              enum: ["PENDING", "APPROVED", "REJECTED", "EXPIRED"],
             },
             description: "특정 상태의 신청만 조회할 때 사용합니다.",
           },
@@ -348,6 +348,14 @@
               },
             },
           },
+          400: {
+            description: "유효하지 않은 상태값 또는 페이지 조회 조건",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
           401: {
             description: "인증 실패",
             content: {
@@ -371,7 +379,7 @@
       get: {
         tags: ["Signup Requests"],
         summary: "가입 신청 ID 사용 가능 여부 확인",
-        description: "users와 가입 신청 이력에 동일한 사용자 ID가 없는지 확인합니다.",
+        description: "users와 현재 대기 중인 가입 신청에 동일한 사용자 ID가 없는지 확인합니다.",
         parameters: [
           {
             name: "userId",
@@ -391,7 +399,7 @@
             },
           },
           400: {
-            description: "사용자 ID 누락",
+            description: "사용자 ID 형식 오류",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
@@ -526,80 +534,6 @@
           },
           409: {
             description: "이미 처리된 가입 신청",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/api/signup-requests/{id}/cancel": {
-      patch: {
-        tags: ["Signup Requests"],
-        summary: "가입 신청 취소",
-        description: "신청자가 본인 userId와 가입 신청 시 입력한 비밀번호를 확인한 뒤 대기 중인 가입 신청을 취소합니다.",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-            example: "cm_signup_request_id",
-          },
-        ],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: { $ref: "#/components/schemas/SignupRequestCancelRequest" },
-            },
-          },
-        },
-        responses: {
-          200: {
-            description: "가입 신청 취소 성공",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/SignupRequestSingleResponse" },
-              },
-            },
-          },
-          400: {
-            description: "필수 항목 누락",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
-              },
-            },
-          },
-          401: {
-            description: "가입 신청 정보 확인 실패",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
-              },
-            },
-          },
-          404: {
-            description: "가입 신청을 찾을 수 없음",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
-              },
-            },
-          },
-          409: {
-            description: "이미 처리된 가입 신청",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
-              },
-            },
-          },
-          429: {
-            description: "가입 신청 취소 요청 횟수 초과",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
@@ -2648,7 +2582,14 @@
         type: "object",
         required: ["userId", "name", "password", "email", "phoneNumber"],
         properties: {
-          userId: { type: "string", example: "manager01" },
+          userId: {
+            type: "string",
+            minLength: 4,
+            maxLength: 30,
+            pattern: "^[A-Za-z0-9]+$",
+            example: "manager01",
+            description: "영문과 숫자만 사용할 수 있습니다.",
+          },
           name: { type: "string", example: "홍길동" },
           password: { type: "string", example: "password123!" },
           email: { type: "string", format: "email", example: "manager01@example.com" },
@@ -2673,33 +2614,24 @@
           available: { type: "boolean", example: true },
         },
       },
-      SignupRequestCancelRequest: {
-        type: "object",
-        required: ["userId", "password"],
-        properties: {
-          userId: { type: "string", example: "manager01" },
-          password: { type: "string", format: "password", example: "password123" },
-        },
-      },
       SignupRequestItem: {
         type: "object",
         properties: {
           id: { type: "string", example: "cm_signup_request_id" },
-          userId: { type: "string", example: "manager01" },
-          name: { type: "string", example: "홍길동" },
+          userId: { type: "string", nullable: true, example: "manager01" },
+          name: { type: "string", nullable: true, example: "홍길동" },
           email: { type: "string", format: "email", nullable: true, example: "manager01@example.com" },
           phoneNumber: { type: "string", nullable: true, example: "010-1234-5678" },
           requestedRole: { type: "string", example: "MANAGER" },
           status: {
             type: "string",
-            enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "EXPIRED"],
+            enum: ["PENDING", "APPROVED", "REJECTED", "EXPIRED"],
             example: "PENDING",
           },
           reviewedByUserId: { type: "string", nullable: true, example: "cm_admin_user_id" },
           reviewedAt: { type: "string", format: "date-time", nullable: true },
-          expiresAt: { type: "string", format: "date-time", nullable: true },
+          expiresAt: { type: "string", format: "date-time" },
           rejectReason: { type: "string", nullable: true, example: "중복 신청" },
-          cancelledAt: { type: "string", format: "date-time", nullable: true },
           anonymizedAt: { type: "string", format: "date-time", nullable: true },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },

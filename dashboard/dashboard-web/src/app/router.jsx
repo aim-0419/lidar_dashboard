@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import RequireAuth from "../features/auth/RequireAuth";
+import RequireRole from "../features/auth/RequireRole";
 
 import LoginPage from "../pages/Login/LoginPage";
 import SignupRequestPage from "../pages/SignupRequest/SignupRequestPage";
@@ -38,7 +39,14 @@ export default function AppRouter() {
           <Route path="/events" element={<EventLogPage />} />
           <Route path="/devices" element={<DevicesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/signup-requests" element={<SignupRequestsPage />} />
+          <Route
+            path="/signup-requests"
+            element={
+              <RequireRole role="super_admin">
+                <SignupRequestsPage />
+              </RequireRole>
+            }
+          />
         </Route>
       </Routes>
     </BrowserRouter>

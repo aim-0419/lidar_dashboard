@@ -4,8 +4,7 @@ const { getSitesController, getSiteByIdController } = require("./sites.controlle
 
 const router = express.Router();
 
-router.use(authenticateToken);
-router.get("/sites", getSitesController);
-router.get("/sites/:id", getSiteByIdController);
+router.get("/sites", authenticateToken, getSitesController);
+router.get("/sites/:id", authenticateToken, getSiteByIdController);
 
 module.exports = router;

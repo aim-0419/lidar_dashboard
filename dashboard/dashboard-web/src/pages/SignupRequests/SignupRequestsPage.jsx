@@ -13,7 +13,6 @@ const STATUS_LABELS = {
   PENDING: "대기",
   APPROVED: "승인",
   REJECTED: "반려",
-  CANCELLED: "취소",
   EXPIRED: "만료",
 };
 
@@ -31,6 +30,8 @@ export default function SignupRequestsPage() {
   const [busyId, setBusyId] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const isSuperAdmin = user?.role === "super_admin";
 
@@ -69,6 +70,32 @@ export default function SignupRequestsPage() {
     setSuccessMessage("");
   }
 
+  function openConfirmAction(type, id) {
+    setRejectReason("");
+    setConfirmAction({ type, id });
+  }
+
+  function closeConfirmAction() {
+    setRejectReason("");
+    setConfirmAction(null);
+  }
+
+  function confirmPendingAction() {
+    if (!confirmAction) {
+      return;
+    }
+
+    const { type, id } = confirmAction;
+    closeConfirmAction();
+
+    if (type === "approve") {
+      void handleApprove(id);
+      return;
+    }
+
+    void handleReject(id, rejectReason);
+  }
+
   async function handleApprove(id) {
     setBusyId(id);
     setErrorMessage("");
@@ -85,13 +112,12 @@ export default function SignupRequestsPage() {
     }
   }
 
-  async function handleReject(id) {
-    const rejectReason = window.prompt("반려 사유를 입력하세요. 입력하지 않으면 사유 없이 반려됩니다.") || "";
+  async function handleReject(id, reason) {
     setBusyId(id);
     setErrorMessage("");
 
     try {
-      await rejectSignupRequest(id, rejectReason);
+      await rejectSignupRequest(id, reason);
       setSuccessMessage("가입 신청을 반려했습니다.");
       await loadRequests();
       window.dispatchEvent(new Event("signup-request-count-changed"));
@@ -146,8 +172,8 @@ export default function SignupRequestsPage() {
           <article key={request.id} className="signup-request-card">
             <div className="signup-request-card__head">
               <div>
-                <strong>{request.name}</strong>
-                <span>{request.userId}</span>
+                <strong>{request.name || "-"}</strong>
+                <span>{request.userId || "-"}</span>
               </div>
               <b className={`status-${String(request.status).toLowerCase()}`}>
                 {STATUS_LABELS[request.status] || request.status}
@@ -157,17 +183,17 @@ export default function SignupRequestsPage() {
               <div><dt>이메일</dt><dd>{request.email || "-"}</dd></div>
               <div><dt>전화번호</dt><dd>{request.phoneNumber || "-"}</dd></div>
               <div><dt>신청일</dt><dd>{formatDate(request.createdAt)}</dd></div>
-              <div><dt>처리일</dt><dd>{formatDate(request.reviewedAt || request.cancelledAt)}</dd></div>
+              <div><dt>처리일</dt><dd>{formatDate(request.reviewedAt)}</dd></div>
               <div><dt>만료일</dt><dd>{formatDate(request.expiresAt)}</dd></div>
               <div><dt>개인정보 삭제일</dt><dd>{formatDate(request.anonymizedAt)}</dd></div>
             </dl>
             {request.rejectReason ? <p className="signup-request-card__reason">반려 사유: {request.rejectReason}</p> : null}
             {request.status === "PENDING" ? (
               <div className="signup-request-card__actions">
-                <button type="button" className="approve" disabled={busyId === request.id} onClick={() => void handleApprove(request.id)}>
+                <button type="button" className="approve" disabled={busyId === request.id} onClick={() => openConfirmAction("approve", request.id)}>
                   <Check size={16} /> 승인
                 </button>
-                <button type="button" className="reject" disabled={busyId === request.id} onClick={() => void handleReject(request.id)}>
+                <button type="button" className="reject" disabled={busyId === request.id} onClick={() => openConfirmAction("reject", request.id)}>
                   <X size={16} /> 반려
                 </button>
               </div>
@@ -194,6 +220,41 @@ export default function SignupRequestsPage() {
             다음 <ChevronRight size={16} />
           </button>
         </nav>
+      ) : null}
+      {confirmAction ? (
+        <div className="signup-action-dialog-backdrop" role="presentation">
+          <section className="signup-action-dialog" role="dialog" aria-modal="true" aria-labelledby="signup-action-dialog-title">
+            <h2 id="signup-action-dialog-title">
+              {confirmAction.type === "approve" ? "가입 신청 승인" : "가입 신청 반려"}
+            </h2>
+            <p>
+              {confirmAction.type === "approve"
+                ? "이 가입 신청을 승인하고 관리자 계정을 생성할까요?"
+                : "이 가입 신청을 반려할까요? 반려 사유는 선택 사항입니다."}
+            </p>
+            {confirmAction.type === "reject" ? (
+              <label className="signup-action-dialog__field">
+                <span>반려 사유</span>
+                <textarea
+                  value={rejectReason}
+                  maxLength={500}
+                  onChange={(event) => setRejectReason(event.target.value)}
+                  placeholder="반려 사유를 입력하세요. 입력하지 않으면 사유 없이 반려됩니다."
+                />
+              </label>
+            ) : null}
+            <div className="signup-action-dialog__actions">
+              <button type="button" onClick={closeConfirmAction}>취소</button>
+              <button
+                type="button"
+                className={confirmAction.type}
+                onClick={confirmPendingAction}
+              >
+                {confirmAction.type === "approve" ? "승인" : "반려"}
+              </button>
+            </div>
+          </section>
+        </div>
       ) : null}
     </section>
   );

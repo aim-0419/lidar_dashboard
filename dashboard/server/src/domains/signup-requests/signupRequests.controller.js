@@ -141,38 +141,10 @@ async function rejectSignupRequest(req, res) {
   }
 }
 
-async function cancelSignupRequest(req, res) {
-  try {
-    const request = await signupRequestsService.cancelSignupRequest({
-      id: req.params.id,
-      userId: req.body?.userId,
-      password: req.body?.password,
-    });
-
-    res.status(200).json({
-      ok: true,
-      request,
-    });
-  } catch (error) {
-    logger.error("cancel signup request failed", {
-      signupRequestId: req.params.id,
-      payloadUserId: req.body?.userId,
-      statusCode: error.statusCode,
-      message: error.message,
-    });
-
-    res.status(error.statusCode || 500).json({
-      ok: false,
-      message: getPublicMessage(error, "가입 신청 취소 처리 중 오류가 발생했습니다."),
-    });
-  }
-}
-
 module.exports = {
   createSignupRequest,
   checkSignupRequestUserId,
   getSignupRequests,
   approveSignupRequest,
   rejectSignupRequest,
-  cancelSignupRequest,
 };

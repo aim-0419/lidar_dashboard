@@ -21,7 +21,7 @@ async function maintainSignupRequests() {
   try {
     const result = await runSignupRequestMaintenance();
 
-    if (result.expiredCount > 0 || result.anonymizedCount > 0) {
+    if (result.expiredCount > 0 || result.anonymizedCount > 0 || result.anonymizedAuditLogCount > 0) {
       logger.info("signup request maintenance completed", result);
     }
   } catch (error) {

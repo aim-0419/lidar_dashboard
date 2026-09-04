@@ -322,10 +322,6 @@ export async function rejectSignupRequest(id, rejectReason) {
   return patchJson(`/api/signup-requests/${id}/reject`, { rejectReason });
 }
 
-export async function cancelSignupRequest(id, payload) {
-  return patchJson(`/api/signup-requests/${id}/cancel`, payload);
-}
-
 export async function initializeAccessToken() {
   // 새로고침 후 메모리 토큰이 비어 있으면 refresh cookie로 다시 복구한다.
   if (accessToken) {

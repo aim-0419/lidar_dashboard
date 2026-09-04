@@ -3,7 +3,12 @@ const { Prisma } = require("@prisma/client");
 const { prisma } = require("../../prisma/client");
 const {
   MIN_PASSWORD_LENGTH,
+  MAX_PASSWORD_BYTES,
+  MIN_USER_ID_LENGTH,
+  MAX_USER_ID_LENGTH,
+  getPasswordValidationError,
   isValidPassword,
+  isValidUserId,
   normalizePhoneNumber,
   isValidPhoneNumber,
 } = require("../../utils/credential-policy");
@@ -51,6 +56,25 @@ function serializeUser(user) {
 
 function isBlank(value) {
   return typeof value !== "string" || value.trim() === "";
+}
+
+function validateUserId(userId) {
+  const normalizedUserId = String(userId || "").trim();
+
+  if (!isValidUserId(normalizedUserId)) {
+    throw createHttpError(
+      400,
+      `사용자 ID는 영문과 숫자만 사용해 ${MIN_USER_ID_LENGTH}~${MAX_USER_ID_LENGTH}자로 입력해야 합니다.`,
+    );
+  }
+
+  return normalizedUserId;
+}
+
+function getPasswordValidationMessage(password) {
+  return getPasswordValidationError(password) === "TOO_LONG"
+    ? `Password must be at most ${MAX_PASSWORD_BYTES} UTF-8 bytes.`
+    : `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
 }
 
 function parseOptionalBoolean(value) {
@@ -177,12 +201,12 @@ async function createUser({ userId, name, password, email, phoneNumber, role, is
   }
 
   if (!isValidPassword(password)) {
-    throw createHttpError(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+    throw createHttpError(400, getPasswordValidationMessage(password));
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
   const userData = {
-    userId: userId.trim(),
+    userId: validateUserId(userId),
     name: name.trim(),
     passwordHash,
     email: typeof email === "string" && email.trim() !== "" ? validateEmail(email) : null,
@@ -226,10 +250,7 @@ async function updateUser({ id, userId, name, email, phoneNumber, role, isActive
   }
 
   if (typeof userId === "string") {
-    if (userId.trim() === "") {
-      throw createHttpError(400, "userId cannot be empty.");
-    }
-    data.userId = userId.trim();
+    data.userId = validateUserId(userId);
   }
 
   if (typeof name === "string") {
@@ -422,7 +443,7 @@ async function updateUserPassword({ id, requesterId, currentPassword, newPasswor
   }
 
   if (!isValidPassword(newPassword)) {
-    throw createHttpError(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+    throw createHttpError(400, getPasswordValidationMessage(newPassword));
   }
 
   if (currentPassword === newPassword) {

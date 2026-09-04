@@ -14,6 +14,8 @@ import {
   UserPlus,
 } from "lucide-react";
 
+const PENDING_SIGNUP_REFRESH_INTERVAL_MS = 60 * 1000;
+
 // 보호된 대시보드 화면에서 공통으로 사용하는 사이드바 레이아웃입니다.
 export default function MainLayout() {
   const { t } = useLanguage();
@@ -43,10 +45,12 @@ export default function MainLayout() {
     }
 
     void loadPendingSignupCount();
+    const intervalId = window.setInterval(loadPendingSignupCount, PENDING_SIGNUP_REFRESH_INTERVAL_MS);
     window.addEventListener("signup-request-count-changed", loadPendingSignupCount);
 
     return () => {
       isMounted = false;
+      window.clearInterval(intervalId);
       window.removeEventListener("signup-request-count-changed", loadPendingSignupCount);
     };
   }, [isSuperAdmin]);

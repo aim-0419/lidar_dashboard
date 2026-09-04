@@ -3,7 +3,12 @@ const { Prisma } = require("@prisma/client");
 const { prisma } = require("../../prisma/client");
 const {
   MIN_PASSWORD_LENGTH,
+  MAX_PASSWORD_BYTES,
+  MIN_USER_ID_LENGTH,
+  MAX_USER_ID_LENGTH,
+  getPasswordValidationError,
   isValidPassword,
+  isValidUserId,
   normalizePhoneNumber,
   isValidPhoneNumber,
 } = require("../../utils/credential-policy");
@@ -14,13 +19,16 @@ const MAX_LIST_LIMIT = 100;
 const SIGNUP_REQUEST_EXPIRATION_DAYS = 30;
 const SIGNUP_REQUEST_RETENTION_DAYS = 90;
 const SIGNUP_REQUEST_MAINTENANCE_INTERVAL_MS = 60 * 60 * 1000;
+const MAX_NAME_LENGTH = 50;
+const MAX_EMAIL_LENGTH = 254;
+const MAX_REJECT_REASON_LENGTH = 500;
 const SIGNUP_REQUEST_STATUS = {
   PENDING: "PENDING",
   APPROVED: "APPROVED",
   REJECTED: "REJECTED",
-  CANCELLED: "CANCELLED",
   EXPIRED: "EXPIRED",
 };
+const SIGNUP_REQUEST_STATUS_VALUES = new Set(Object.values(SIGNUP_REQUEST_STATUS));
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -37,13 +45,13 @@ function parsePositiveInteger(value, fallback, fieldName) {
     return fallback;
   }
 
-  const parsed = Number.parseInt(value, 10);
+  const normalizedValue = String(value).trim();
 
-  if (!Number.isInteger(parsed) || parsed < 1) {
+  if (!/^[1-9]\d*$/.test(normalizedValue)) {
     throw createHttpError(400, `${fieldName} must be a positive integer.`);
   }
 
-  return parsed;
+  return Number(normalizedValue);
 }
 
 function normalizeEmail(value) {
@@ -53,7 +61,7 @@ function normalizeEmail(value) {
 function validateEmail(email) {
   const normalizedEmail = normalizeEmail(email);
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+  if (normalizedEmail.length > MAX_EMAIL_LENGTH || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
     throw createHttpError(400, "올바른 이메일 형식이 필요합니다.");
   }
 
@@ -68,6 +76,34 @@ function validatePhoneNumber(phoneNumber) {
   }
 
   return normalizedPhoneNumber;
+}
+
+function validateUserId(userId) {
+  const normalizedUserId = String(userId || "").trim();
+
+  if (!isValidUserId(normalizedUserId)) {
+    throw createHttpError(400, `사용자 ID는 영문과 숫자만 사용해 ${MIN_USER_ID_LENGTH}~${MAX_USER_ID_LENGTH}자로 입력해야 합니다.`);
+  }
+
+  return normalizedUserId;
+}
+
+function validateName(name) {
+  const normalizedName = String(name || "").trim();
+
+  if (!normalizedName || normalizedName.length > MAX_NAME_LENGTH) {
+    throw createHttpError(400, `이름은 1~${MAX_NAME_LENGTH}자로 입력해야 합니다.`);
+  }
+
+  return normalizedName;
+}
+
+function getPasswordValidationMessage(validationError) {
+  if (validationError === "TOO_LONG") {
+    return `비밀번호는 UTF-8 기준 ${MAX_PASSWORD_BYTES}바이트 이하여야 합니다.`;
+  }
+
+  return `비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상이어야 합니다.`;
 }
 
 function addDays(date, days) {
@@ -89,7 +125,6 @@ function serializeSignupRequest(request) {
     reviewedByUserId: request.reviewedByUserId,
     reviewedAt: request.reviewedAt,
     rejectReason: request.rejectReason,
-    cancelledAt: request.cancelledAt,
     anonymizedAt: request.anonymizedAt,
     createdAt: request.createdAt,
     updatedAt: request.updatedAt,
@@ -117,7 +152,6 @@ function getSignupRequestSelect() {
     reviewedByUserId: true,
     reviewedAt: true,
     rejectReason: true,
-    cancelledAt: true,
     anonymizedAt: true,
     createdAt: true,
     updatedAt: true,
@@ -140,11 +174,8 @@ function getSignupRequestInternalSelect() {
 }
 
 async function ensureUserIdAvailable(userId) {
-  const trimmedUserId = String(userId || "").trim();
-
-  if (!trimmedUserId) {
-    throw createHttpError(400, "사용자 ID를 입력해주세요.");
-  }
+  const trimmedUserId = validateUserId(userId);
+  const now = new Date();
 
   const [existingUser, existingRequest] = await Promise.all([
     prisma.user.findUnique({
@@ -155,6 +186,7 @@ async function ensureUserIdAvailable(userId) {
       where: {
         userId: trimmedUserId,
         status: SIGNUP_REQUEST_STATUS.PENDING,
+        expiresAt: { gt: now },
       },
       select: { id: true },
     }),
@@ -168,13 +200,8 @@ async function ensureUserIdAvailable(userId) {
 }
 
 async function checkUserIdAvailability(userId) {
-  await runSignupRequestMaintenance();
-
-  const trimmedUserId = String(userId || "").trim();
-
-  if (!trimmedUserId) {
-    throw createHttpError(400, "사용자 ID를 입력해주세요.");
-  }
+  const trimmedUserId = validateUserId(userId);
+  const now = new Date();
 
   const [existingUser, existingRequest] = await Promise.all([
     prisma.user.findUnique({
@@ -185,6 +212,7 @@ async function checkUserIdAvailability(userId) {
       where: {
         userId: trimmedUserId,
         status: SIGNUP_REQUEST_STATUS.PENDING,
+        expiresAt: { gt: now },
       },
       select: { id: true },
     }),
@@ -198,6 +226,7 @@ async function checkUserIdAvailability(userId) {
 
 async function ensureEmailAvailable(email) {
   const normalizedEmail = normalizeEmail(email);
+  const now = new Date();
 
   const [existingUser, existingRequest] = await Promise.all([
     prisma.user.findFirst({
@@ -208,6 +237,7 @@ async function ensureEmailAvailable(email) {
       where: {
         email: normalizedEmail,
         status: SIGNUP_REQUEST_STATUS.PENDING,
+        expiresAt: { gt: now },
       },
       select: { id: true },
     }),
@@ -222,6 +252,7 @@ async function ensureEmailAvailable(email) {
 
 async function ensurePhoneNumberAvailable(phoneNumber) {
   const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
+  const now = new Date();
 
   const [existingUser, existingRequest] = await Promise.all([
     prisma.user.findFirst({
@@ -232,6 +263,7 @@ async function ensurePhoneNumberAvailable(phoneNumber) {
       where: {
         phoneNumber: normalizedPhoneNumber,
         status: SIGNUP_REQUEST_STATUS.PENDING,
+        expiresAt: { gt: now },
       },
       select: { id: true },
     }),
@@ -263,27 +295,31 @@ function ensurePendingStatus(request) {
   }
 }
 
-// 만료된 대기 신청과 보관 기간이 지난 완료 신청의 민감 정보를 정리한다.
+function expirePendingSignupRequests(client, now = new Date()) {
+  return client.signupRequest.updateMany({
+    where: {
+      status: SIGNUP_REQUEST_STATUS.PENDING,
+      expiresAt: { lte: now },
+    },
+    data: {
+      status: SIGNUP_REQUEST_STATUS.EXPIRED,
+      passwordHash: null,
+    },
+  });
+}
+
+// 만료된 대기 신청과 보관 기간이 지난 완료 신청의 개인정보를 정리한다.
 async function runSignupRequestMaintenance(now = new Date()) {
   const retentionCutoff = addDays(now, -SIGNUP_REQUEST_RETENTION_DAYS);
 
-  const [expiredResult, anonymizedResult] = await prisma.$transaction([
-    prisma.signupRequest.updateMany({
-      where: {
-        status: SIGNUP_REQUEST_STATUS.PENDING,
-        expiresAt: { lte: now },
-      },
-      data: {
-        status: SIGNUP_REQUEST_STATUS.EXPIRED,
-        passwordHash: null,
-      },
-    }),
-    prisma.signupRequest.updateMany({
+  return prisma.$transaction(async (tx) => {
+    const expiredResult = await expirePendingSignupRequests(tx, now);
+    const anonymizedResult = await tx.signupRequest.updateMany({
       where: {
         status: {
           in: [
+            SIGNUP_REQUEST_STATUS.APPROVED,
             SIGNUP_REQUEST_STATUS.REJECTED,
-            SIGNUP_REQUEST_STATUS.CANCELLED,
             SIGNUP_REQUEST_STATUS.EXPIRED,
           ],
         },
@@ -291,19 +327,38 @@ async function runSignupRequestMaintenance(now = new Date()) {
         updatedAt: { lte: retentionCutoff },
       },
       data: {
-        name: "개인정보 삭제됨",
+        userId: null,
+        name: null,
         email: null,
         phoneNumber: null,
         rejectReason: null,
         anonymizedAt: now,
       },
-    }),
-  ]);
+    });
 
-  return {
-    expiredCount: expiredResult.count,
-    anonymizedCount: anonymizedResult.count,
-  };
+    const anonymizedAuditLogCount = await tx.$executeRaw`
+      UPDATE "event_logs"
+      SET "metadata" = jsonb_build_object(
+        'signupRequestId', "metadata" ->> 'signupRequestId'
+      )
+      WHERE "action" IN (
+        'SIGNUP_REQUEST_APPROVED',
+        'SIGNUP_REQUEST_REJECTED'
+      )
+        AND "created_at" <= ${retentionCutoff}
+        AND "metadata" IS NOT NULL
+        AND (
+          "metadata" ? 'requestedUserId'
+          OR "metadata" ? 'rejectReason'
+        )
+    `;
+
+    return {
+      expiredCount: expiredResult.count,
+      anonymizedCount: anonymizedResult.count,
+      anonymizedAuditLogCount: Number(anonymizedAuditLogCount),
+    };
+  });
 }
 
 function handlePrismaError(error) {
@@ -329,18 +384,19 @@ function handlePrismaError(error) {
 }
 
 async function createSignupRequest({ userId, name, password, email, phoneNumber }) {
-  await runSignupRequestMaintenance();
+  await expirePendingSignupRequests(prisma);
 
   if (isBlank(userId) || isBlank(name) || isBlank(password) || isBlank(email) || isBlank(phoneNumber)) {
     throw createHttpError(400, "userId, name, password, email, phoneNumber를 모두 입력해야 합니다.");
   }
 
+  const passwordValidationError = getPasswordValidationError(password);
   if (!isValidPassword(password)) {
-    throw createHttpError(400, `비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상이어야 합니다.`);
+    throw createHttpError(400, getPasswordValidationMessage(passwordValidationError));
   }
 
   const trimmedUserId = await ensureUserIdAvailable(userId);
-  const trimmedName = String(name).trim();
+  const trimmedName = validateName(name);
   const normalizedEmail = await ensureEmailAvailable(validateEmail(email));
   const normalizedPhoneNumber = await ensurePhoneNumberAvailable(validatePhoneNumber(phoneNumber));
   const passwordHash = await bcrypt.hash(password, 10);
@@ -376,27 +432,35 @@ async function listSignupRequests({ status, page, limit }) {
   const normalizedLimit = Math.min(requestedLimit, MAX_LIST_LIMIT);
 
   if (normalizedStatus) {
+    if (!SIGNUP_REQUEST_STATUS_VALUES.has(normalizedStatus)) {
+      throw createHttpError(400, "유효하지 않은 가입 신청 상태입니다.");
+    }
+
     where.status = normalizedStatus;
   }
 
-  const [count, requests] = await prisma.$transaction([
-    prisma.signupRequest.count({ where }),
-    prisma.signupRequest.findMany({
+  const { count, page: effectivePage, requests, totalPages } = await prisma.$transaction(async (tx) => {
+    const count = await tx.signupRequest.count({ where });
+    const totalPages = Math.max(1, Math.ceil(count / normalizedLimit));
+    const page = Math.min(normalizedPage, totalPages);
+    const requests = await tx.signupRequest.findMany({
       where,
       orderBy: {
         createdAt: "desc",
       },
-      skip: (normalizedPage - 1) * normalizedLimit,
+      skip: (page - 1) * normalizedLimit,
       take: normalizedLimit,
       select: getSignupRequestSelect(),
-    }),
-  ]);
+    });
+
+    return { count, page, requests, totalPages };
+  });
 
   return {
     count,
-    page: normalizedPage,
+    page: effectivePage,
     limit: normalizedLimit,
-    totalPages: Math.max(1, Math.ceil(count / normalizedLimit)),
+    totalPages,
     requests: requests.map(serializeSignupRequest),
   };
 }
@@ -417,8 +481,8 @@ async function approveSignupRequest({ id, reviewerId }) {
 
       ensurePendingStatus(request);
 
-      if (!request.passwordHash) {
-        throw createHttpError(409, "승인할 가입 신청 비밀번호 정보가 없습니다.");
+      if (!request.userId || !request.name || !request.passwordHash) {
+        throw createHttpError(409, "승인할 가입 신청 정보가 없습니다.");
       }
 
       const reviewedAt = new Date();
@@ -460,7 +524,6 @@ async function approveSignupRequest({ id, reviewerId }) {
           message: "Signup request approved.",
           metadata: {
             signupRequestId: id,
-            requestedUserId: request.userId,
           },
         },
       });
@@ -482,6 +545,10 @@ async function rejectSignupRequest({ id, reviewerId, rejectReason }) {
 
   const normalizedRejectReason =
     typeof rejectReason === "string" && rejectReason.trim() !== "" ? rejectReason.trim() : null;
+
+  if (normalizedRejectReason && normalizedRejectReason.length > MAX_REJECT_REASON_LENGTH) {
+    throw createHttpError(400, `반려 사유는 ${MAX_REJECT_REASON_LENGTH}자 이하여야 합니다.`);
+  }
 
   const rejectedRequest = await prisma.$transaction(async (tx) => {
     const request = await tx.signupRequest.findUnique({
@@ -521,8 +588,6 @@ async function rejectSignupRequest({ id, reviewerId, rejectReason }) {
         message: "Signup request rejected.",
         metadata: {
           signupRequestId: id,
-          requestedUserId: request.userId,
-          rejectReason: normalizedRejectReason,
         },
       },
     });
@@ -536,78 +601,12 @@ async function rejectSignupRequest({ id, reviewerId, rejectReason }) {
   return serializeSignupRequest(rejectedRequest);
 }
 
-async function cancelSignupRequest({ id, userId, password }) {
-  await runSignupRequestMaintenance();
-
-  if (isBlank(userId) || isBlank(password)) {
-    throw createHttpError(400, "userId와 password를 모두 입력해야 합니다.");
-  }
-
-  const cancelledRequest = await prisma.$transaction(async (tx) => {
-    const request = await tx.signupRequest.findUnique({
-      where: { id },
-      select: getSignupRequestInternalSelect(),
-    });
-
-    if (!request) {
-      throw createHttpError(404, "가입 신청 정보를 찾을 수 없습니다.");
-    }
-
-    ensurePendingStatus(request);
-
-    if (request.userId !== String(userId).trim() || !request.passwordHash) {
-      throw createHttpError(401, "가입 신청 정보를 확인할 수 없습니다.");
-    }
-
-    const isPasswordMatched = await bcrypt.compare(password, request.passwordHash);
-    if (!isPasswordMatched) {
-      throw createHttpError(401, "가입 신청 정보를 확인할 수 없습니다.");
-    }
-
-    const claimResult = await tx.signupRequest.updateMany({
-      where: {
-        id,
-        status: SIGNUP_REQUEST_STATUS.PENDING,
-        expiresAt: { gt: new Date() },
-      },
-      data: {
-        status: SIGNUP_REQUEST_STATUS.CANCELLED,
-        cancelledAt: new Date(),
-        passwordHash: null,
-      },
-    });
-
-    if (claimResult.count !== 1) {
-      throw createHttpError(409, "이미 처리된 가입 신청입니다.");
-    }
-
-    await tx.eventLog.create({
-      data: {
-        action: "SIGNUP_REQUEST_CANCELLED",
-        message: "Signup request cancelled.",
-        metadata: {
-          signupRequestId: id,
-          requestedUserId: request.userId,
-        },
-      },
-    });
-
-    return tx.signupRequest.findUnique({
-      where: { id },
-      select: getSignupRequestSelect(),
-    });
-  });
-
-  return serializeSignupRequest(cancelledRequest);
-}
-
 module.exports = {
   createSignupRequest,
   checkUserIdAvailability,
   listSignupRequests,
   approveSignupRequest,
   rejectSignupRequest,
-  cancelSignupRequest,
   runSignupRequestMaintenance,
   SIGNUP_REQUEST_MAINTENANCE_INTERVAL_MS,
 };

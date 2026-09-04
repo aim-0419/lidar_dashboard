@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { t as translate } from "../il8n/il8n";
 
@@ -9,6 +10,7 @@ export function LanguageProvider({ children }) {
 
 useEffect(() => {
     const saved = localStorage.getItem("dashboard:lang");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved) setLang(saved);
 }, []);
 

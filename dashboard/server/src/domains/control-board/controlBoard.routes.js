@@ -4,10 +4,8 @@ const controller = require("./controlBoard.controller");
 
 const router = express.Router();
 
-router.use(authenticateToken);
-router.use(requireRole("SUPER_ADMIN"));
-router.post("/control-board/commands", controller.sendCommand);
-router.get("/control-board/commands", controller.getCommands);
-router.get("/control-board/commands/:id", controller.getCommand);
+router.post("/control-board/commands", authenticateToken, requireRole("SUPER_ADMIN"), controller.sendCommand);
+router.get("/control-board/commands", authenticateToken, requireRole("SUPER_ADMIN"), controller.getCommands);
+router.get("/control-board/commands/:id", authenticateToken, requireRole("SUPER_ADMIN"), controller.getCommand);
 
 module.exports = router;

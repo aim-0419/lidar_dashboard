@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   CircleHelp,
   Eye,
@@ -28,14 +28,14 @@ const initialCreateForm = {
   userId: "",
   name: "",
   password: "",
-  role: "SUPER_ADMIN",
+  role: "MANAGER",
   isActive: true,
 };
 
 const initialEditForm = {
   userId: "",
   name: "",
-  role: "SUPER_ADMIN",
+  role: "MANAGER",
   isActive: true,
 };
 
@@ -101,11 +101,13 @@ export default function SettingsPage() {
   const [manageToastMessage, setManageToastMessage] = useState("");
   const [passwordErrorMessage, setPasswordErrorMessage] = useState("");
   const [passwordVerifyMessage, setPasswordVerifyMessage] = useState("");
+  const [isCurrentPasswordVerified, setIsCurrentPasswordVerified] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const latestUserDetailRequestId = useRef(0);
 
   const isSuperAdmin = user?.role === "super_admin";
 
@@ -127,7 +129,6 @@ export default function SettingsPage() {
       confirmNewPasswordValue.trim()
   );
   const isManagingOwnAccount = selectedUserId === user?.id;
-  const isCurrentPasswordVerified = passwordVerifyMessage === "기존 비밀번호가 확인되었습니다.";
   const visibleUsers = isSuperAdmin ? users : selectedUser ? [selectedUser] : [];
   const visibleUserCount = visibleUsers.length;
   const visibleActiveUserCount = visibleUsers.filter((item) => item.isActive).length;
@@ -150,9 +151,17 @@ export default function SettingsPage() {
     ? "입력한 새 비밀번호가 일치하지 않습니다."
     : "";
 
+  const loadUsersForInitialView = useEffectEvent(() => {
+    void loadUsers();
+  });
+
+  const loadUserDetailForInitialView = useEffectEvent((id) => {
+    void loadUserDetail(id);
+  });
+
   useEffect(() => {
     if (isSuperAdmin) {
-      void loadUsers();
+      loadUsersForInitialView();
       return;
     }
 
@@ -162,7 +171,7 @@ export default function SettingsPage() {
 
     setUsers([]);
     setSelectedUserId(user.id);
-    void loadUserDetail(user.id);
+    loadUserDetailForInitialView(user.id);
   }, [isSuperAdmin, user?.id]);
 
   useEffect(() => {
@@ -170,7 +179,7 @@ export default function SettingsPage() {
       return;
     }
 
-    void loadUserDetail(selectedUserId);
+    loadUserDetailForInitialView(selectedUserId);
   }, [isSuperAdmin, selectedUserId]);
 
   useEffect(() => {
@@ -208,9 +217,12 @@ export default function SettingsPage() {
   }
 
   async function loadUserDetail(id) {
+    const requestId = ++latestUserDetailRequestId.current;
+
     if (!id) {
       setSelectedUser(null);
       setEditForm(initialEditForm);
+      setIsCurrentPasswordVerified(false);
       return;
     }
 
@@ -219,23 +231,34 @@ export default function SettingsPage() {
 
     try {
       const nextUser = isSuperAdmin ? (await fetchUserDetail(id)).user : await fetchMyProfile();
+      if (requestId !== latestUserDetailRequestId.current) {
+        return;
+      }
+
       setSelectedUser(nextUser);
       setEditForm({
         userId: nextUser.userId || "",
         name: nextUser.name || "",
-        role: String(nextUser.role || "super_admin").toUpperCase(),
+        role: String(nextUser.role || "manager").toUpperCase(),
         isActive: Boolean(nextUser.isActive),
       });
       setPasswordForm(initialPasswordForm);
       setPasswordErrorMessage("");
       setPasswordVerifyMessage("");
+      setIsCurrentPasswordVerified(false);
       setShowCurrentPassword(false);
       setShowNewPassword(false);
     } catch (error) {
+      if (requestId !== latestUserDetailRequestId.current) {
+        return;
+      }
+
       setSelectedUser(null);
       setErrorMessage(error.message || "사용자 상세 정보를 불러오지 못했습니다.");
     } finally {
-      setIsDetailLoading(false);
+      if (requestId === latestUserDetailRequestId.current) {
+        setIsDetailLoading(false);
+      }
     }
   }
 
@@ -259,23 +282,23 @@ export default function SettingsPage() {
   function handlePasswordChange(event) {
     const { name, value } = event.target;
     setPasswordErrorMessage("");
-    setPasswordForm((prev) => {
-      if (name === "currentPassword") {
-        // 기존 비밀번호가 바뀌면 검증 상태를 초기화하고 새 비밀번호 입력도 다시 받는다.
-        setPasswordVerifyMessage("");
-        return {
-          currentPassword: value,
-          newPassword: "",
-          confirmNewPassword: "",
-        };
-      }
+    if (name === "currentPassword") {
+      // 기존 비밀번호가 바뀌면 검증 상태를 초기화하고 새 비밀번호 입력도 다시 받는다.
+      setPasswordVerifyMessage("");
+      setIsCurrentPasswordVerified(false);
+      setPasswordForm({
+        currentPassword: value,
+        newPassword: "",
+        confirmNewPassword: "",
+      });
+      return;
+    }
 
-      // 새 비밀번호 입력 중에는 기존 비밀번호 확인 완료 문구를 유지한다.
-      return {
-        ...prev,
-        [name]: value,
-      };
-    });
+    // 새 비밀번호 입력 중에는 기존 비밀번호 확인 완료 문구를 유지한다.
+    setPasswordForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   }
 
   async function handleVerifyCurrentPassword() {
@@ -291,13 +314,16 @@ export default function SettingsPage() {
     setIsVerifyingCurrentPassword(true);
     setPasswordErrorMessage("");
     setPasswordVerifyMessage("");
+    setIsCurrentPasswordVerified(false);
 
     try {
       await verifyUserPasswordRequest(selectedUserId, {
         currentPassword: passwordForm.currentPassword,
       });
       setPasswordVerifyMessage("기존 비밀번호가 확인되었습니다.");
+      setIsCurrentPasswordVerified(true);
     } catch (error) {
+      setIsCurrentPasswordVerified(false);
       if (
         error.message === "Current password is incorrect." ||
         error.message === "currentPassword is required."
@@ -420,6 +446,7 @@ export default function SettingsPage() {
         newPassword: passwordForm.newPassword,
       });
       setPasswordForm(initialPasswordForm);
+      setIsCurrentPasswordVerified(false);
       if (selectedUserId === user?.id) {
         await logout();
         return;
@@ -514,17 +541,6 @@ export default function SettingsPage() {
     setIsCreateModalOpen(true);
   }
 
-  function openManageModal() {
-    if (!selectedUserId) {
-      setErrorMessage("먼저 사용자 목록에서 계정을 선택해 주세요.");
-      return;
-    }
-
-    setErrorMessage("");
-    setSuccessMessage("");
-    setIsManageModalOpen(true);
-  }
-
   function closeCreateModal() {
     if (isCreating) {
       return;
@@ -544,6 +560,7 @@ export default function SettingsPage() {
     setShowNewPassword(false);
     setPasswordErrorMessage("");
     setPasswordVerifyMessage("");
+    setIsCurrentPasswordVerified(false);
     setIsManageModalOpen(false);
     setIsActivateConfirmOpen(false);
     setIsDeactivateConfirmOpen(false);
@@ -648,7 +665,7 @@ export default function SettingsPage() {
               </label>
               <label className="settings-field">
                 <span>권한</span>
-                <select name="role" value={createForm.role || "SUPER_ADMIN"} onChange={handleCreateChange}>
+                <select name="role" value={createForm.role || "MANAGER"} onChange={handleCreateChange}>
                   {ROLE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -746,7 +763,7 @@ export default function SettingsPage() {
                         <span>권한</span>
                           <select
                             name="role"
-                            value={editForm.role || "SUPER_ADMIN"}
+                            value={editForm.role || "MANAGER"}
                             onChange={handleEditChange}
                             disabled={isManagingOwnAccount || !isSuperAdmin}
                           >
