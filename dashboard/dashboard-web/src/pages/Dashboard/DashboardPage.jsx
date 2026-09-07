@@ -1,16 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Activity,
   AlertTriangle,
   Bell,
   Car,
   CheckCircle2,
   Clock3,
-  Gauge,
   Radio,
-  Siren,
-  Users,
   Wifi,
 } from "lucide-react";
 import { apiUrl, WS_BASE } from "../../shared/api/config";
@@ -25,14 +21,6 @@ import {
 } from "../../shared/constants/operationsDashboardData";
 import "./dashboard.css";
 
-function statusLabel(type) {
-  if (type === "wrong-way-level-2") return "2차 경고";
-  if (type === "wrong-way-level-1") return "1차 경고";
-  if (type === "pedestrian-entered") return "보행자";
-  if (type === "situation-ended") return "종료";
-  return "정주행";
-}
-
 function objectClassName(objectClass) {
   if (objectClass === 7) return "보행자";
   if (objectClass === 3) return "버스";
@@ -43,16 +31,10 @@ function objectClassName(objectClass) {
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [serverAlive, setServerAlive] = useState(false);
-  const [eventModalEnabled, setEventModalEnabled] = useState(true);
   const [activeEvent, setActiveEvent] = useState(null);
   const [panelMinimized, setPanelMinimized] = useState(false);
   const [latestSnapshot, setLatestSnapshot] = useState(liveSnapshot);
   const [selectedZoneId, setSelectedZoneId] = useState("all");
-  const modalEnabledRef = useRef(eventModalEnabled);
-
-  useEffect(() => {
-    modalEnabledRef.current = eventModalEnabled;
-  }, [eventModalEnabled]);
 
   // 서버 헬스체크는 실제 백엔드 연결 상태를 화면 상단에 계속 반영한다.
   useEffect(() => {
@@ -97,7 +79,7 @@ export default function DashboardPage() {
             if (message.type === "state" && message.payload) {
               setLatestSnapshot((prev) => ({ ...prev, ...message.payload }));
             }
-            if (message.type === "dashboard-event" && modalEnabledRef.current) {
+            if (message.type === "dashboard-event") {
               const payload = message.payload || {};
               const eventType = String(payload.type || "wrong-way");
 
@@ -149,45 +131,28 @@ export default function DashboardPage() {
       {
         label: "오늘 통과 차량",
         value: activeSnapshot.normalMovingVehicleCount.toLocaleString(),
-        sub: "정주행 누적 기준",
-        icon: Car,
         tone: "blue",
       },
       {
         label: "현재 감지 객체",
         value: activeSnapshot.totalObjects,
-        sub: `차량 ${activeSnapshot.movingVehicleCount}대`,
-        icon: Activity,
         tone: "green",
       },
       {
         label: "역주행 이벤트",
         value: activeSnapshot.wrongWayCount,
-        sub: statusLabel(activeSnapshot.status),
-        icon: Siren,
         tone: "red",
       },
       {
         label: "보행자 감지",
         value: activeSnapshot.pedestrianCount,
-        sub: "회전교차로 내부",
-        icon: Users,
         tone: "purple",
-      },
-      {
-        label: "처리 시간",
-        value: `${activeSnapshot.processingTimeMs}ms`,
-        sub: activeSnapshot.source,
-        icon: Gauge,
-        tone: "slate",
       },
     ];
 
-  const criticalObjects = visibleObjects.filter((item) => item.warningLevel > 0);
-
   return (
     <div className="ops-page">
-      {activeEvent && eventModalEnabled && !panelMinimized && (
+      {activeEvent && !panelMinimized && (
         <WrongwayAlertModal
           event={activeEvent}
           onClose={() => setActiveEvent(null)}
@@ -195,7 +160,7 @@ export default function DashboardPage() {
         />
       )}
 
-      {activeEvent && eventModalEnabled && panelMinimized && (
+      {activeEvent && panelMinimized && (
         <button className="ops-alert-pill" type="button" onClick={() => setPanelMinimized(false)}>
           <Bell size={16} />
           역주행 대응 중 · 클릭해서 열기
@@ -217,10 +182,6 @@ export default function DashboardPage() {
             <Wifi size={15} />
             {serverAlive ? "SERVER ONLINE" : "SERVER OFFLINE"}
           </span>
-          <button type="button" onClick={() => setEventModalEnabled((value) => !value)}>
-            <Bell size={15} />
-            알림 {eventModalEnabled ? "ON" : "OFF"}
-          </button>
         </div>
       </header>
 
@@ -244,22 +205,15 @@ export default function DashboardPage() {
         ))}
       </nav>
 
-      <section className="ops-kpi-grid">
-        {kpis.map((item) => {
-          const Icon = item.icon;
-          return (
-            <article className={`ops-kpi-card ${item.tone}`} key={item.label}>
-              <div className="ops-kpi-icon">
-                <Icon size={19} />
-              </div>
-              <div>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-                <small>{item.sub}</small>
-              </div>
-            </article>
-          );
-        })}
+      <section className="ops-kpi-grid dashboard-kpis">
+        {kpis.map((item) => (
+          <article className={`ops-kpi-card ${item.tone}`} key={item.label}>
+            <div>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          </article>
+        ))}
       </section>
 
       <section className="ops-dashboard-grid">
@@ -312,28 +266,6 @@ export default function DashboardPage() {
         </div>
 
         <aside className="ops-side-column">
-          <article className="ops-card danger-card">
-            <div className="ops-card-head">
-              <div>
-                <h2>경고 우선순위</h2>
-                <p>현재 조치가 필요한 객체</p>
-              </div>
-              <Siren size={20} />
-            </div>
-            {criticalObjects.map((item) => (
-              <div className="ops-priority-item" key={item.trackId}>
-                <strong>{statusLabel(item.type)}</strong>
-                <span>{item.zoneId} · {item.speedKmh.toFixed(1)} km/h</span>
-                <button type="button" onClick={() => navigate("/events")}>
-                  상세 보기
-                </button>
-              </div>
-            ))}
-            {criticalObjects.length === 0 && (
-              <p className="ops-empty-state">현재 조치가 필요한 객체가 없습니다.</p>
-            )}
-          </article>
-
           <article className="ops-card">
             <div className="ops-card-head">
               <div>

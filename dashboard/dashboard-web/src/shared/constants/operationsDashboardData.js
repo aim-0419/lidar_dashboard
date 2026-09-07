@@ -333,7 +333,10 @@ export const monitoringZones = [
 ];
 
 // 기존 장비 페이지는 동일한 관제 구역 데이터를 화면 형식에 맞춰 재사용한다.
+// 처리 시간(라이다 PC가 payload를 처리한 시간)은 구역 카드에서 표시하므로 함께 전달한다.
 export const deviceGroups = monitoringZones.map((zone) => ({
   zone: zone.name,
+  source: zone.snapshot.source,
+  processingTimeMs: zone.snapshot.processingTimeMs,
   devices: zone.devices,
 }));
