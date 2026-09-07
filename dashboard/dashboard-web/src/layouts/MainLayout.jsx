@@ -7,7 +7,6 @@ import { fetchSignupRequests } from "../shared/api/http";
 import {
   BarChart3,
   LayoutDashboard,
-  LayoutGrid,
   ListChecks,
   MonitorCog,
   Settings,
@@ -80,10 +79,6 @@ export default function MainLayout() {
             <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
               <LayoutDashboard size={17} />
               <span>{t("nav.overview")}</span>
-            </NavLink>
-            <NavLink to="/live" end className={({ isActive }) => (isActive ? "active" : "")}>
-              <LayoutGrid size={17} />
-              <span>라이브 뷰</span>
             </NavLink>
             <NavLink to="/statistics" end className={({ isActive }) => (isActive ? "active" : "")}>
               <BarChart3 size={17} />
