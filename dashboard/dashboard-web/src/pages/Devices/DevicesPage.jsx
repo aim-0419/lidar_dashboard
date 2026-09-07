@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AlertCircle, CheckCircle2, Cpu, Server, Wifi, WifiOff } from "lucide-react";
 import { deviceGroups } from "../../shared/constants/operationsDashboardData";
 import "../Dashboard/dashboard.css";
@@ -11,6 +12,9 @@ function statusLabel(status) {
 
 export default function DevicesPage() {
   const devices = deviceGroups.flatMap((group) => group.devices);
+  const [selectedZone, setSelectedZone] = useState(() => deviceGroups[0]?.zone || "");
+  const selectedDeviceGroup =
+    deviceGroups.find((group) => group.zone === selectedZone) || deviceGroups[0];
   const onlineCount = devices.filter((device) => device.status === "online").length;
   const warningCount = devices.filter((device) => device.status === "warning").length;
   const offlineCount = devices.filter((device) => device.status === "offline").length;
@@ -50,17 +54,32 @@ export default function DevicesPage() {
         })}
       </section>
 
-      <section className="device-group-list">
+      <div className="device-zone-tabs" role="tablist" aria-label="zone selection">
         {deviceGroups.map((group) => (
-          <article className="ops-card device-zone-card" key={group.zone}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={selectedDeviceGroup?.zone === group.zone}
+            className={selectedDeviceGroup?.zone === group.zone ? "active" : ""}
+            key={group.zone}
+            onClick={() => setSelectedZone(group.zone)}
+          >
+            {group.zone}
+          </button>
+        ))}
+      </div>
+
+      <section className="device-group-list">
+        {selectedDeviceGroup ? (
+          <article className="ops-card device-zone-card" key={selectedDeviceGroup.zone}>
             <div className="ops-card-head">
               <div>
-                <h2>{group.zone}</h2>
+                <h2>{selectedDeviceGroup.zone}</h2>
                 <p>구역별 장비 연결 상태</p>
               </div>
             </div>
             <div className="device-card-grid">
-              {group.devices.map((device) => (
+              {selectedDeviceGroup.devices.map((device) => (
                 <div className={`device-card ${device.status}`} key={device.name}>
                   <div className="device-icon">
                     <Server size={20} />
@@ -81,7 +100,7 @@ export default function DevicesPage() {
               ))}
             </div>
           </article>
-        ))}
+        ) : null}
       </section>
     </div>
   );

@@ -1574,7 +1574,7 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      <section className="ops-kpi-grid settings-kpis">
+      {isSuperAdmin ? <section className="ops-kpi-grid settings-kpis">
         <article className="ops-kpi-card blue">
           <div className="ops-kpi-icon">
             <UserCog size={19} />
@@ -1582,7 +1582,7 @@ export default function SettingsPage() {
           <div>
             <span>등록 계정</span>
             <strong>{visibleUserCount}</strong>
-            <small>{isSuperAdmin ? "전체 관리자 계정 수" : "현재 로그인한 계정 수"}</small>
+            <small>전체 관리자 계정 수</small>
           </div>
         </article>
 
@@ -1607,7 +1607,7 @@ export default function SettingsPage() {
             <small>로그인할 수 없도록 비활성화된 계정 수</small>
           </div>
         </article>
-      </section>
+      </section> : null}
       <section className="settings-content">{renderUsersSection()}</section>
       {renderCreateModal()}
       {renderManageModal()}
