@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { BarChart3, CalendarDays, Car, Siren, TrendingUp, Users } from "lucide-react";
 import { fetchDashboardState, fetchStatisticsSummary, fetchTrafficSeries } from "../../shared/api/http";
+import { getEventZones } from "../../features/events/eventsApi";
 import { zoneStatistics as fallbackZoneStatistics } from "../../shared/constants/operationsDashboardData";
 import "../Dashboard/dashboard.css";
 import "./statistics.css";
@@ -387,6 +388,8 @@ function StatisticsTooltip({ active, payload, bucketUnit }) {
 
 export default function StatisticsPage() {
   const [period, setPeriod] = useState("일별");
+  const [zones, setZones] = useState([]);
+  const [selectedZoneId, setSelectedZoneId] = useState("");
   const [dashboardState, setDashboardState] = useState(FALLBACK_STATE);
   const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [seriesResponse, setSeriesResponse] = useState(EMPTY_SERIES_RESPONSE);
@@ -447,6 +450,28 @@ export default function StatisticsPage() {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadZones() {
+      try {
+        const nextZones = await getEventZones({ signal: controller.signal });
+
+        if (!controller.signal.aborted) {
+          setZones(Array.isArray(nextZones) ? nextZones : []);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setZones([]);
+        }
+      }
+    }
+
+    void loadZones();
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
 
     async function loadStatistics() {
@@ -462,6 +487,10 @@ export default function StatisticsPage() {
         const options = {
           siteId: dashboardState.siteId,
         };
+
+        if (selectedZoneId) {
+          options.zoneId = selectedZoneId;
+        }
 
         if (PERIOD_QUERY_MAP[period] === "custom") {
           options.startDate = customRange.startDate;
@@ -495,7 +524,7 @@ export default function StatisticsPage() {
     return () => {
       isMounted = false;
     };
-  }, [period, dashboardState.siteId, customRange.startDate, customRange.endDate]);
+  }, [period, dashboardState.siteId, selectedZoneId, customRange.startDate, customRange.endDate]);
 
   const statisticsSeries = useMemo(() => {
     if (Array.isArray(seriesResponse.series) && seriesResponse.series.length > 0) {
@@ -703,18 +732,39 @@ export default function StatisticsPage() {
           {errorMessage ? <p className="ops-subtitle">상태 동기화 실패: {errorMessage}</p> : null}
         </div>
         <div className="stats-controls">
-          <div className="stats-tabs" aria-label="통계 기간 선택">
-            {PERIODS.map((item) => (
+          <div className="stats-tab-row">
+            <div className="stats-zone-tabs" aria-label="통계 구역 선택">
               <button
                 type="button"
-                className={period === item ? "active" : ""}
-                key={item}
-                onClick={() => setPeriod(item)}
+                className={selectedZoneId ? "" : "active"}
+                onClick={() => setSelectedZoneId("")}
               >
-                <CalendarDays size={14} />
-                {item}
+                전체 구역
               </button>
-            ))}
+              {zones.map((zone) => (
+                <button
+                  type="button"
+                  className={selectedZoneId === zone.id ? "active" : ""}
+                  key={zone.id}
+                  onClick={() => setSelectedZoneId(zone.id)}
+                >
+                  {zone.name || zone.code || zone.id}
+                </button>
+              ))}
+            </div>
+            <div className="stats-tabs" aria-label="통계 기간 선택">
+              {PERIODS.map((item) => (
+                <button
+                  type="button"
+                  className={period === item ? "active" : ""}
+                  key={item}
+                  onClick={() => setPeriod(item)}
+                >
+                  <CalendarDays size={14} />
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
           {period === "사용자 지정" ? (
             <div className="stats-custom-range">
@@ -802,13 +852,13 @@ export default function StatisticsPage() {
             <BarChart3 size={20} />
           </div>
           <div
-            className={`stats-chart-interactive${canPanSeries ? " is-draggable" : ""}`}
+            className={`stats-chart-interactive stats-chart-body${canPanSeries ? " is-draggable" : ""}`}
             onPointerDown={handleCustomChartPointerDown}
             onPointerMove={handleCustomChartPointerMove}
             onPointerUp={clearCustomChartDrag}
             onPointerCancel={clearCustomChartDrag}
           >
-            <ResponsiveContainer width="100%" height={330}>
+            <ResponsiveContainer width="100%" height="100%">
               <AreaChart
                 data={visibleStatisticsSeries}
                 margin={{
@@ -867,20 +917,22 @@ export default function StatisticsPage() {
               <p>{period === "일별" ? "구역별 테스트 집계 값" : `${period} 기준 테스트 집계 값`}</p>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={330}>
-            <BarChart data={zoneStatistics}>
-              <CartesianGrid stroke="#94a3b8" strokeDasharray="3 3" strokeOpacity={1} />
-              <XAxis
-                dataKey="zone"
-                tick={{ fill: "#64748b", fontSize: 12 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <Tooltip />
-              <Bar dataKey="wrongWay" name="역주행" fill="#dc2626" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="stats-chart-body">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={zoneStatistics}>
+                <CartesianGrid stroke="#94a3b8" strokeDasharray="3 3" strokeOpacity={1} />
+                <XAxis
+                  dataKey="zone"
+                  tick={{ fill: "#64748b", fontSize: 12 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip />
+                <Bar dataKey="wrongWay" name="역주행" fill="#dc2626" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </article>
       </section>
 
