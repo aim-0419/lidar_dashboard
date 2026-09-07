@@ -77,11 +77,6 @@ export default function DevicesPage() {
                 <h2>{selectedDeviceGroup.zone}</h2>
                 <p>구역별 장비 연결 상태</p>
               </div>
-              <div className="device-zone-latency">
-                <span>처리 시간</span>
-                <strong>{selectedDeviceGroup.processingTimeMs}ms</strong>
-                <small>{selectedDeviceGroup.source}</small>
-              </div>
             </div>
             <div className="device-card-grid">
               {selectedDeviceGroup.devices.map((device) => (
@@ -97,6 +92,12 @@ export default function DevicesPage() {
                     <span>{device.ip}</span>
                     <span>{device.lastSeen}</span>
                   </div>
+                  {device.type === "라이다 PC" && (
+                    <div className="device-metric">
+                      <span>처리 시간</span>
+                      <strong>{selectedDeviceGroup.processingTimeMs}ms</strong>
+                    </div>
+                  )}
                   <div className="device-status">
                     {device.status === "online" ? <Wifi size={14} /> : <WifiOff size={14} />}
                     {statusLabel(device.status)} · {device.health}

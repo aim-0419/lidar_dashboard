@@ -33,33 +33,6 @@
   color: #ffffff;
 }
 
-.device-zone-latency {
-  flex-shrink: 0;
-  text-align: right;
-}
-
-.device-zone-latency span {
-  display: block;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.device-zone-latency strong {
-  display: block;
-  margin: 2px 0;
-  color: #111827;
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.device-zone-latency small {
-  display: block;
-  color: #94a3b8;
-  font-size: 11px;
-  font-weight: 700;
-}
-
 .device-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -104,8 +77,28 @@
 
 .device-main,
 .device-meta,
+.device-metric,
 .device-status {
   grid-column: 2;
+}
+
+.device-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.device-metric span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.device-metric strong {
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .device-main strong,
