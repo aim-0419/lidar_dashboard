@@ -324,7 +324,7 @@ export async function checkSignupRequestUserId(userId) {
   return getJson(`/api/signup-requests/availability?${query.toString()}`);
 }
 
-export async function fetchSignupRequests(status, page = 1, limit = 20) {
+export async function fetchSignupRequests(status, page = 1, limit = 20, options = {}) {
   const query = new URLSearchParams();
 
   if (status) {
@@ -334,7 +334,7 @@ export async function fetchSignupRequests(status, page = 1, limit = 20) {
   query.set("page", String(page));
   query.set("limit", String(limit));
 
-  return getJson(`/api/signup-requests?${query.toString()}`);
+  return getJson(`/api/signup-requests?${query.toString()}`, options);
 }
 
 export async function approveSignupRequest(id) {

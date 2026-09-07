@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, RefreshCw, X } from "lucide-react";
 import { useAuth } from "../../context/useAuth";
 import {
@@ -32,15 +32,30 @@ export default function SignupRequestsPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [confirmAction, setConfirmAction] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
+  const requestControllerRef = useRef(null);
+  const requestSequenceRef = useRef(0);
 
   const isSuperAdmin = user?.role === "super_admin";
 
   async function loadRequests(nextStatus = status, nextPage = page) {
+    requestControllerRef.current?.abort();
+
+    const controller = new AbortController();
+    const requestSequence = requestSequenceRef.current + 1;
+
+    requestControllerRef.current = controller;
+    requestSequenceRef.current = requestSequence;
     setIsLoading(true);
     setErrorMessage("");
 
     try {
-      const response = await fetchSignupRequests(nextStatus, nextPage, PAGE_SIZE);
+      const response = await fetchSignupRequests(nextStatus, nextPage, PAGE_SIZE, {
+        signal: controller.signal,
+      });
+
+      if (requestSequence !== requestSequenceRef.current) {
+        return;
+      }
       setRequests(response.requests || []);
       setPagination({
         count: response.count || 0,
@@ -48,9 +63,15 @@ export default function SignupRequestsPage() {
         totalPages: response.totalPages || 1,
       });
     } catch (error) {
+      if (controller.signal.aborted || requestSequence !== requestSequenceRef.current) {
+        return;
+      }
       setErrorMessage(error.message || "가입 신청 목록을 불러오지 못했습니다.");
     } finally {
-      setIsLoading(false);
+      if (requestSequence === requestSequenceRef.current) {
+        requestControllerRef.current = null;
+        setIsLoading(false);
+      }
     }
   }
 
@@ -62,6 +83,8 @@ export default function SignupRequestsPage() {
     if (isSuperAdmin) {
       loadRequestsOnFilterChange(status, page);
     }
+
+    return () => requestControllerRef.current?.abort();
   }, [isSuperAdmin, page, status]);
 
   function handleStatusChange(nextStatus) {
