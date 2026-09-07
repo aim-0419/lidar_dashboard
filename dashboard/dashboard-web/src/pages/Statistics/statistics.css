@@ -127,6 +127,16 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+/* 아이콘 없이 라벨 한 줄과 값만 표시한다. */
+.stats-kpis .ops-kpi-card {
+  min-height: 88px;
+  padding: 14px 16px;
+}
+
+.stats-kpis .ops-kpi-card span {
+  line-height: 1.4;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.85fr);

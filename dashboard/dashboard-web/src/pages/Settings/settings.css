@@ -6,6 +6,12 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* 아이콘·보조 문구 없이 라벨과 값만 표시한다. */
+.settings-kpis .ops-kpi-card {
+  min-height: 82px;
+  padding: 16px 18px;
+}
+
 .settings-kpis .ops-kpi-card strong {
   font-size: 22px;
   word-break: break-word;

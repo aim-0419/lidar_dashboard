@@ -1576,35 +1576,23 @@ export default function SettingsPage() {
 
       {isSuperAdmin ? <section className="ops-kpi-grid settings-kpis">
         <article className="ops-kpi-card blue">
-          <div className="ops-kpi-icon">
-            <UserCog size={19} />
-          </div>
           <div>
-            <span>등록 계정</span>
+            <span>전체 관리자 계정 수</span>
             <strong>{visibleUserCount}</strong>
-            <small>전체 관리자 계정 수</small>
           </div>
         </article>
 
         <article className="ops-kpi-card green">
-          <div className="ops-kpi-icon">
-            <Shield size={19} />
-          </div>
           <div>
             <span>활성 계정</span>
             <strong>{visibleActiveUserCount}</strong>
-            <small>즉시 로그인 가능한 계정 수</small>
           </div>
         </article>
 
         <article className="ops-kpi-card slate">
-          <div className="ops-kpi-icon">
-            <UserX size={19} />
-          </div>
           <div>
             <span>비활성 계정</span>
             <strong>{visibleInactiveUserCount}</strong>
-            <small>로그인할 수 없도록 비활성화된 계정 수</small>
           </div>
         </article>
       </section> : null}

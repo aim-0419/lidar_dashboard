@@ -50,9 +50,7 @@
 }
 
 .ops-header-actions button,
-.ops-card-head button,
-.ops-alert-actions button,
-.ops-priority-item button {
+.ops-card-head button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -119,7 +117,7 @@
 
 .ops-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-top: 14px;
 }
@@ -130,6 +128,12 @@
   align-items: center;
   min-height: 104px;
   padding: 16px;
+}
+
+/* 전체 현황 KPI는 아이콘·보조 문구 없이 라벨과 값만 표시한다. */
+.dashboard-kpis .ops-kpi-card {
+  min-height: 82px;
+  padding: 16px 18px;
 }
 
 .ops-kpi-icon {
@@ -207,9 +211,29 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-.ops-zone-live-grid:not(.single) .ops-cctv-grid,
+/* 전체 현황(2분할)에서는 한 화면에 두 구역이 들어오도록 현장 화면 높이를 줄이고
+   벡터 맵 회전교차로도 축소한다. 구역 상세로 들어가면 큰 크기를 그대로 사용한다. */
+.ops-zone-live-grid:not(.single) .ops-cctv-grid {
+  min-height: 300px;
+}
+
 .ops-zone-live-grid:not(.single) .ops-map-view {
-  min-height: 260px;
+  min-height: 300px;
+  padding: 20px 16px;
+}
+
+.ops-zone-live-grid:not(.single) .ops-roundabout {
+  width: min(58%, 240px);
+  border-width: 22px;
+}
+
+.ops-zone-live-grid:not(.single) .ops-roundabout::before {
+  inset: -14px;
+  border-width: 7px;
+}
+
+.ops-zone-live-grid:not(.single) .ops-map-caption {
+  margin-top: 16px;
 }
 
 .ops-card {
@@ -334,7 +358,10 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 310px;
+  align-items: center;
+  min-height: 440px;
+  padding: 28px 20px;
+  overflow: hidden;
   border-radius: 12px;
   background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
   border: 1px solid #dbeafe;
@@ -342,10 +369,10 @@
 
 .ops-roundabout {
   position: relative;
-  width: min(76%, 286px);
+  width: min(74%, 330px);
   aspect-ratio: 1;
   margin: 0 auto;
-  border: 34px solid #cbd5e1;
+  border: 32px solid #cbd5e1;
   border-radius: 999px;
   background: #f8fafc;
   box-shadow: inset 0 0 0 2px #ffffff;
@@ -354,8 +381,8 @@
 .ops-roundabout::before {
   content: "";
   position: absolute;
-  inset: -58px;
-  border: 12px solid rgba(59, 130, 246, 0.16);
+  inset: -18px;
+  border: 8px solid rgba(59, 130, 246, 0.16);
   border-radius: 999px;
 }
 
@@ -388,7 +415,7 @@
   gap: 7px;
   align-items: center;
   justify-content: center;
-  margin-top: 18px;
+  margin-top: 22px;
   color: #475569;
   font-size: 12px;
   font-weight: 800;
@@ -470,35 +497,6 @@
   color: #475569;
   font-size: 11px;
   font-weight: 800;
-}
-
-.danger-card {
-  border-color: #fecaca;
-  background: #fff7f7;
-}
-
-.ops-priority-item {
-  border: 1px solid #fecaca;
-  border-radius: 12px;
-  padding: 12px;
-  background: #ffffff;
-}
-
-.ops-priority-item strong,
-.ops-priority-item span {
-  display: block;
-}
-
-.ops-priority-item strong {
-  color: #991b1b;
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.ops-priority-item span {
-  margin: 5px 0 10px;
-  color: #64748b;
-  font-size: 12px;
 }
 
 .ops-event-feed {
