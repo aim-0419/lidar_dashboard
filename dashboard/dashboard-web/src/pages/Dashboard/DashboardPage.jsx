@@ -39,6 +39,19 @@ export default function DashboardPage() {
   const [selectedZoneId, setSelectedZoneId] = useState("all");
   const [liveFullscreen, setLiveFullscreen] = useState(false);
 
+  // 전체 화면 뷰 진입/해제. 브라우저 전체 화면은 사용자 클릭 제스처에서 바로 요청해야 안정적이다.
+  function openLiveFullscreen() {
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    setLiveFullscreen(true);
+  }
+
+  function closeLiveFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    }
+    setLiveFullscreen(false);
+  }
+
   // 서버 헬스체크는 실제 백엔드 연결 상태를 화면 상단에 계속 반영한다.
   useEffect(() => {
     let timer;
@@ -185,7 +198,7 @@ export default function DashboardPage() {
             <Wifi size={15} />
             {serverAlive ? "SERVER ONLINE" : "SERVER OFFLINE"}
           </span>
-          <button type="button" onClick={() => setLiveFullscreen(true)}>
+          <button type="button" onClick={openLiveFullscreen}>
             <Maximize2 size={15} />
             전체 화면
           </button>
@@ -198,7 +211,7 @@ export default function DashboardPage() {
           getObjects={(zoneId) =>
             detectedObjects.filter((item) => item.monitoringZoneId === zoneId)
           }
-          onClose={() => setLiveFullscreen(false)}
+          onClose={closeLiveFullscreen}
         />
       )}
 
