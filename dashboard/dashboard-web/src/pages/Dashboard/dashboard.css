@@ -495,6 +495,103 @@
   border-width: 12px;
 }
 
+/* 전체현황 "전체 화면" 버튼으로 여는 관제용 전체 화면 뷰 (FullscreenLiveView) */
+.fs-live {
+  position: fixed;
+  z-index: 65;
+  inset: 0;
+  padding: 16px;
+  background: #0b1220;
+}
+
+.fs-live.is-idle {
+  cursor: none;
+}
+
+.fs-live-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  height: 100%;
+}
+
+.fs-live-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.fs-live-zone-label {
+  flex: none;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.fs-live-cctv,
+.fs-live-map {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.fs-live-cctv > .ops-cctv-feed {
+  flex: 1;
+  height: 100%;
+}
+
+.fs-live-map > .ops-map-view {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  padding: 14px;
+}
+
+.fs-live-map .ops-roundabout {
+  width: min(32vh, 340px);
+  border-width: 26px;
+}
+
+.fs-live-map .ops-map-caption {
+  margin-top: 14px;
+}
+
+.fs-live-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  cursor: pointer;
+  transition: opacity 200ms ease;
+}
+
+.fs-live-close:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.fs-live.is-idle .fs-live-close {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 1100px) {
+  .fs-live-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+}
+
 .ops-object-list {
   display: flex;
   flex-direction: column;

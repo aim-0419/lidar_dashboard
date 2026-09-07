@@ -76,6 +76,8 @@ dashboard/dashboard-web/src
 - `features`: 인증, 대시보드, 이벤트처럼 기능 도메인별 코드를 둡니다.
 - `shared`: 도메인과 무관하게 재사용되는 공통 코드입니다.
 - `pages/Statistics`: `/statistics` 통계 화면입니다.
+- `features/dashboard/components/CctvFeed.jsx`, `RoundaboutMap.jsx`: CCTV 피드와 라이다 벡터 맵 표시 컴포넌트입니다. 개별 전체화면 확대 버튼을 포함하고 `ZoneLiveView`·전체 화면 뷰에서 공용으로 사용합니다.
+- `features/dashboard/components/FullscreenLiveView.jsx`: 전체현황 "전체 화면" 버튼으로 여는 관제용 전체 화면 뷰입니다. 사이드바·헤더 없이 구역별 CCTV(상단)·벡터 맵(하단)만 표시하고 브라우저 Fullscreen API를 사용합니다.
 - `shared/constants/operationsDashboardData.js`: 실제 API 연결 전 관제 화면에서 사용하는 mock 스냅샷·객체·이벤트·통계 데이터입니다.
 
 ## 백엔드 구조

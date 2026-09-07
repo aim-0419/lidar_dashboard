@@ -3,7 +3,8 @@ import { createPortal } from "react-dom";
 import { Maximize2, MapPin, X } from "lucide-react";
 
 // 회전교차로 라이다 벡터 맵. 확대 버튼을 누르면 전체화면 오버레이로 맵만 크게 보여준다.
-export function RoundaboutMap({ zone, objects }) {
+// expandable=false면 개별 확대 버튼을 숨긴다 (이미 전체 화면 안에 있을 때 사용).
+export function RoundaboutMap({ zone, objects, expandable = true }) {
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
@@ -49,17 +50,20 @@ export function RoundaboutMap({ zone, objects }) {
       <div className="ops-map-view">
         {roundabout}
         {caption}
-        <button
-          type="button"
-          className="live-expand-btn"
-          onClick={() => setExpanded(true)}
-          aria-label={`${zone.name} 벡터 맵 전체화면으로 보기`}
-        >
-          <Maximize2 size={15} />
-        </button>
+        {expandable && (
+          <button
+            type="button"
+            className="live-expand-btn"
+            onClick={() => setExpanded(true)}
+            aria-label={`${zone.name} 벡터 맵 전체화면으로 보기`}
+          >
+            <Maximize2 size={15} />
+          </button>
+        )}
       </div>
 
-      {expanded &&
+      {expandable &&
+        expanded &&
         createPortal(
           <div
             className="live-expand-overlay"

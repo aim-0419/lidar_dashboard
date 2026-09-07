@@ -6,12 +6,14 @@ import {
   Car,
   CheckCircle2,
   Clock3,
+  Maximize2,
   Radio,
   Wifi,
 } from "lucide-react";
 import { apiUrl, WS_BASE } from "../../shared/api/config";
 import { fetchWebSocketTicket } from "../../shared/api/http";
 import { ZoneLiveView } from "../../features/dashboard/components/ZoneLiveView";
+import { FullscreenLiveView } from "../../features/dashboard/components/FullscreenLiveView";
 import { WrongwayAlertModal } from "../../features/dashboard/components/WrongwayAlertModal";
 import {
   detectedObjects,
@@ -35,6 +37,7 @@ export default function DashboardPage() {
   const [panelMinimized, setPanelMinimized] = useState(false);
   const [latestSnapshot, setLatestSnapshot] = useState(liveSnapshot);
   const [selectedZoneId, setSelectedZoneId] = useState("all");
+  const [liveFullscreen, setLiveFullscreen] = useState(false);
 
   // 서버 헬스체크는 실제 백엔드 연결 상태를 화면 상단에 계속 반영한다.
   useEffect(() => {
@@ -182,8 +185,22 @@ export default function DashboardPage() {
             <Wifi size={15} />
             {serverAlive ? "SERVER ONLINE" : "SERVER OFFLINE"}
           </span>
+          <button type="button" onClick={() => setLiveFullscreen(true)}>
+            <Maximize2 size={15} />
+            전체 화면
+          </button>
         </div>
       </header>
+
+      {liveFullscreen && (
+        <FullscreenLiveView
+          zones={monitoringZones}
+          getObjects={(zoneId) =>
+            detectedObjects.filter((item) => item.monitoringZoneId === zoneId)
+          }
+          onClose={() => setLiveFullscreen(false)}
+        />
+      )}
 
       <nav className="ops-zone-tabs" aria-label="관제 구역 선택">
         <button
