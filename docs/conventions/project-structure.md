@@ -41,6 +41,7 @@ dashboard/dashboard-web/src
   - MainLayout.jsx
 - pages
   - Dashboard
+  - LiveView
   - Statistics
   - EventLog
   - Devices
@@ -76,6 +77,8 @@ dashboard/dashboard-web/src
 - `features`: 인증, 대시보드, 이벤트처럼 기능 도메인별 코드를 둡니다.
 - `shared`: 도메인과 무관하게 재사용되는 공통 코드입니다.
 - `pages/Statistics`: `/statistics` 통계 화면입니다.
+- `pages/LiveView`: `/live` 라이브 뷰 화면입니다. CCTV·벡터 맵을 4분할로 보여주고 전체화면 확대를 지원합니다.
+- `features/dashboard/components/CctvFeed.jsx`, `RoundaboutMap.jsx`: CCTV 피드와 라이다 벡터 맵 표시 컴포넌트입니다. 대시보드(`ZoneLiveView`)와 라이브 뷰에서 공용으로 사용하며 확대(전체화면) 기능을 포함합니다.
 - `shared/constants/operationsDashboardData.js`: 실제 API 연결 전 관제 화면에서 사용하는 mock 스냅샷·객체·이벤트·통계 데이터입니다.
 
 ## 백엔드 구조

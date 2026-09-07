@@ -6,6 +6,7 @@ import LoginPage from "../pages/Login/LoginPage";
 import SignupRequestPage from "../pages/SignupRequest/SignupRequestPage";
 import SignupRequestsPage from "../pages/SignupRequests/SignupRequestsPage";
 import DashboardPage from "../pages/Dashboard/DashboardPage";
+import LiveViewPage from "../pages/LiveView/LiveViewPage";
 import StatisticsPage from "../pages/Statistics/StatisticsPage";
 import WrongwayLogPage from "../pages/Dashboard/WrongwayLogPage";
 import EventLogPage from "../pages/EventLog/EventLogPage";
@@ -34,6 +35,7 @@ export default function AppRouter() {
         >
           {/* MainLayout 안에서 Outlet으로 표시되는 실제 페이지들이다. */}
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/live" element={<LiveViewPage />} />
           <Route path="/statistics" element={<StatisticsPage />} />
           <Route path="/dashboard/wrongway" element={<WrongwayLogPage />} />
           <Route path="/events" element={<EventLogPage />} />
