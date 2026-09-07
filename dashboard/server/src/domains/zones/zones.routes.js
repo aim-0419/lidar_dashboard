@@ -8,9 +8,8 @@ const {
 
 const router = express.Router();
 
-router.use(authenticateToken);
-router.get("/zones", getZonesController);
-router.get("/zones/:id", getZoneByIdController);
-router.get("/sites/:siteId/zones", getZonesBySiteController);
+router.get("/zones", authenticateToken, getZonesController);
+router.get("/zones/:id", authenticateToken, getZoneByIdController);
+router.get("/sites/:siteId/zones", authenticateToken, getZonesBySiteController);
 
 module.exports = router;

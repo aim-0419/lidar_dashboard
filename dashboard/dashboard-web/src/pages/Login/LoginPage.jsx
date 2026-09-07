@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/useAuth";
 import { useLanguage } from "../../context/useLanguage";
 import "./login.css";
@@ -113,6 +113,9 @@ export default function LoginPage() {
             <button type="submit" disabled={isSubmitting} className="login-panel__submit">
               {isSubmitting ? "로그인 중..." : t("title.loginbtn")}
             </button>
+            <Link to="/signup-request" className="login-panel__signup-link">
+              관리자 계정 가입 신청
+            </Link>
           </form>
         </section>
       </main>

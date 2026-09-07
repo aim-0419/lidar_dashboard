@@ -11,6 +11,8 @@ model User {
   userId           String         @unique @map("user_id")
   name             String
   passwordHash     String         @map("password_hash")
+  email            String?        @unique
+  phoneNumber      String?        @unique @map("phone_number")
   role             String         @default("MANAGER")
   isActive         Boolean        @default(true) @map("is_active")
   sessionVersion   Int            @default(0) @map("session_version")
@@ -19,6 +21,7 @@ model User {
   updatedAt        DateTime       @updatedAt @map("updated_at")
   eventLogs        EventLog[]
   refreshTokens    RefreshToken[]
+  reviewedSignupRequests SignupRequest[] @relation("SignupRequestReviewer")
   auditActions     UserAuditLog[] @relation("UserAuditActor")
   auditTargets     UserAuditLog[] @relation("UserAuditTarget")
 
@@ -39,6 +42,36 @@ model RefreshToken {
   @@index([expiresAt])
   @@index([revokedAt])
   @@map("refresh_tokens")
+}
+
+model SignupRequest {
+  id               String    @id @default(cuid())
+  userId           String?   @map("user_id")
+  name             String?
+  passwordHash     String?   @map("password_hash")
+  email            String?
+  phoneNumber      String?   @map("phone_number")
+  requestedRole    String    @default("MANAGER") @map("requested_role")
+  status           String    @default("PENDING")
+  expiresAt        DateTime  @map("expires_at")
+  reviewedByUserId String?   @map("reviewed_by_user_id")
+  reviewedAt       DateTime? @map("reviewed_at")
+  rejectReason     String?   @map("reject_reason")
+  anonymizedAt     DateTime? @map("anonymized_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  reviewedBy User? @relation("SignupRequestReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([expiresAt])
+  @@index([anonymizedAt])
+  @@index([userId, status])
+  @@index([email, status])
+  @@index([phoneNumber, status])
+  @@index([createdAt])
+  @@index([reviewedByUserId])
+  @@map("signup_requests")
 }
 
 model Site {

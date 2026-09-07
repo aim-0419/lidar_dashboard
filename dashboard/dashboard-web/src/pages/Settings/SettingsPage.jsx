@@ -36,7 +36,7 @@ const initialCreateForm = {
 const initialEditForm = {
   userId: "",
   name: "",
-  role: "SUPER_ADMIN",
+  role: "MANAGER",
   isActive: true,
 };
 
@@ -126,6 +126,7 @@ export default function SettingsPage() {
   const [passwordErrorMessage, setPasswordErrorMessage] = useState("");
   const [resetPasswordErrorMessage, setResetPasswordErrorMessage] = useState("");
   const [passwordVerifyMessage, setPasswordVerifyMessage] = useState("");
+  const [isCurrentPasswordVerified, setIsCurrentPasswordVerified] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [showCreatePassword, setShowCreatePassword] = useState(false);
@@ -158,7 +159,6 @@ export default function SettingsPage() {
   const canManageSelectedUser = Boolean(
     !isDetailLoading && selectedUser && selectedUser.id === selectedUserId
   );
-  const isCurrentPasswordVerified = passwordVerifyMessage === "기존 비밀번호가 확인되었습니다.";
   const visibleUsers = isSuperAdmin ? users : selectedUser ? [selectedUser] : [];
   const visibleUserCount = isSuperAdmin ? userSummary.totalCount : visibleUsers.length;
   const visibleActiveUserCount = isSuperAdmin
@@ -356,6 +356,7 @@ export default function SettingsPage() {
     setSelectedUser(null);
     if (!id) {
       setEditForm(initialEditForm);
+      setIsCurrentPasswordVerified(false);
       setIsDetailLoading(false);
       return;
     }
@@ -375,7 +376,7 @@ export default function SettingsPage() {
       setEditForm({
         userId: nextUser.userId || "",
         name: nextUser.name || "",
-        role: String(nextUser.role || "super_admin").toUpperCase(),
+        role: String(nextUser.role || "manager").toUpperCase(),
         isActive: Boolean(nextUser.isActive),
       });
       setIsEditSuperAdminConfirmed(false);
@@ -384,6 +385,7 @@ export default function SettingsPage() {
       setPasswordErrorMessage("");
       setResetPasswordErrorMessage("");
       setPasswordVerifyMessage("");
+      setIsCurrentPasswordVerified(false);
       setShowCurrentPassword(false);
       setShowNewPassword(false);
       setShowResetPassword(false);
@@ -448,23 +450,23 @@ export default function SettingsPage() {
   function handlePasswordChange(event) {
     const { name, value } = event.target;
     setPasswordErrorMessage("");
-    setPasswordForm((prev) => {
-      if (name === "currentPassword") {
-        // 기존 비밀번호가 바뀌면 검증 상태를 초기화하고 새 비밀번호 입력도 다시 받는다.
-        setPasswordVerifyMessage("");
-        return {
-          currentPassword: value,
-          newPassword: "",
-          confirmNewPassword: "",
-        };
-      }
+    if (name === "currentPassword") {
+      // 기존 비밀번호가 바뀌면 검증 상태를 초기화하고 새 비밀번호 입력도 다시 받는다.
+      setPasswordVerifyMessage("");
+      setIsCurrentPasswordVerified(false);
+      setPasswordForm({
+        currentPassword: value,
+        newPassword: "",
+        confirmNewPassword: "",
+      });
+      return;
+    }
 
-      // 새 비밀번호 입력 중에는 기존 비밀번호 확인 완료 문구를 유지한다.
-      return {
-        ...prev,
-        [name]: value,
-      };
-    });
+    // 새 비밀번호 입력 중에는 기존 비밀번호 확인 완료 문구를 유지한다.
+    setPasswordForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   }
 
   function handleResetPasswordChange(event) {
@@ -489,13 +491,16 @@ export default function SettingsPage() {
     setIsVerifyingCurrentPassword(true);
     setPasswordErrorMessage("");
     setPasswordVerifyMessage("");
+    setIsCurrentPasswordVerified(false);
 
     try {
       await verifyUserPasswordRequest(selectedUserId, {
         currentPassword: passwordForm.currentPassword,
       });
       setPasswordVerifyMessage("기존 비밀번호가 확인되었습니다.");
+      setIsCurrentPasswordVerified(true);
     } catch (error) {
+      setIsCurrentPasswordVerified(false);
       if (
         error.message === "Current password is incorrect." ||
         error.message === "currentPassword is required."
@@ -634,6 +639,7 @@ export default function SettingsPage() {
         newPassword: passwordForm.newPassword,
       });
       setPasswordForm(initialPasswordForm);
+      setIsCurrentPasswordVerified(false);
       if (selectedUserId === user?.id) {
         await logout();
         return;
@@ -787,6 +793,7 @@ export default function SettingsPage() {
     setPasswordErrorMessage("");
     setResetPasswordErrorMessage("");
     setPasswordVerifyMessage("");
+    setIsCurrentPasswordVerified(false);
     setResetPasswordForm(initialResetPasswordForm);
     setIsManageModalOpen(false);
     setIsActivateConfirmOpen(false);
@@ -1025,7 +1032,7 @@ export default function SettingsPage() {
                         <span>권한</span>
                           <select
                             name="role"
-                            value={editForm.role || "SUPER_ADMIN"}
+                            value={editForm.role || "MANAGER"}
                             onChange={handleEditChange}
                             disabled={isManagingOwnAccount || !isSuperAdmin}
                           >

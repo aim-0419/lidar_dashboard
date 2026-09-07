@@ -9,10 +9,9 @@ const {
 
 const router = express.Router();
 
-router.use(authenticateToken);
-router.get("/devices", getDevicesController);
-router.get("/devices/:id", getDeviceByIdController);
-router.get("/devices/:id/status", getDeviceStatusController);
-router.get("/zones/:zoneId/devices", getDevicesByZoneController);
+router.get("/devices", authenticateToken, getDevicesController);
+router.get("/devices/:id", authenticateToken, getDeviceByIdController);
+router.get("/devices/:id/status", authenticateToken, getDeviceStatusController);
+router.get("/zones/:zoneId/devices", authenticateToken, getDevicesByZoneController);
 
 module.exports = router;
