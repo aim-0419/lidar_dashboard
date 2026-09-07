@@ -363,7 +363,12 @@ async function updateUser({ id, userId, name, email, phoneNumber, role, isActive
   }
 
   if (typeof userId === "string") {
-    data.userId = validateUserId(userId);
+    const normalizedUserId = userId.trim();
+
+    // Keep legacy IDs editable unless the user ID itself is being changed.
+    if (normalizedUserId !== existingUser.userId) {
+      data.userId = validateUserId(normalizedUserId);
+    }
   }
 
   if (typeof name === "string") {
