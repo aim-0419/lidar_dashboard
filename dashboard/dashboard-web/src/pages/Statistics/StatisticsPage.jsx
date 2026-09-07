@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { BarChart3, CalendarDays, Car, Siren, TrendingUp, Users } from "lucide-react";
+import { BarChart3, CalendarDays } from "lucide-react";
 import { fetchDashboardState, fetchStatisticsSummary, fetchTrafficSeries } from "../../shared/api/http";
 import { getEventZones } from "../../features/events/eventsApi";
 import { zoneStatistics as fallbackZoneStatistics } from "../../shared/constants/operationsDashboardData";
@@ -684,28 +684,24 @@ export default function StatisticsPage() {
     {
       label: "통과 차량",
       value: totalVehicles.toLocaleString(),
-      icon: Car,
       tone: "blue",
       description: `${period} 누적 집계 값`,
     },
     {
       label: "역주행 이벤트",
       value: totalWrongWay.toLocaleString(),
-      icon: Siren,
       tone: "red",
       description: `${period} 누적 집계 값`,
     },
     {
       label: "역주행 비율",
       value: `${wrongWayRate}%`,
-      icon: TrendingUp,
       tone: "slate",
       description: "통과 차량 대비 역주행 비율",
     },
     {
       label: "보행자 감지",
       value: totalPedestrians.toLocaleString(),
-      icon: Users,
       tone: "purple",
       description: `${period} 기준 집계 값`,
     },
@@ -814,21 +810,14 @@ export default function StatisticsPage() {
       </header>
 
       <section className="ops-kpi-grid stats-kpis">
-        {cards.map((item) => {
-          const Icon = item.icon;
-          return (
-            <article className={`ops-kpi-card ${item.tone}`} key={item.label}>
-              <div className="ops-kpi-icon">
-                <Icon size={19} />
-              </div>
-              <div>
-                <span>{period} 기준</span>
-                <strong>{isLoading ? "불러오는 중..." : item.value}</strong>
-                <small>{item.label} · {item.description}</small>
-              </div>
-            </article>
-          );
-        })}
+        {cards.map((item) => (
+          <article className={`ops-kpi-card ${item.tone}`} key={item.label}>
+            <div>
+              <span>{period} 기준 / {item.label} · {item.description}</span>
+              <strong>{isLoading ? "불러오는 중..." : item.value}</strong>
+            </div>
+          </article>
+        ))}
       </section>
 
       <section className="stats-grid">
