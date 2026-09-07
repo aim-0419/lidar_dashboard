@@ -214,7 +214,7 @@
 /* 전체 현황(2분할)에서는 한 화면에 두 구역이 들어오도록 현장 화면 높이를 줄이고
    벡터 맵 회전교차로도 축소한다. 구역 상세로 들어가면 큰 크기를 그대로 사용한다. */
 .ops-zone-live-grid:not(.single) .ops-cctv-grid {
-  min-height: 240px;
+  min-height: 300px;
 }
 
 .ops-zone-live-grid:not(.single) .ops-map-view {
@@ -223,7 +223,7 @@
 }
 
 .ops-zone-live-grid:not(.single) .ops-roundabout {
-  width: min(58%, 168px);
+  width: min(58%, 240px);
   border-width: 22px;
 }
 
@@ -369,7 +369,7 @@
 
 .ops-roundabout {
   position: relative;
-  width: min(74%, 270px);
+  width: min(74%, 330px);
   aspect-ratio: 1;
   margin: 0 auto;
   border: 32px solid #cbd5e1;
