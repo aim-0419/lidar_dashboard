@@ -4,7 +4,6 @@ import {
   Activity,
   AlertTriangle,
   Bell,
-  Camera,
   Car,
   CheckCircle2,
   Clock3,
@@ -13,11 +12,11 @@ import {
   Siren,
   Users,
   Wifi,
-  X,
 } from "lucide-react";
 import { apiUrl, WS_BASE } from "../../shared/api/config";
 import { fetchWebSocketTicket } from "../../shared/api/http";
 import { ZoneLiveView } from "../../features/dashboard/components/ZoneLiveView";
+import { WrongwayAlertModal } from "../../features/dashboard/components/WrongwayAlertModal";
 import {
   detectedObjects,
   liveSnapshot,
@@ -99,14 +98,22 @@ export default function DashboardPage() {
               setLatestSnapshot((prev) => ({ ...prev, ...message.payload }));
             }
             if (message.type === "dashboard-event" && modalEnabledRef.current) {
-              setActiveEvent({
-                id: message.payload?.id || "LIVE-EVENT",
-                type: message.payload?.type || "wrong-way-level-1",
-                title: message.payload?.title || "실시간 이벤트",
-                message: message.payload?.subMessage || message.payload?.message || "실시간 이벤트 수신",
-                time: message.payload?.timestamp || "실시간",
-                status: "NEW",
-              });
+              const payload = message.payload || {};
+              const eventType = String(payload.type || "wrong-way");
+
+              // 역주행 감지 이벤트일 때만 경보 모달을 띄운다.
+              if (eventType.startsWith("wrong-way")) {
+                setActiveEvent({
+                  id: payload.id || "LIVE-EVENT",
+                  zoneId: payload.zone_id || "",
+                  trackId: payload.track_id || "",
+                  message: payload.message || payload.subMessage || "역주행이 감지되었습니다.",
+                  time: payload.timestamp || "실시간",
+                  confidence: payload.confidence,
+                  source: payload.source,
+                });
+                setPanelMinimized(false);
+              }
             }
           } catch {
             // 화면 수신용 WS이므로 잘못된 메시지는 무시하고 다음 이벤트를 기다린다.
@@ -181,44 +188,17 @@ export default function DashboardPage() {
   return (
     <div className="ops-page">
       {activeEvent && eventModalEnabled && !panelMinimized && (
-        <div className="ops-alert-overlay">
-          <section className="ops-alert-panel" aria-label="역주행 경고 상세">
-            <div className="ops-alert-head">
-              <div>
-                <span className="ops-alert-eyebrow">{statusLabel(activeEvent.type)}</span>
-                <h2>{activeEvent.title}</h2>
-              </div>
-              <button type="button" onClick={() => setActiveEvent(null)} aria-label="알림 닫기">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="ops-alert-body">
-              <div className="ops-video-placeholder danger">
-                <Camera size={22} />
-                <span>CCTV / 라이다 화면 연결 예정</span>
-              </div>
-              <p>{activeEvent.message}</p>
-              <div className="ops-alert-meta">
-                <span>{activeEvent.id}</span>
-                <span>{activeEvent.time}</span>
-              </div>
-            </div>
-            <div className="ops-alert-actions">
-              <button type="button" onClick={() => setPanelMinimized(true)}>
-                최소화
-              </button>
-              <button type="button" className="primary" onClick={() => navigate("/events")}>
-                이벤트 확인
-              </button>
-            </div>
-          </section>
-        </div>
+        <WrongwayAlertModal
+          event={activeEvent}
+          onClose={() => setActiveEvent(null)}
+          onMinimize={() => setPanelMinimized(true)}
+        />
       )}
 
-      {panelMinimized && (
+      {activeEvent && eventModalEnabled && panelMinimized && (
         <button className="ops-alert-pill" type="button" onClick={() => setPanelMinimized(false)}>
           <Bell size={16} />
-          경고 패널 열기
+          역주행 대응 중 · 클릭해서 열기
         </button>
       )}
 
@@ -344,13 +324,7 @@ export default function DashboardPage() {
               <div className="ops-priority-item" key={item.trackId}>
                 <strong>{statusLabel(item.type)}</strong>
                 <span>{item.zoneId} · {item.speedKmh.toFixed(1)} km/h</span>
-                <button
-                  type="button"
-                  onClick={() => setActiveEvent(
-                    visibleEvents.find((event) => event.monitoringZoneId === item.monitoringZoneId)
-                      || visibleEvents[0],
-                  )}
-                >
+                <button type="button" onClick={() => navigate("/events")}>
                   상세 보기
                 </button>
               </div>
@@ -374,7 +348,7 @@ export default function DashboardPage() {
                   type="button"
                   className={`ops-event-item ${event.type}`}
                   key={event.id}
-                  onClick={() => setActiveEvent(event)}
+                  onClick={() => navigate("/events")}
                 >
                   <span>{event.time}</span>
                   <strong>{event.title}</strong>
