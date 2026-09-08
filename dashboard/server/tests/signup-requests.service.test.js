@@ -102,6 +102,9 @@ function loadSignupRequestsService(prisma) {
       if (name === "bcrypt") return { hash: async (password) => `hash:${password}` };
         if (name === "@prisma/client") return { Prisma: { PrismaClientKnownRequestError } };
       if (name === "../../prisma/client") return { prisma };
+      if (name === "../../utils/prisma-error") {
+        return require(path.resolve(__dirname, "../src/utils/prisma-error"));
+      }
       if (name === "../../utils/credential-policy") {
         return {
           MIN_PASSWORD_LENGTH: 8,

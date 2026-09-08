@@ -1,6 +1,7 @@
 const bcrypt = require("bcrypt");
 const { Prisma } = require("@prisma/client");
 const { prisma } = require("../../prisma/client");
+const { getUniqueConstraintTarget } = require("../../utils/prisma-error");
 const {
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_BYTES,
@@ -363,7 +364,7 @@ async function runSignupRequestMaintenance(now = new Date()) {
 
 function handlePrismaError(error) {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-    const target = Array.isArray(error.meta?.target) ? error.meta.target.join(",") : String(error.meta?.target || "");
+    const target = getUniqueConstraintTarget(error);
 
     if (target.includes("user_id")) {
       throw createHttpError(409, "이미 사용 중인 사용자 ID입니다.");
