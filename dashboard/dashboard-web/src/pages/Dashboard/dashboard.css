@@ -776,7 +776,7 @@
 
 .ops-alert-overlay {
   position: fixed;
-  z-index: 60;
+  z-index: 100;
   inset: 0;
   display: grid;
   place-items: center;
@@ -1199,7 +1199,7 @@
 
 .ops-alert-pill {
   position: fixed;
-  z-index: 55;
+  z-index: 95;
   right: 24px;
   bottom: 24px;
   display: inline-flex;
