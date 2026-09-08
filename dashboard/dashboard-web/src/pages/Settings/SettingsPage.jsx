@@ -31,6 +31,7 @@ import {
   initialPasswordForm,
   initialResetPasswordForm,
 } from "../../features/settings/settingsConstants";
+import { ConfirmDialog } from "../../features/settings/components/ConfirmDialog";
 import "../Dashboard/dashboard.css";
 import "./settings.css";
 
@@ -1247,114 +1248,6 @@ export default function SettingsPage() {
     );
   }
 
-  function renderDeactivateConfirmModal() {
-    if (!isDeactivateConfirmOpen || !selectedUser) {
-      return null;
-    }
-
-    return (
-      <div className="settings-modal-overlay" onClick={closeDeactivateConfirmModal}>
-        <div
-          className="settings-modal settings-modal--compact"
-          role="dialog"
-          aria-modal="true"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="settings-modal__head">
-            <div>
-              <h2>사용자 비활성화 확인</h2>
-              <p>{selectedUser.userId} 계정을 정말 비활성화할까요?</p>
-            </div>
-            <button
-              type="button"
-              className="settings-modal__close"
-              onClick={closeDeactivateConfirmModal}
-            >
-              닫기
-            </button>
-          </div>
-
-          <div className="settings-confirm-copy">
-            비활성화된 계정은 로그인할 수 없으며, 필요 시 다시 활성화 절차가 필요합니다.
-          </div>
-
-          <div className="settings-modal__actions">
-            <button
-              type="button"
-              className="settings-secondary-button"
-              onClick={closeDeactivateConfirmModal}
-              disabled={isDeactivating}
-            >
-              취소
-            </button>
-            <button
-              type="button"
-              className="settings-danger-button"
-              onClick={() => void handleDeactivateUser()}
-              disabled={!canManageSelectedUser || isDeactivating}
-            >
-              {isDeactivating ? "비활성화 중..." : "비활성화 진행"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  function renderActivateConfirmModal() {
-    if (!isActivateConfirmOpen || !selectedUser) {
-      return null;
-    }
-
-    return (
-      <div className="settings-modal-overlay" onClick={closeActivateConfirmModal}>
-        <div
-          className="settings-modal settings-modal--compact"
-          role="dialog"
-          aria-modal="true"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="settings-modal__head">
-            <div>
-              <h2>사용자 활성화 확인</h2>
-              <p>{selectedUser.userId} 계정을 다시 활성화할까요?</p>
-            </div>
-            <button
-              type="button"
-              className="settings-modal__close"
-              onClick={closeActivateConfirmModal}
-            >
-              닫기
-            </button>
-          </div>
-
-          <div className="settings-confirm-copy">
-            활성화된 계정은 다시 로그인할 수 있으며, 사용자 목록에서 즉시 활성 상태로 표시됩니다.
-          </div>
-
-          <div className="settings-modal__actions">
-            <button
-              type="button"
-              className="settings-secondary-button"
-              onClick={closeActivateConfirmModal}
-              disabled={isActivating}
-            >
-              취소
-            </button>
-            <button
-              type="button"
-              className="settings-primary-button"
-              onClick={() => void handleActivateUser()}
-              disabled={!canManageSelectedUser || isActivating}
-            >
-              {isActivating ? "활성화 중..." : "활성화 진행"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   function renderUsersSection() {
     if (!isSuperAdmin) {
       return (
@@ -1550,8 +1443,34 @@ export default function SettingsPage() {
       <section className="settings-content">{renderUsersSection()}</section>
       {renderCreateModal()}
       {renderManageModal()}
-      {renderActivateConfirmModal()}
-      {renderDeactivateConfirmModal()}
+
+      <ConfirmDialog
+        open={isActivateConfirmOpen && Boolean(selectedUser)}
+        title="사용자 활성화 확인"
+        question={`${selectedUser?.userId ?? ""} 계정을 다시 활성화할까요?`}
+        description="활성화된 계정은 다시 로그인할 수 있으며, 사용자 목록에서 즉시 활성 상태로 표시됩니다."
+        confirmLabel="활성화 진행"
+        confirmBusyLabel="활성화 중..."
+        confirmTone="primary"
+        isBusy={isActivating}
+        confirmDisabled={!canManageSelectedUser || isActivating}
+        onConfirm={() => void handleActivateUser()}
+        onClose={closeActivateConfirmModal}
+      />
+
+      <ConfirmDialog
+        open={isDeactivateConfirmOpen && Boolean(selectedUser)}
+        title="사용자 비활성화 확인"
+        question={`${selectedUser?.userId ?? ""} 계정을 정말 비활성화할까요?`}
+        description="비활성화된 계정은 로그인할 수 없으며, 필요 시 다시 활성화 절차가 필요합니다."
+        confirmLabel="비활성화 진행"
+        confirmBusyLabel="비활성화 중..."
+        confirmTone="danger"
+        isBusy={isDeactivating}
+        confirmDisabled={!canManageSelectedUser || isDeactivating}
+        onConfirm={() => void handleDeactivateUser()}
+        onClose={closeDeactivateConfirmModal}
+      />
     </div>
   );
 }
