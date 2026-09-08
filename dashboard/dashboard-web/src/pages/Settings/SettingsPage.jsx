@@ -32,6 +32,7 @@ import {
   initialResetPasswordForm,
 } from "../../features/settings/settingsConstants";
 import { ConfirmDialog } from "../../features/settings/components/ConfirmDialog";
+import { CreateUserModal } from "../../features/settings/components/CreateUserModal";
 import "../Dashboard/dashboard.css";
 import "./settings.css";
 
@@ -794,118 +795,6 @@ export default function SettingsPage() {
     setIsDeactivateConfirmOpen(false);
   }
 
-  function renderCreateModal() {
-    if (!isCreateModalOpen) {
-      return null;
-    }
-
-    return (
-      <div className="settings-modal-overlay" onClick={closeCreateModal}>
-        <div
-          className="settings-modal"
-          role="dialog"
-          aria-modal="true"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="settings-modal__head">
-            <div>
-              <h2>사용자 생성</h2>
-              <p>새 관리자 계정을 등록합니다.</p>
-            </div>
-            <button type="button" className="settings-modal__close" onClick={closeCreateModal}>
-              닫기
-            </button>
-          </div>
-
-          <form className="settings-form-stack" onSubmit={handleCreateUser}>
-            {createErrorMessage ? (
-              <div className="settings-banner error settings-modal-banner">{createErrorMessage}</div>
-            ) : null}
-
-            <div className="settings-form-grid">
-              <label className="settings-field">
-                <span>사용자 ID</span>
-                <input
-                  name="userId"
-                  value={createForm.userId || ""}
-                  onChange={handleCreateChange}
-                  placeholder="manager01"
-                />
-              </label>
-              <label className="settings-field">
-                <span>이름</span>
-                <input
-                  name="name"
-                  value={createForm.name || ""}
-                  onChange={handleCreateChange}
-                  placeholder="manager"
-                />
-              </label>
-            </div>
-
-            <div className="settings-form-grid">
-              <label className="settings-field">
-                <span>비밀번호</span>
-                <div className="settings-password-field">
-                  <input
-                    type={showCreatePassword ? "text" : "password"}
-                    name="password"
-                    value={createForm.password || ""}
-                    onChange={handleCreateChange}
-                    placeholder="password123"
-                  />
-                  <button
-                    type="button"
-                    className="settings-password-toggle"
-                    onClick={() => setShowCreatePassword((prev) => !prev)}
-                    aria-label={showCreatePassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                  >
-                    {showCreatePassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </label>
-              <label className="settings-field">
-                <span>권한</span>
-                <select name="role" value={createForm.role || "MANAGER"} onChange={handleCreateChange}>
-                  {ROLE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            {isCreatingSuperAdmin ? (
-              <label className="settings-role-confirm">
-                <input
-                  type="checkbox"
-                  checked={isCreateSuperAdminConfirmed}
-                  onChange={(event) => setIsCreateSuperAdminConfirmed(event.target.checked)}
-                />
-                <span>최고 관리자 권한을 부여하는 것을 확인했습니다.</span>
-              </label>
-            ) : null}
-
-            <div className="settings-modal__actions">
-              <button type="button" className="settings-secondary-button" onClick={closeCreateModal}>
-                취소
-              </button>
-              <button
-                type="submit"
-                disabled={isCreating || (isCreatingSuperAdmin && !isCreateSuperAdminConfirmed)}
-                className="settings-primary-button"
-              >
-                <UserPlus size={15} />
-                {isCreating ? "생성 중..." : "사용자 생성"}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
   function renderManageModal() {
     if (!isManageModalOpen || !selectedUserId) {
       return null;
@@ -1441,7 +1330,22 @@ export default function SettingsPage() {
         </article>
       </section> : null}
       <section className="settings-content">{renderUsersSection()}</section>
-      {renderCreateModal()}
+
+      <CreateUserModal
+        open={isCreateModalOpen}
+        onClose={closeCreateModal}
+        errorMessage={createErrorMessage}
+        form={createForm}
+        onChange={handleCreateChange}
+        onSubmit={handleCreateUser}
+        showPassword={showCreatePassword}
+        onTogglePassword={() => setShowCreatePassword((prev) => !prev)}
+        isSuperAdminSelected={isCreatingSuperAdmin}
+        superAdminConfirmed={isCreateSuperAdminConfirmed}
+        onSuperAdminConfirmChange={setIsCreateSuperAdminConfirmed}
+        isCreating={isCreating}
+      />
+
       {renderManageModal()}
 
       <ConfirmDialog
