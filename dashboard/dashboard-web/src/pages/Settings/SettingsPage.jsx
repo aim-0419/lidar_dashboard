@@ -22,66 +22,17 @@ import {
   updateUserRequest,
   verifyUserPasswordRequest,
 } from "../../shared/api/http";
+import {
+  ROLE_OPTIONS,
+  formatDateTime,
+  getRoleLabel,
+  initialCreateForm,
+  initialEditForm,
+  initialPasswordForm,
+  initialResetPasswordForm,
+} from "../../features/settings/settingsConstants";
 import "../Dashboard/dashboard.css";
 import "./settings.css";
-
-const initialCreateForm = {
-  userId: "",
-  name: "",
-  password: "",
-  role: "MANAGER",
-  isActive: true,
-};
-
-const initialEditForm = {
-  userId: "",
-  name: "",
-  role: "MANAGER",
-  isActive: true,
-};
-
-const initialPasswordForm = {
-  currentPassword: "",
-  newPassword: "",
-  confirmNewPassword: "",
-};
-
-const initialResetPasswordForm = {
-  newPassword: "",
-  confirmNewPassword: "",
-};
-
-const ROLE_LABELS = {
-  SUPER_ADMIN: "최고 관리자",
-  MANAGER: "관리자",
-};
-
-const ROLE_OPTIONS = [
-  { value: "SUPER_ADMIN", label: "SUPER_ADMIN" },
-  { value: "MANAGER", label: "MANAGER" },
-];
-
-function formatDateTime(value, fallback = "-") {
-  if (!value) {
-    return fallback;
-  }
-
-  const nextDate = new Date(value);
-  if (Number.isNaN(nextDate.getTime())) {
-    return fallback;
-  }
-
-  return nextDate.toLocaleString();
-}
-
-function getRoleLabel(role) {
-  if (!role) {
-    return "선택 없음";
-  }
-
-  const normalizedRole = String(role).toUpperCase();
-  return ROLE_LABELS[normalizedRole] || normalizedRole;
-}
 
 export default function SettingsPage() {
   const { user, logout, updateCurrentUser } = useAuth();
