@@ -1,5 +1,4 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { RefreshCw, UserCog, UserPlus } from "lucide-react";
 import { useAuth } from "../../context/useAuth";
 import {
   createUserRequest,
@@ -13,8 +12,6 @@ import {
   verifyUserPasswordRequest,
 } from "../../shared/api/http";
 import {
-  formatDateTime,
-  getRoleLabel,
   initialCreateForm,
   initialEditForm,
   initialPasswordForm,
@@ -23,6 +20,8 @@ import {
 import { ConfirmDialog } from "../../features/settings/components/ConfirmDialog";
 import { CreateUserModal } from "../../features/settings/components/CreateUserModal";
 import { ManageUserModal } from "../../features/settings/components/ManageUserModal";
+import { UserKpiCards } from "../../features/settings/components/UserKpiCards";
+import { UsersSection } from "../../features/settings/components/UsersSection";
 import "../Dashboard/dashboard.css";
 import "./settings.css";
 
@@ -695,18 +694,6 @@ export default function SettingsPage() {
     }
   }
 
-  function renderNotice() {
-    if (errorMessage) {
-      return <div className="settings-banner error">{errorMessage}</div>;
-    }
-
-    if (successMessage) {
-      return <div className="settings-banner success">{successMessage}</div>;
-    }
-
-    return null;
-  }
-
   function openCreateModal() {
     setCreateForm(initialCreateForm);
     setIsCreateSuperAdminConfirmed(false);
@@ -785,166 +772,6 @@ export default function SettingsPage() {
     setIsDeactivateConfirmOpen(false);
   }
 
-  function renderUsersSection() {
-    if (!isSuperAdmin) {
-      return (
-        <div className="settings-stack">
-          <section className="ops-card">
-            <div className="ops-card-head">
-              <div>
-                <h2>내 계정</h2>
-                <p>이름, 로그인 ID, 비밀번호를 직접 관리할 수 있습니다.</p>
-              </div>
-            </div>
-            {renderNotice()}
-          </section>
-
-          <section className="ops-card">
-            <div className="ops-card-head">
-              <div>
-                <h2>내 정보 수정</h2>
-                <p>내 계정 정보와 비밀번호를 수정할 수 있습니다.</p>
-              </div>
-            </div>
-
-            {isDetailLoading ? (
-              <div className="settings-empty">내 계정 정보를 불러오는 중입니다.</div>
-            ) : !selectedUser ? (
-              <div className="settings-empty">내 계정 정보를 확인할 수 없습니다.</div>
-            ) : (
-              <div className="settings-placeholder-body">
-                <UserCog size={18} />
-                <span>
-                  현재 로그인한 계정은 {selectedUser.name} ({selectedUser.userId}) 입니다.
-                </span>
-                <button
-                  type="button"
-                  className="settings-primary-button"
-                  onClick={() => openManageModal(selectedUser.id)}
-                >
-                  내 정보 수정
-                </button>
-              </div>
-            )}
-          </section>
-        </div>
-      );
-    }
-
-    return (
-      <div className="settings-stack">
-        <section className="ops-card">
-          <div className="ops-card-head">
-            <div>
-              <h2>사용자 관리</h2>
-            </div>
-            <div className="settings-head-actions">
-              <button
-                type="button"
-                className="settings-primary-button"
-                onClick={openCreateModal}
-              >
-                <UserPlus size={15} />
-                사용자 생성
-              </button>
-              <button type="button" className="settings-action-button" onClick={() => void loadUsers()}>
-                <RefreshCw size={15} />
-                새로고침
-              </button>
-            </div>
-          </div>
-          {renderNotice()}
-        </section>
-
-        <section className="ops-card">
-          <div className="ops-card-head">
-            <div>
-              <h2>사용자 목록</h2>
-              <p>계정을 선택하면 상세 관리 모달이 바로 열립니다.</p>
-            </div>
-          </div>
-
-          <form className="settings-user-filters" onSubmit={handleUserSearchSubmit}>
-            <input
-              value={userSearchKeyword}
-              onChange={(event) => setUserSearchKeyword(event.target.value)}
-              placeholder="사용자 ID 또는 이름 검색"
-            />
-            <select value={userStatusFilter} onChange={handleUserStatusFilterChange}>
-              <option value="ALL">전체 상태</option>
-              <option value="ACTIVE">활성 계정</option>
-              <option value="INACTIVE">비활성 계정</option>
-            </select>
-            <button type="submit" className="settings-secondary-button">
-              검색
-            </button>
-          </form>
-
-          {isListLoading ? (
-            <div className="settings-empty">사용자 목록을 불러오는 중입니다.</div>
-          ) : users.length === 0 ? (
-            <div className="settings-empty">등록된 사용자가 없습니다.</div>
-          ) : (
-            <div className="settings-user-list">
-              {users.map((item) => {
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => openManageModal(item.id)}
-                    className="settings-user-item"
-                  >
-                    <div className="settings-user-item__top">
-                      <div>
-                        <strong>{item.name}</strong>
-                        <span>{item.userId}</span>
-                      </div>
-                      <em>{getRoleLabel(item.role)}</em>
-                    </div>
-                    <div className="settings-user-item__meta">
-                      <span
-                        className={`settings-status-badge ${
-                          item.isActive ? "active" : "inactive"
-                        }`}
-                      >
-                        {item.isActive ? "활성" : "비활성"}
-                      </span>
-                      <span>{item.lastLoginAt ? formatDateTime(item.lastLoginAt, "로그인 이력 없음") : "로그인 이력 없음"}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {userPagination.totalPages > 1 ? (
-            <div className="settings-pagination" aria-label="사용자 목록 페이지 이동">
-              <button
-                type="button"
-                className="settings-action-button"
-                onClick={() => handleUserPageChange(userPage - 1)}
-                disabled={isListLoading || userPage <= 1}
-              >
-                이전
-              </button>
-              <span>
-                {userPage} / {userPagination.totalPages}
-              </span>
-              <button
-                type="button"
-                className="settings-action-button"
-                onClick={() => handleUserPageChange(userPage + 1)}
-                disabled={isListLoading || userPage >= userPagination.totalPages}
-              >
-                다음
-              </button>
-            </div>
-          ) : null}
-        </section>
-      </div>
-    );
-  }
-
   return (
     <div className="ops-page settings-page">
       <header className="ops-header">
@@ -955,29 +782,35 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      {isSuperAdmin ? <section className="ops-kpi-grid settings-kpis">
-        <article className="ops-kpi-card blue">
-          <div>
-            <span>전체 관리자 계정 수</span>
-            <strong>{visibleUserCount}</strong>
-          </div>
-        </article>
+      <UserKpiCards
+        show={isSuperAdmin}
+        totalCount={visibleUserCount}
+        activeCount={visibleActiveUserCount}
+        inactiveCount={visibleInactiveUserCount}
+      />
 
-        <article className="ops-kpi-card green">
-          <div>
-            <span>활성 계정</span>
-            <strong>{visibleActiveUserCount}</strong>
-          </div>
-        </article>
-
-        <article className="ops-kpi-card slate">
-          <div>
-            <span>비활성 계정</span>
-            <strong>{visibleInactiveUserCount}</strong>
-          </div>
-        </article>
-      </section> : null}
-      <section className="settings-content">{renderUsersSection()}</section>
+      <section className="settings-content">
+        <UsersSection
+          isSuperAdmin={isSuperAdmin}
+          errorMessage={errorMessage}
+          successMessage={successMessage}
+          isDetailLoading={isDetailLoading}
+          selectedUser={selectedUser}
+          onOpenManage={openManageModal}
+          onOpenCreate={openCreateModal}
+          onRefresh={() => void loadUsers()}
+          users={users}
+          isListLoading={isListLoading}
+          searchKeyword={userSearchKeyword}
+          onSearchKeywordChange={setUserSearchKeyword}
+          onSearchSubmit={handleUserSearchSubmit}
+          statusFilter={userStatusFilter}
+          onStatusFilterChange={handleUserStatusFilterChange}
+          pagination={userPagination}
+          page={userPage}
+          onPageChange={handleUserPageChange}
+        />
+      </section>
 
       <CreateUserModal
         open={isCreateModalOpen}
