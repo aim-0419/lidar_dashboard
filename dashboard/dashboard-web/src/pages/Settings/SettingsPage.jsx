@@ -1,15 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import {
-  CircleHelp,
-  Eye,
-  EyeOff,
-  KeyRound,
-  RefreshCw,
-  Shield,
-  UserCog,
-  UserPlus,
-  UserX,
-} from "lucide-react";
+import { RefreshCw, UserCog, UserPlus } from "lucide-react";
 import { useAuth } from "../../context/useAuth";
 import {
   createUserRequest,
@@ -23,7 +13,6 @@ import {
   verifyUserPasswordRequest,
 } from "../../shared/api/http";
 import {
-  ROLE_OPTIONS,
   formatDateTime,
   getRoleLabel,
   initialCreateForm,
@@ -33,6 +22,7 @@ import {
 } from "../../features/settings/settingsConstants";
 import { ConfirmDialog } from "../../features/settings/components/ConfirmDialog";
 import { CreateUserModal } from "../../features/settings/components/CreateUserModal";
+import { ManageUserModal } from "../../features/settings/components/ManageUserModal";
 import "../Dashboard/dashboard.css";
 import "./settings.css";
 
@@ -795,348 +785,6 @@ export default function SettingsPage() {
     setIsDeactivateConfirmOpen(false);
   }
 
-  function renderManageModal() {
-    if (!isManageModalOpen || !selectedUserId) {
-      return null;
-    }
-
-    return (
-      <div className="settings-modal-overlay" onClick={closeManageModal}>
-          <div
-            className="settings-modal settings-modal--wide"
-            role="dialog"
-            aria-modal="true"
-            onClick={(event) => event.stopPropagation()}
-          >
-          <div className="settings-modal__head">
-            <div>
-              <div className="settings-title-row">
-                <h2>사용자 관리</h2>
-                  <div className="settings-tooltip">
-                    <button
-                      type="button"
-                      className="settings-tooltip__trigger"
-                      aria-label="사용자 관리 설명"
-                    >
-                      <CircleHelp size={15} />
-                    </button>
-                    <div className="settings-tooltip__content" role="tooltip">
-                      계정 정보 수정, 비밀번호 변경, 계정 비활성화를 할 수 있습니다.
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <button type="button" className="settings-modal__close" onClick={closeManageModal}>
-                닫기
-            </button>
-          </div>
-
-          {manageToastMessage ? (
-            <div className="settings-manage-toast" role="status">
-              {manageToastMessage}
-            </div>
-          ) : null}
-
-          {isDetailLoading ? (
-            <div className="settings-empty">사용자 상세 정보를 불러오는 중입니다.</div>
-          ) : !canManageSelectedUser ? (
-            <div className="settings-empty">사용자 상세 정보를 확인할 수 없습니다.</div>
-          ) : (
-            <div className="settings-stack">
-              <div className="settings-user-summary">
-                <strong>{selectedUser.name}</strong>
-                <span>{selectedUser.userId}</span>
-                <div className="settings-user-summary__grid">
-                  <div>권한: {getRoleLabel(selectedUser.role)}</div>
-                  <div>상태: {selectedUser.isActive ? "활성" : "비활성"}</div>
-                  <div>생성일: {formatDateTime(selectedUser.createdAt)}</div>
-                  <div>마지막 로그인: {formatDateTime(selectedUser.lastLoginAt, "로그인 이력 없음")}</div>
-                </div>
-              </div>
-
-              {selectedUser.isActive ? (
-                <>
-                  <form className="settings-form-stack" onSubmit={handleUpdateUser}>
-                    <div className="settings-form-grid">
-                      <label className="settings-field">
-                        <span>사용자 ID</span>
-                        <input name="userId" value={editForm.userId || ""} onChange={handleEditChange} />
-                      </label>
-                      <label className="settings-field">
-                        <span>이름</span>
-                        <input name="name" value={editForm.name || ""} onChange={handleEditChange} />
-                      </label>
-                    </div>
-
-                    <div className="settings-form-grid">
-                      <label className="settings-field">
-                        <span>권한</span>
-                          <select
-                            name="role"
-                            value={editForm.role || "MANAGER"}
-                            onChange={handleEditChange}
-                            disabled={isManagingOwnAccount || !isSuperAdmin}
-                          >
-                            {ROLE_OPTIONS.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                      </label>
-                    </div>
-
-                    {isGrantingSuperAdmin ? (
-                      <label className="settings-role-confirm">
-                        <input
-                          type="checkbox"
-                          checked={isEditSuperAdminConfirmed}
-                          onChange={(event) => setIsEditSuperAdminConfirmed(event.target.checked)}
-                        />
-                        <span>선택한 사용자를 최고 관리자로 변경하는 것을 확인했습니다.</span>
-                      </label>
-                    ) : null}
-
-                    <button
-                      type="submit"
-                      disabled={
-                        !canManageSelectedUser ||
-                        isUpdating ||
-                        !hasUserChanges ||
-                        (isGrantingSuperAdmin && !isEditSuperAdminConfirmed)
-                      }
-                      className="settings-primary-button"
-                    >
-                      {isUpdating ? "저장 중..." : "변경사항 저장"}
-                    </button>
-                  </form>
-
-                  {isManagingOwnAccount ? (
-                    <form className="settings-form-stack settings-divider" onSubmit={handleUpdatePassword}>
-                      <label className="settings-field">
-                        <span>기존 비밀번호</span>
-                        <div className={`settings-password-row${isCurrentPasswordVerified ? " is-locked" : ""}`}>
-                          <div className="settings-password-field">
-                            <input
-                              type={showCurrentPassword ? "text" : "password"}
-                              name="currentPassword"
-                              value={passwordForm.currentPassword || ""}
-                              onChange={handlePasswordChange}
-                              placeholder="current password"
-                              disabled={isCurrentPasswordVerified}
-                            />
-                            <button
-                              type="button"
-                              className="settings-password-toggle"
-                              onClick={() => setShowCurrentPassword((prev) => !prev)}
-                              aria-label={showCurrentPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                              disabled={isCurrentPasswordVerified}
-                            >
-                              {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                            </button>
-                          </div>
-                          <button
-                            type="button"
-                            className="settings-secondary-button settings-password-verify-button"
-                            onClick={() => void handleVerifyCurrentPassword()}
-                            disabled={
-                              !canManageSelectedUser ||
-                              isCurrentPasswordVerified ||
-                              isVerifyingCurrentPassword ||
-                              !passwordForm.currentPassword.trim()
-                            }
-                          >
-                            {isVerifyingCurrentPassword ? "확인 중..." : "기존 비밀번호 확인"}
-                          </button>
-                        </div>
-                        {passwordVerifyMessage ? (
-                          <small className="settings-field-success">{passwordVerifyMessage}</small>
-                        ) : null}
-                        {passwordErrorMessage ? (
-                          <small className="settings-field-error">{passwordErrorMessage}</small>
-                        ) : null}
-                      </label>
-
-                      <label className="settings-field">
-                        <span>새 비밀번호</span>
-                        <div className="settings-password-field">
-                          <input
-                            type={showNewPassword ? "text" : "password"}
-                            name="newPassword"
-                            value={passwordForm.newPassword || ""}
-                            onChange={handlePasswordChange}
-                            placeholder="new password"
-                            disabled={!isCurrentPasswordVerified}
-                          />
-                          <button
-                            type="button"
-                            className="settings-password-toggle"
-                            onClick={() => setShowNewPassword((prev) => !prev)}
-                            aria-label={showNewPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                            disabled={!isCurrentPasswordVerified}
-                          >
-                            {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                        </div>
-                        {samePasswordMessage && !passwordErrorMessage ? (
-                          <small className="settings-field-error">{samePasswordMessage}</small>
-                        ) : null}
-                      </label>
-
-                      <label className="settings-field">
-                        <span>새 비밀번호 확인</span>
-                        <div className="settings-password-field">
-                          <input
-                            type={showNewPassword ? "text" : "password"}
-                            name="confirmNewPassword"
-                            value={passwordForm.confirmNewPassword || ""}
-                            onChange={handlePasswordChange}
-                            placeholder="confirm new password"
-                            disabled={!isCurrentPasswordVerified}
-                          />
-                          <button
-                            type="button"
-                            className="settings-password-toggle"
-                            onClick={() => setShowNewPassword((prev) => !prev)}
-                            aria-label={showNewPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                            disabled={!isCurrentPasswordVerified}
-                          >
-                            {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                        </div>
-                        {newPasswordMismatchMessage && !passwordErrorMessage ? (
-                          <small className="settings-field-error">{newPasswordMismatchMessage}</small>
-                        ) : null}
-                      </label>
-
-                      <button
-                        type="submit"
-                        disabled={
-                          !canManageSelectedUser ||
-                          isChangingPassword ||
-                          !hasPasswordChange ||
-                          isSamePassword ||
-                          isNewPasswordMismatch ||
-                          !isCurrentPasswordVerified
-                        }
-                        className="settings-secondary-button"
-                      >
-                        <KeyRound size={15} />
-                        {isChangingPassword ? "변경 중..." : "비밀번호 저장"}
-                      </button>
-                    </form>
-                  ) : null}
-
-                  {isSuperAdmin && !isManagingOwnAccount ? (
-                    <form
-                      className="settings-form-stack settings-divider"
-                      onSubmit={handleResetUserPassword}
-                    >
-                      <div className="settings-reset-copy">
-                        <strong>비밀번호 초기화</strong>
-                        <span>임시 비밀번호를 설정한 뒤 안전한 방법으로 해당 사용자에게 전달해 주세요.</span>
-                      </div>
-                      <label className="settings-field">
-                        <span>임시 비밀번호</span>
-                        <div className="settings-password-field">
-                          <input
-                            type={showResetPassword ? "text" : "password"}
-                            name="newPassword"
-                            value={resetPasswordForm.newPassword || ""}
-                            onChange={handleResetPasswordChange}
-                            placeholder="8자 이상 입력"
-                            autoComplete="new-password"
-                          />
-                          <button
-                            type="button"
-                            className="settings-password-toggle"
-                            onClick={() => setShowResetPassword((prev) => !prev)}
-                            aria-label={showResetPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                          >
-                            {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                        </div>
-                      </label>
-                      <label className="settings-field">
-                        <span>임시 비밀번호 확인</span>
-                        <div className="settings-password-field">
-                          <input
-                            type={showResetPassword ? "text" : "password"}
-                            name="confirmNewPassword"
-                            value={resetPasswordForm.confirmNewPassword || ""}
-                            onChange={handleResetPasswordChange}
-                            placeholder="임시 비밀번호를 다시 입력"
-                            autoComplete="new-password"
-                          />
-                          <button
-                            type="button"
-                            className="settings-password-toggle"
-                            onClick={() => setShowResetPassword((prev) => !prev)}
-                            aria-label={showResetPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                          >
-                            {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                        </div>
-                        {isResetPasswordMismatch || resetPasswordErrorMessage ? (
-                          <small className="settings-field-error">
-                            {resetPasswordErrorMessage || "입력한 임시 비밀번호가 일치하지 않습니다."}
-                          </small>
-                        ) : null}
-                      </label>
-                      <button
-                        type="submit"
-                        disabled={
-                          !canManageSelectedUser ||
-                          isResettingPassword ||
-                          !resetPasswordForm.newPassword.trim() ||
-                          !resetPasswordForm.confirmNewPassword.trim() ||
-                          isResetPasswordMismatch
-                        }
-                        className="settings-secondary-button"
-                      >
-                        <KeyRound size={15} />
-                        {isResettingPassword ? "초기화 중..." : "임시 비밀번호 설정"}
-                      </button>
-                    </form>
-                  ) : null}
-                </>
-              ) : (
-                <div className="settings-confirm-copy">
-                  비활성화된 계정은 정보 수정과 비밀번호 변경을 할 수 없습니다. 다시 사용하려면 아래에서
-                  계정을 활성화해 주세요.
-                </div>
-              )}
-
-              <div className="settings-divider settings-modal__footer">
-                {isSuperAdmin && !isManagingOwnAccount && selectedUser.isActive ? (
-                  <button
-                    type="button"
-                    onClick={openDeactivateConfirmModal}
-                    disabled={!canManageSelectedUser || isActivating || isDeactivating}
-                    className="settings-danger-button"
-                  >
-                    <UserX size={15} />
-                    {isDeactivating ? "비활성화 중..." : "사용자 비활성화"}
-                  </button>
-                ) : isSuperAdmin && !isManagingOwnAccount ? (
-                  <button
-                    type="button"
-                    onClick={openActivateConfirmModal}
-                    disabled={!canManageSelectedUser || isActivating || isDeactivating}
-                    className="settings-primary-button"
-                  >
-                    <Shield size={15} />
-                    {isActivating ? "활성화 중..." : "사용자 활성화"}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   function renderUsersSection() {
     if (!isSuperAdmin) {
       return (
@@ -1346,7 +994,60 @@ export default function SettingsPage() {
         isCreating={isCreating}
       />
 
-      {renderManageModal()}
+      <ManageUserModal
+        open={isManageModalOpen && Boolean(selectedUserId)}
+        onClose={closeManageModal}
+        user={selectedUser}
+        toastMessage={manageToastMessage}
+        isDetailLoading={isDetailLoading}
+        canManage={canManageSelectedUser}
+        isSuperAdmin={isSuperAdmin}
+        isManagingOwnAccount={isManagingOwnAccount}
+        onActivate={openActivateConfirmModal}
+        onDeactivate={openDeactivateConfirmModal}
+        isActivating={isActivating}
+        isDeactivating={isDeactivating}
+        edit={{
+          form: editForm,
+          onChange: handleEditChange,
+          onSubmit: handleUpdateUser,
+          isGrantingSuperAdmin,
+          superAdminConfirmed: isEditSuperAdminConfirmed,
+          onSuperAdminConfirmChange: setIsEditSuperAdminConfirmed,
+          isUpdating,
+          hasChanges: hasUserChanges,
+        }}
+        ownPassword={{
+          form: passwordForm,
+          onChange: handlePasswordChange,
+          onSubmit: handleUpdatePassword,
+          isVerified: isCurrentPasswordVerified,
+          onVerify: handleVerifyCurrentPassword,
+          isVerifying: isVerifyingCurrentPassword,
+          verifyMessage: passwordVerifyMessage,
+          errorMessage: passwordErrorMessage,
+          showCurrent: showCurrentPassword,
+          onToggleCurrent: () => setShowCurrentPassword((prev) => !prev),
+          showNew: showNewPassword,
+          onToggleNew: () => setShowNewPassword((prev) => !prev),
+          sameMessage: samePasswordMessage,
+          mismatchMessage: newPasswordMismatchMessage,
+          isChanging: isChangingPassword,
+          hasChange: hasPasswordChange,
+          isSame: isSamePassword,
+          isMismatch: isNewPasswordMismatch,
+        }}
+        resetPassword={{
+          form: resetPasswordForm,
+          onChange: handleResetPasswordChange,
+          onSubmit: handleResetUserPassword,
+          show: showResetPassword,
+          onToggle: () => setShowResetPassword((prev) => !prev),
+          isMismatch: isResetPasswordMismatch,
+          errorMessage: resetPasswordErrorMessage,
+          isResetting: isResettingPassword,
+        }}
+      />
 
       <ConfirmDialog
         open={isActivateConfirmOpen && Boolean(selectedUser)}
