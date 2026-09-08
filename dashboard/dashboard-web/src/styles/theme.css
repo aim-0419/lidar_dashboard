@@ -115,73 +115,10 @@
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  background: var(--page-bg);
-  color: var(--text);
-  font-family: var(--font);
-  font-size: 14px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
-
-#root {
-  margin: 0;
-  padding: 0;
-  text-align: left;
-}
-
-button {
-  font-family: inherit;
-}
-
-input,
-select,
-textarea {
-  font-family: inherit;
-}
-
-::selection {
-  background: var(--blue-300);
-  color: var(--navy-950);
-}
-
-/* ── 스크롤바 ─────────────────────────────────────────── */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
-}
-
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
-  border-radius: var(--r-pill);
-  background: var(--line-strong);
-  background-clip: content-box;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: var(--text-3);
-  background-clip: content-box;
-}
+/*
+ * 전역 reset·body·스크롤바 규칙은 아직 로그인 페이지에만 적용하기 위해 제외했다.
+ * 이 디자인 토큰을 앱 전체 기준으로 쓰기로 하면 그때 전역 규칙을 다시 넣는다.
+ */
 
 /* ── 공용 애니메이션 ──────────────────────────────────── */
 @keyframes ops-rise {
@@ -257,10 +194,11 @@ textarea {
   }
 }
 
+/* 접근성: 사용자가 모션 감소를 켰으면 로그인 화면 연출을 멈춘다. */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  .login-root *,
+  .login-root *::before,
+  .login-root *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;

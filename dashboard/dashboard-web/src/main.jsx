@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-// 디자인 토큰은 tailwind 프리플라이트 뒤에 올려 기본 스타일을 덮어쓴다.
+// 디자인 토큰(:root 변수)과 공용 keyframes. 현재는 로그인 페이지에서만 참조한다.
 import './styles/theme.css'
 import App from './App.jsx'
 
