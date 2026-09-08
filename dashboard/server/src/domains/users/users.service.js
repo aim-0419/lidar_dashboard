@@ -1,6 +1,7 @@
 const bcrypt = require("bcrypt");
 const { Prisma } = require("@prisma/client");
 const { prisma } = require("../../prisma/client");
+const { getUniqueConstraintTarget } = require("../../utils/prisma-error");
 const {
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_BYTES,
@@ -173,7 +174,7 @@ function parseUserListActiveFilter(value) {
 
 function handlePrismaError(error) {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-    const target = Array.isArray(error.meta?.target) ? error.meta.target.join(",") : String(error.meta?.target || "");
+    const target = getUniqueConstraintTarget(error);
 
     if (target.includes("user_id")) {
       throw createHttpError(409, "User ID already exists.");
