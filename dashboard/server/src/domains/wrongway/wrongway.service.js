@@ -63,6 +63,123 @@ function toDateOrNull(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function toKstStatDate(value) {
+  const date = toDateOrNull(value) || new Date();
+  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()));
+}
+
+// Prisma Json 컬럼에 저장할 수 있도록 undefined와 특수 객체 표현을 제거한다.
+function toJsonValue(value) {
+  return JSON.parse(JSON.stringify(value ?? null));
+}
+
+// 같은 source의 이전 작업이 끝난 뒤 다음 snapshot을 처리한다.
+// 서로 다른 라이다 PC의 요청은 각자 다른 큐를 사용하므로 병렬 처리가 가능하다.
+function enqueueBySource(source, task) {
+  const previous = sourceQueues.get(source) || Promise.resolve();
+  const current = previous.catch(() => undefined).then(task);
+  sourceQueues.set(source, current);
+
+  const cleanup = () => {
+    if (sourceQueues.get(source) === current) sourceQueues.delete(source);
+  };
+  current.then(cleanup, cleanup);
+
+  return current;
+}
+
+// timestamp, source, objects처럼 snapshot 전체를 처리하는 데 필요한 상위 필드를 검사한다.
+function validateSnapshot(snapshot) {
+  if (!snapshot.timestamp || !toDateOrNull(snapshot.timestamp)) {
+    throw createHttpError(400, "timestamp는 유효한 ISO 날짜 문자열이어야 합니다.", {
+      field: "timestamp",
+    });
+  }
+  if (!snapshot.sourceDeviceCode) {
+    throw createHttpError(400, "source 값이 필요합니다.", { field: "source" });
+  }
+  if (!snapshot.hasObjectsArray && !snapshot.isLegacySingleObject) {
+    throw createHttpError(400, "objects 배열이 필요합니다.", {
+      field: "objects",
+    });
+  }
+}
+
+// 일부 객체가 잘못되어도 정상 객체는 처리하되, 전부 잘못된 요청은 400으로 종료한다.
+function validateObjects(snapshot) {
+  const accepted = [];
+  const rejected = [];
+
+  for (const entry of snapshot.objects) {
+    const errors = [];
+    if (!entry.event.trackId) errors.push("track_id 값이 필요합니다.");
+    if (!entry.event.externalZoneId) errors.push("zone_id 값이 필요합니다.");
+    if (!SUPPORTED_TYPES.has(entry.event.originalType)) {
+      errors.push(`지원하지 않는 type입니다: ${entry.event.externalType || "EMPTY"}`);
+    }
+
+    if (errors.length) {
+      rejected.push({
+        index: entry.index,
+        trackId: entry.event.trackId || null,
+        type: entry.event.externalType || null,
+        action: "REJECTED",
+        errors,
+      });
+    } else {
+      accepted.push(entry);
+    }
+  }
+
+  if (snapshot.objects.length > 0 && !accepted.length) {
+    throw createHttpError(400, "처리할 수 있는 객체가 없습니다.", { rejected });
+  }
+
+  return { accepted, rejected };
+}
+
+// payload의 source를 내부 devices.device_code와 연결해 담당 구역까지 조회한다.
+async function findSourceDevice(sourceDeviceCode) {
+  return prisma.device.findUnique({
+    where: { deviceCode: sourceDeviceCode },
+    include: { zone: true },
+  });
+}
+
+// 같은 날짜·구역·라이다 PC의 통계 행을 생성하거나 기존 숫자에 증분을 더한다.
+async function incrementDailyStat(tx, snapshot, device, increments) {
+  const statDate = toKstStatDate(snapshot.timestamp);
+  const key = {
+    statDate_zoneId_deviceId: {
+      statDate,
+      zoneId: device.zoneId,
+      deviceId: device.id,
+    },
+  };
+
+  return tx.dailyTrafficStat.upsert({
+    where: key,
+    update: {
+      totalVehicleCount: { increment: increments.totalVehicleCount || 0 },
+      normalVehicleCount: { increment: increments.normalVehicleCount || 0 },
+      wrongWayCount: { increment: increments.wrongWayCount || 0 },
+      pedestrianEnteredCount: { increment: increments.pedestrianEnteredCount || 0 },
+      pedestrianExitedCount: { increment: increments.pedestrianExitedCount || 0 },
+    },
+    create: {
+      statDate,
+      zoneId: device.zoneId,
+      deviceId: device.id,
+      totalVehicleCount: increments.totalVehicleCount || 0,
+      normalVehicleCount: increments.normalVehicleCount || 0,
+      wrongWayCount: increments.wrongWayCount || 0,
+      pedestrianEnteredCount: increments.pedestrianEnteredCount || 0,
+      pedestrianExitedCount: increments.pedestrianExitedCount || 0,
+    },
+  });
+}
+
 function toStartOfDay(date) {
   const nextDate = new Date(date);
   nextDate.setHours(0, 0, 0, 0);
