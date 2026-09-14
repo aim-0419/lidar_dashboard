@@ -417,6 +417,106 @@
         },
       },
     },
+    "/api/signup-requests/email/send-code": {
+      post: {
+        tags: ["Signup Requests"],
+        summary: "가입 신청 이메일 인증코드 발송",
+        description:
+          "입력한 이메일로 6자리 인증코드를 발송합니다. 코드는 10분간 유효하며, 같은 이메일로는 60초마다 한 번만 재발송할 수 있습니다.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/SignupEmailSendCodeRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "발송 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupEmailSendCodeResponse" },
+              },
+            },
+          },
+          400: {
+            description: "이메일 형식 오류",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          409: {
+            description: "이미 사용 중이거나 대기 중인 가입 신청이 있는 이메일",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          429: {
+            description: "재발송 대기 시간(60초) 이내 재요청 또는 요청 횟수 제한 초과",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          502: {
+            description: "메일 발송 실패 (Resend 응답 실패 또는 타임아웃)",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/signup-requests/email/verify-code": {
+      post: {
+        tags: ["Signup Requests"],
+        summary: "가입 신청 이메일 인증코드 확인",
+        description:
+          "발송된 인증코드를 확인합니다. 이메일당 가장 최근에 발송된 코드만 유효하며, 시도는 5회로 제한됩니다. 인증에 성공하면 30분 이내에 가입 신청(POST /signup-requests)을 완료해야 합니다.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/SignupEmailVerifyCodeRequest" },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "인증 성공",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupEmailVerifyCodeResponse" },
+              },
+            },
+          },
+          400: {
+            description: "코드 형식 오류, 코드 불일치, 만료, 또는 이미 사용된 코드",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+          429: {
+            description: "시도 횟수(5회) 초과 또는 요청 횟수 제한 초과",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/SignupRequestErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/signup-requests/{id}/approve": {
       patch: {
         tags: ["Signup Requests"],
@@ -2891,6 +2991,34 @@
           ok: { type: "boolean", example: true },
           userId: { type: "string", example: "manager01" },
           available: { type: "boolean", example: true },
+        },
+      },
+      SignupEmailSendCodeRequest: {
+        type: "object",
+        required: ["email"],
+        properties: {
+          email: { type: "string", format: "email", example: "manager01@example.com" },
+        },
+      },
+      SignupEmailSendCodeResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
+          cooldownSeconds: { type: "integer", example: 60, description: "다음 재발송까지 대기해야 하는 시간(초)" },
+        },
+      },
+      SignupEmailVerifyCodeRequest: {
+        type: "object",
+        required: ["email", "code"],
+        properties: {
+          email: { type: "string", format: "email", example: "manager01@example.com" },
+          code: { type: "string", pattern: "^[0-9]{6}$", example: "123456" },
+        },
+      },
+      SignupEmailVerifyCodeResponse: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", example: true },
         },
       },
       SignupRequestItem: {

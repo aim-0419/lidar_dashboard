@@ -54,6 +54,12 @@ function createTestApp() {
             signupAvailabilityRateLimit: (req, res, next) => next(),
           };
         }
+        if (name.endsWith("/signup-email-rate-limit.middleware")) {
+          return {
+            signupEmailCodeSendRateLimit: (req, res, next) => next(),
+            signupEmailCodeVerifyRateLimit: (req, res, next) => next(),
+          };
+        }
         throw new Error(`Unexpected test dependency: ${name}`);
       },
     }, { filename });

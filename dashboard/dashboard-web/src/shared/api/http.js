@@ -324,6 +324,14 @@ export async function checkSignupRequestUserId(userId) {
   return getJson(`/api/signup-requests/availability?${query.toString()}`);
 }
 
+export async function sendSignupEmailCode(email) {
+  return postJson("/api/signup-requests/email/send-code", { email });
+}
+
+export async function verifySignupEmailCode(email, code) {
+  return postJson("/api/signup-requests/email/verify-code", { email, code });
+}
+
 export async function fetchSignupRequests(status, page = 1, limit = 20, options = {}) {
   const query = new URLSearchParams();
 
