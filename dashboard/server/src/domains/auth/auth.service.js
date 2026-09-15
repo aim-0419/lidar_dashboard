@@ -10,6 +10,7 @@ const { renderLayout } = require("../../emails/renderLayout");
 const { getPasswordValidationError, isValidPassword, MIN_PASSWORD_LENGTH, MAX_PASSWORD_BYTES } = require(
   "../../utils/credential-policy",
 );
+const { cleanupExpiredEmailVerifications } = require("../../utils/email-verification-maintenance");
 
 const INVALID_LOGIN_MESSAGE = "아이디 또는 비밀번호가 올바르지 않습니다.";
 const INVALID_REFRESH_TOKEN_MESSAGE = "유효하지 않은 refresh token입니다.";
@@ -33,6 +34,9 @@ const PASSWORD_RESET_GENERIC_RESPONSE = {
   message: "입력하신 이메일로 가입된 계정이 있다면 인증코드를 보냈습니다.",
 };
 const INVALID_PASSWORD_RESET_CODE_MESSAGE = "인증코드가 올바르지 않습니다.";
+// 계정이 없거나 쿨다운으로 실제 발송을 건너뛸 때도, 존재하는 계정과 비슷한 시간이 걸리도록
+// 더미로 해싱해 응답 시간 차이로 계정 존재 여부가 새는 것을 줄인다. 실제 코드로 쓰이지 않는다.
+const DUMMY_PASSWORD_RESET_CODE = "000000";
 
 // 이미 사용한 websocket 티켓을 메모리에 잠시 저장해 재사용을 막는다.
 const usedWebSocketTicketStore = new Map();
@@ -485,6 +489,10 @@ function validateNewPassword(password) {
 // 비밀번호를 잊은 사용자에게 6자리 인증코드를 발송한다.
 // 계정 존재 여부, 재발송 쿨다운, 메일 발송 성공 여부와 무관하게 항상 같은 응답을 돌려준다.
 async function requestPasswordResetCode({ email }) {
+  // 이 테이블은 가입 인증(SIGNUP)과 공유하는데, 비밀번호 찾기 쪽은 가입 신청 관리 화면처럼
+  // 주기적으로 열어보는 진입점이 없어 별도로 정리해 주지 않으면 만료 레코드가 계속 쌓인다.
+  await cleanupExpiredEmailVerifications(prisma);
+
   const normalizedEmail = normalizeEmail(email);
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
@@ -497,6 +505,10 @@ async function requestPasswordResetCode({ email }) {
   });
 
   if (!user || !user.isActive) {
+    // 실제 발송 경로(해싱+메일 전송)와 걸리는 시간을 비슷하게 맞춰, 응답 속도로 계정 존재
+    // 여부가 새지 않도록 한다. 네트워크 발송 시간까지 완전히 맞출 수는 없지만, 가장 큰
+    // 시간차 요인인 bcrypt 해싱 비용은 동일하게 맞춘다.
+    await bcrypt.hash(DUMMY_PASSWORD_RESET_CODE, 10);
     logger.info("password reset code request skipped: no matching active user", {
       email: normalizedEmail,
     });
@@ -504,19 +516,34 @@ async function requestPasswordResetCode({ email }) {
   }
 
   const now = new Date();
-  const latest = await prisma.emailVerification.findFirst({
-    where: { email: normalizedEmail, purpose: PASSWORD_RESET_PURPOSE },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (latest && now.getTime() - latest.createdAt.getTime() < PASSWORD_RESET_CODE_RESEND_COOLDOWN_SECONDS * 1000) {
-    logger.info("password reset code request skipped: cooldown active", { email: normalizedEmail });
-    return PASSWORD_RESET_GENERIC_RESPONSE;
-  }
-
   const code = generatePasswordResetCode();
   const codeHash = await bcrypt.hash(code, 10);
   const expiresAt = new Date(now.getTime() + PASSWORD_RESET_CODE_TTL_MINUTES * 60 * 1000);
+
+  // 쿨다운 확인과 레코드 생성을 이메일 단위 advisory lock으로 묶어 원자적으로 처리한다.
+  // (단순 조회 후 생성 방식은, 연속 클릭이나 여러 IP에서 거의 동시에 들어온 요청이 쿨다운
+  // 체크를 동시에 통과해 이메일이 중복 발송될 수 있다.)
+  const reserved = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`password_reset:${normalizedEmail}`}))`;
+
+    const latest = await tx.emailVerification.findFirst({
+      where: { email: normalizedEmail, purpose: PASSWORD_RESET_PURPOSE },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (latest && now.getTime() - latest.createdAt.getTime() < PASSWORD_RESET_CODE_RESEND_COOLDOWN_SECONDS * 1000) {
+      return null;
+    }
+
+    return tx.emailVerification.create({
+      data: { email: normalizedEmail, purpose: PASSWORD_RESET_PURPOSE, codeHash, expiresAt },
+    });
+  });
+
+  if (!reserved) {
+    logger.info("password reset code request skipped: cooldown active", { email: normalizedEmail });
+    return PASSWORD_RESET_GENERIC_RESPONSE;
+  }
 
   const html = renderLayout({
     heading: "비밀번호 재설정 인증코드",
@@ -537,12 +564,8 @@ async function requestPasswordResetCode({ email }) {
   // 발송 실패해도 계정 존재를 노출하지 않도록 동일 응답을 유지하고, 레코드는 남기지 않는다.
   if (!result.delivered && !result.skipped) {
     logger.warn("password reset code email failed", { email: normalizedEmail, error: result.error });
-    return PASSWORD_RESET_GENERIC_RESPONSE;
+    await prisma.emailVerification.deleteMany({ where: { id: reserved.id } });
   }
-
-  await prisma.emailVerification.create({
-    data: { email: normalizedEmail, purpose: PASSWORD_RESET_PURPOSE, codeHash, expiresAt },
-  });
 
   return PASSWORD_RESET_GENERIC_RESPONSE;
 }
@@ -571,20 +594,34 @@ async function verifyPasswordResetCode({ email, code }) {
     throw createHttpError(429, "시도 횟수를 초과했습니다. 인증코드를 다시 요청해 주세요.");
   }
 
+  // 시도 슬롯을 원자적으로 먼저 선점한다(attempts < MAX을 DB에서 다시 확인). 위 확인은
+  // 동시 요청 사이의 시차 때문에 완전하지 않으므로, 실제 소비되는 시도 횟수가 MAX를 넘지
+  // 못하게 하는 건 이 원자적 업데이트다.
+  const claim = await prisma.emailVerification.updateMany({
+    where: { id: verification.id, consumedAt: null, attempts: { lte: PASSWORD_RESET_CODE_MAX_ATTEMPTS - 1 } },
+    data: { attempts: { increment: 1 } },
+  });
+
+  if (claim.count !== 1) {
+    throw createHttpError(429, "시도 횟수를 초과했습니다. 인증코드를 다시 요청해 주세요.");
+  }
+
   const isMatch = await bcrypt.compare(normalizedCode, verification.codeHash);
 
   if (!isMatch) {
-    await prisma.emailVerification.update({
-      where: { id: verification.id },
-      data: { attempts: { increment: 1 } },
-    });
     throw createHttpError(400, INVALID_PASSWORD_RESET_CODE_MESSAGE);
   }
 
-  await prisma.emailVerification.update({
-    where: { id: verification.id },
+  // 일치할 때도 소비 처리를 원자적으로 한다 — 같은(올바른) 코드로 동시에 여러 요청이 와도
+  // 딱 하나만 resetToken을 받도록 한다.
+  const consumed = await prisma.emailVerification.updateMany({
+    where: { id: verification.id, consumedAt: null },
     data: { consumedAt: now },
   });
+
+  if (consumed.count !== 1) {
+    throw createHttpError(400, INVALID_PASSWORD_RESET_CODE_MESSAGE);
+  }
 
   const resetToken = jwt.sign(
     { type: PASSWORD_RESET_TOKEN_TYPE, email: normalizedEmail, verificationId: verification.id },
@@ -637,6 +674,19 @@ async function confirmPasswordReset({ resetToken, newPassword }) {
   const now = new Date();
 
   await prisma.$transaction(async (tx) => {
+    // resetToken 재사용을 막기 위해 소비 기록 자체를 지우는데, 이 삭제를 트랜잭션의 첫
+    // 동작이자 유일한 "진짜" 관문으로 삼는다. 같은 resetToken으로 온 동시 요청 중 딱 하나만
+    // 이 레코드를 지울 수 있고(count === 1), 나머지는 여기서 걸러져 비밀번호 변경까지
+    // 가지 못한다. 위쪽의 findUnique는 빠른 실패용 사전 확인일 뿐, 실제 보장은 이 조건부
+    // 삭제가 한다.
+    const claimed = await tx.emailVerification.deleteMany({
+      where: { id: verification.id, email: decoded.email },
+    });
+
+    if (claimed.count !== 1) {
+      throw createHttpError(400, "인증이 만료되었습니다. 처음부터 다시 시도해 주세요.");
+    }
+
     await tx.refreshToken.updateMany({
       where: { userId: user.id, revokedAt: null },
       data: { revokedAt: now },
@@ -655,9 +705,6 @@ async function confirmPasswordReset({ resetToken, newPassword }) {
         afterData: { sessionInvalidated: true },
       },
     });
-
-    // resetToken 재사용을 막기 위해 소비 기록 자체를 지운다. deleteMany라 이미 없어도 에러 없이 통과한다.
-    await tx.emailVerification.deleteMany({ where: { id: verification.id } });
   });
 
   logger.info("password reset completed", { userId: user.userId, userDbId: user.id });

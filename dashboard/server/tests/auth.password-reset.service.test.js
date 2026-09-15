@@ -8,7 +8,26 @@ const jsonwebtoken = require("jsonwebtoken");
 const JWT_SECRET = "test-jwt-secret";
 
 function matchesWhere(row, where = {}) {
-  return Object.entries(where).every(([key, condition]) => row[key] === condition);
+  if (Array.isArray(where.OR)) {
+    return where.OR.some((condition) => matchesWhere(row, condition));
+  }
+
+  return Object.entries(where).every(([key, condition]) => {
+    const value = row[key];
+
+    if (condition && typeof condition === "object" && !(condition instanceof Date)) {
+      // gt/lte/not은 같은 필드에 함께 올 수 있어(예: {not:null, lte:cutoff}) AND로 합친다.
+      let matches = true;
+      if (Object.hasOwn(condition, "gt")) matches = matches && value > condition.gt;
+      if (Object.hasOwn(condition, "lte")) matches = matches && value <= condition.lte;
+      if (Object.hasOwn(condition, "not")) {
+        matches = matches && (condition.not === null ? value !== null && value !== undefined : value !== condition.not);
+      }
+      return matches;
+    }
+
+    return value === condition;
+  });
 }
 
 function createFakePrisma({ users = [], emailVerifications = [] } = {}) {
@@ -83,6 +102,19 @@ function createFakePrisma({ users = [], emailVerifications = [] } = {}) {
         state.emailVerifications = state.emailVerifications.filter((row) => !matchesWhere(row, where));
         return { count: matched.length };
       },
+      updateMany: async ({ where, data }) => {
+        const matched = state.emailVerifications.filter((row) => matchesWhere(row, where));
+        matched.forEach((row) => {
+          for (const [key, value] of Object.entries(data)) {
+            if (value && typeof value === "object" && !(value instanceof Date) && Object.hasOwn(value, "increment")) {
+              row[key] = (row[key] || 0) + value.increment;
+              continue;
+            }
+            row[key] = value;
+          }
+        });
+        return { count: matched.length };
+      },
     },
     refreshToken: {
       updateMany: async ({ where, data }) => {
@@ -97,6 +129,7 @@ function createFakePrisma({ users = [], emailVerifications = [] } = {}) {
         return data;
       },
     },
+    $executeRaw: async () => 0,
     $transaction: async (callback) => callback(prisma),
   };
 
@@ -136,6 +169,9 @@ function loadAuthService(prisma, { sendEmailImpl, sendEmailCalls } = {}) {
       }
       if (name === "../../emails/renderLayout") {
         return require(path.resolve(__dirname, "../src/emails/renderLayout"));
+      }
+      if (name === "../../utils/email-verification-maintenance") {
+        return require(path.resolve(__dirname, "../src/utils/email-verification-maintenance"));
       }
       if (name === "../../utils/credential-policy") {
         return {

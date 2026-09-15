@@ -8,6 +8,10 @@ const { getUniqueConstraintTarget } = require("../../utils/prisma-error");
 const { sendEmail } = require("../../utils/mailer");
 const { renderLayout, escapeHtml } = require("../../emails/renderLayout");
 const {
+  EMAIL_VERIFIED_WINDOW_MINUTES,
+  cleanupExpiredEmailVerifications,
+} = require("../../utils/email-verification-maintenance");
+const {
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_BYTES,
   MIN_USER_ID_LENGTH,
@@ -42,7 +46,7 @@ const EMAIL_CODE_TTL_MINUTES = 10;
 const EMAIL_CODE_MAX_ATTEMPTS = 5;
 const EMAIL_CODE_RESEND_COOLDOWN_SECONDS = 60;
 // 이메일 인증 완료 후 이 시간 안에 가입 신청까지 마쳐야 인증이 유효하다.
-const EMAIL_VERIFIED_WINDOW_MINUTES = 30;
+// (EMAIL_VERIFIED_WINDOW_MINUTES 값 자체는 utils/email-verification-maintenance에서 가져온다.)
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -303,18 +307,38 @@ async function sendSignupEmailCode({ email }) {
   // 이미 사용 중이거나 대기 중인 이메일이면 코드를 보낼 필요가 없다.
   await ensureEmailAvailable(normalizedEmail);
 
-  const latest = await prisma.emailVerification.findFirst({
-    where: { email: normalizedEmail, purpose: EMAIL_VERIFICATION_PURPOSE_SIGNUP },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (latest && now.getTime() - latest.createdAt.getTime() < EMAIL_CODE_RESEND_COOLDOWN_SECONDS * 1000) {
-    throw createHttpError(429, "인증코드는 60초마다 재요청할 수 있습니다. 잠시 후 다시 시도해 주세요.");
-  }
-
   const code = generateSignupEmailCode();
   const codeHash = await bcrypt.hash(code, 10);
   const expiresAt = new Date(now.getTime() + EMAIL_CODE_TTL_MINUTES * 60 * 1000);
+
+  // 쿨다운 확인과 레코드 생성을 이메일 단위 advisory lock으로 묶어 원자적으로 처리한다.
+  // (단순 조회 후 생성 방식은, 연속 클릭이나 여러 IP에서 거의 동시에 들어온 요청이 쿨다운
+  // 체크를 동시에 통과해 이메일이 중복 발송될 수 있다.)
+  const reserved = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`signup_email:${normalizedEmail}`}))`;
+
+    const latest = await tx.emailVerification.findFirst({
+      where: { email: normalizedEmail, purpose: EMAIL_VERIFICATION_PURPOSE_SIGNUP },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (latest && now.getTime() - latest.createdAt.getTime() < EMAIL_CODE_RESEND_COOLDOWN_SECONDS * 1000) {
+      return null;
+    }
+
+    return tx.emailVerification.create({
+      data: {
+        email: normalizedEmail,
+        purpose: EMAIL_VERIFICATION_PURPOSE_SIGNUP,
+        codeHash,
+        expiresAt,
+      },
+    });
+  });
+
+  if (!reserved) {
+    throw createHttpError(429, "인증코드는 60초마다 재요청할 수 있습니다. 잠시 후 다시 시도해 주세요.");
+  }
 
   const html = renderLayout({
     heading: "이메일 인증코드",
@@ -335,17 +359,9 @@ async function sendSignupEmailCode({ email }) {
   // 실제 발송에 실패하면(개발 환경 skip 모드는 예외) 코드 레코드를 남기지 않는다.
   // "메일은 못 갔는데 DB엔 보낸 것처럼 남는" 상태를 피하기 위함이다.
   if (!result.delivered && !result.skipped) {
+    await prisma.emailVerification.deleteMany({ where: { id: reserved.id } });
     throw createHttpError(502, "인증코드 메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
   }
-
-  await prisma.emailVerification.create({
-    data: {
-      email: normalizedEmail,
-      purpose: EMAIL_VERIFICATION_PURPOSE_SIGNUP,
-      codeHash,
-      expiresAt,
-    },
-  });
 
   return { ok: true, cooldownSeconds: EMAIL_CODE_RESEND_COOLDOWN_SECONDS };
 }
@@ -382,20 +398,34 @@ async function verifySignupEmailCode({ email, code }) {
     throw createHttpError(429, "시도 횟수를 초과했습니다. 인증코드를 다시 요청해 주세요.");
   }
 
+  // 시도 슬롯을 원자적으로 먼저 선점한다(attempts < MAX을 DB에서 다시 확인). 위 확인은
+  // 동시 요청 사이의 시차 때문에 완전하지 않으므로, 실제 소비되는 시도 횟수가 MAX를 넘지
+  // 못하게 하는 건 이 원자적 업데이트다.
+  const claim = await prisma.emailVerification.updateMany({
+    where: { id: verification.id, consumedAt: null, attempts: { lte: EMAIL_CODE_MAX_ATTEMPTS - 1 } },
+    data: { attempts: { increment: 1 } },
+  });
+
+  if (claim.count !== 1) {
+    throw createHttpError(429, "시도 횟수를 초과했습니다. 인증코드를 다시 요청해 주세요.");
+  }
+
   const isMatch = await bcrypt.compare(normalizedCode, verification.codeHash);
 
   if (!isMatch) {
-    await prisma.emailVerification.update({
-      where: { id: verification.id },
-      data: { attempts: { increment: 1 } },
-    });
     throw createHttpError(400, "인증코드가 올바르지 않습니다.");
   }
 
-  await prisma.emailVerification.update({
-    where: { id: verification.id },
+  // 일치할 때도 소비 처리를 원자적으로 한다 — 같은(올바른) 코드로 동시에 여러 요청이 와도
+  // 딱 하나만 성공하도록 한다.
+  const consumed = await prisma.emailVerification.updateMany({
+    where: { id: verification.id, consumedAt: null },
     data: { consumedAt: now },
   });
+
+  if (consumed.count !== 1) {
+    throw createHttpError(400, "이미 사용된 인증코드입니다. 다시 요청해 주세요.");
+  }
 
   return { ok: true };
 }
@@ -428,24 +458,6 @@ function expirePendingSignupRequests(client, now = new Date()) {
     data: {
       status: SIGNUP_REQUEST_STATUS.EXPIRED,
       passwordHash: null,
-    },
-  });
-}
-
-// 인증에 쓰이지 않고 방치된 이메일 인증 레코드를 정리한다. createSignupRequest가 정상적으로
-// 소비(삭제)하지 않은 레코드만 대상이라, 정상 흐름에는 영향이 없다.
-// - 미사용(consumedAt 없음) 코드: 코드 만료 시각(expiresAt)이 지나면 삭제
-// - 인증은 했지만(consumedAt 있음) 가입 신청까지 이어지지 않은 레코드: 인증 유효 창
-//   (EMAIL_VERIFIED_WINDOW_MINUTES)이 지나면 삭제 — 그 전까지는 createSignupRequest가 아직 쓸 수 있으므로 보존
-function cleanupExpiredEmailVerifications(client, now = new Date()) {
-  const verifiedWindowCutoff = new Date(now.getTime() - EMAIL_VERIFIED_WINDOW_MINUTES * 60 * 1000);
-
-  return client.emailVerification.deleteMany({
-    where: {
-      OR: [
-        { consumedAt: null, expiresAt: { lte: now } },
-        { consumedAt: { not: null, lte: verifiedWindowCutoff } },
-      ],
     },
   });
 }

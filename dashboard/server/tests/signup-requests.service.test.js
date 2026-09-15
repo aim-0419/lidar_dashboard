@@ -158,6 +158,11 @@ function createFakePrisma({
         state.emailVerifications = state.emailVerifications.filter((row) => !matchesWhere(row, where));
         return { count: matched.length };
       },
+      updateMany: async ({ where, data }) => {
+        const matched = state.emailVerifications.filter((row) => matchesWhere(row, where));
+        matched.forEach((row) => applyUpdateData(row, data));
+        return { count: matched.length };
+      },
     },
     eventLog: {
       create: async ({ data }) => {
@@ -208,6 +213,9 @@ function loadSignupRequestsService(prisma, { sendEmailImpl, sendEmailCalls } = {
       }
       if (name === "../../emails/renderLayout") {
         return require(path.resolve(__dirname, "../src/emails/renderLayout"));
+      }
+      if (name === "../../utils/email-verification-maintenance") {
+        return require(path.resolve(__dirname, "../src/utils/email-verification-maintenance"));
       }
       if (name === "../../utils/credential-policy") {
         return {
