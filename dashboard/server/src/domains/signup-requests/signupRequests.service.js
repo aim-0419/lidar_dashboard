@@ -369,7 +369,9 @@ async function sendSignupEmailCode({ email }) {
 // 사용자가 입력한 인증코드가 방금 발송된 코드와 일치하는지 확인한다.
 async function verifySignupEmailCode({ email, code }) {
   const normalizedEmail = validateEmail(email);
-  const normalizedCode = String(code || "").trim();
+  // code ?? "" (|| 아님): 클라이언트가 "000000"처럼 0으로만 이뤄진 코드를 JSON 숫자로 보내면
+  // 값이 숫자 0이 되어 falsy라 code || ""가 빈 문자열로 지워버린다.
+  const normalizedCode = String(code ?? "").trim();
 
   if (!/^\d{6}$/.test(normalizedCode)) {
     throw createHttpError(400, "인증코드는 숫자 6자리로 입력해야 합니다.");
@@ -594,7 +596,15 @@ async function createSignupRequest({ userId, name, password, email, phoneNumber 
         select: getSignupRequestSelect(),
       });
 
-      await tx.emailVerification.delete({ where: { id: verification.id } });
+      // delete()가 아니라 deleteMany()로 지운다: 같은 이메일로 동시에 두 번 제출되면(예: 이중
+      // 클릭, 두 탭) 둘 다 여기까지 도달할 수 있는데, delete()는 먼저 지워진 뒤엔 "레코드
+      // 없음" 에러(P2025)를 던져 그대로 500으로 샌다. deleteMany()는 에러 없이 0건을
+      // 돌려주므로, 그걸로 "이미 다른 요청이 이 인증을 써버렸다"를 깔끔하게 판별한다.
+      const consumed = await tx.emailVerification.deleteMany({ where: { id: verification.id } });
+
+      if (consumed.count !== 1) {
+        throw createHttpError(400, "이메일 인증이 이미 사용되었습니다. 인증을 다시 진행해 주세요.");
+      }
 
       return created;
     });

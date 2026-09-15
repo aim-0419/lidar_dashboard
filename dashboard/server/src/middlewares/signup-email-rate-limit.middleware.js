@@ -32,6 +32,31 @@ const signupEmailCodeSendRateLimit = rateLimit({
   },
 });
 
+// IP 기준 제한은 공격자가 IP를 여러 개로 나눠 같은 이메일을 노리면 사실상 무력화된다.
+// 이메일 기준으로도 따로 제한해서, 한 계정(이메일)에 대한 총 시도량 자체를 막는다.
+const signupEmailCodeSendByEmailRateLimit = rateLimit({
+  windowMs: WINDOW_MS,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator(req) {
+    return normalizeKeyPart(req.body?.email);
+  },
+  handler(req, res) {
+    logger.warn("signup email code send blocked by per-email rate limit", {
+      email: req.body?.email,
+      ipAddress: req.ip,
+      path: req.originalUrl,
+      method: req.method,
+    });
+
+    res.status(429).json({
+      ok: false,
+      message: "인증코드 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+    });
+  },
+});
+
 // 코드 확인은 정상적인 오타 재시도를 감안해 발송보다 여유 있게 허용한다.
 // (레코드별 시도 횟수 제한은 서비스 로직에서 별도로 적용된다.)
 const signupEmailCodeVerifyRateLimit = rateLimit({
@@ -57,4 +82,33 @@ const signupEmailCodeVerifyRateLimit = rateLimit({
   },
 });
 
-module.exports = { signupEmailCodeSendRateLimit, signupEmailCodeVerifyRateLimit };
+// IP 분산 공격으로부터 특정 이메일(계정)의 실제 코드 추측 시도 총량을 제한한다.
+const signupEmailCodeVerifyByEmailRateLimit = rateLimit({
+  windowMs: WINDOW_MS,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator(req) {
+    return normalizeKeyPart(req.body?.email);
+  },
+  handler(req, res) {
+    logger.warn("signup email code verify blocked by per-email rate limit", {
+      email: req.body?.email,
+      ipAddress: req.ip,
+      path: req.originalUrl,
+      method: req.method,
+    });
+
+    res.status(429).json({
+      ok: false,
+      message: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+    });
+  },
+});
+
+module.exports = {
+  signupEmailCodeSendRateLimit,
+  signupEmailCodeSendByEmailRateLimit,
+  signupEmailCodeVerifyRateLimit,
+  signupEmailCodeVerifyByEmailRateLimit,
+};

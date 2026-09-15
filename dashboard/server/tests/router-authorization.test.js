@@ -57,13 +57,17 @@ function createTestApp() {
         if (name.endsWith("/signup-email-rate-limit.middleware")) {
           return {
             signupEmailCodeSendRateLimit: (req, res, next) => next(),
+            signupEmailCodeSendByEmailRateLimit: (req, res, next) => next(),
             signupEmailCodeVerifyRateLimit: (req, res, next) => next(),
+            signupEmailCodeVerifyByEmailRateLimit: (req, res, next) => next(),
           };
         }
         if (name.endsWith("/password-reset-rate-limit.middleware")) {
           return {
             passwordResetSendCodeRateLimit: (req, res, next) => next(),
+            passwordResetSendCodeByEmailRateLimit: (req, res, next) => next(),
             passwordResetVerifyCodeRateLimit: (req, res, next) => next(),
+            passwordResetVerifyCodeByEmailRateLimit: (req, res, next) => next(),
             passwordResetConfirmRateLimit: (req, res, next) => next(),
           };
         }

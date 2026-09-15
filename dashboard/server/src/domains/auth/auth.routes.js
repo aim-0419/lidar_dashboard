@@ -3,7 +3,9 @@ const { authenticateToken } = require("../../middlewares/auth.middleware");
 const { loginRateLimit } = require("../../middlewares/login-rate-limit.middleware");
 const {
   passwordResetSendCodeRateLimit,
+  passwordResetSendCodeByEmailRateLimit,
   passwordResetVerifyCodeRateLimit,
+  passwordResetVerifyCodeByEmailRateLimit,
   passwordResetConfirmRateLimit,
 } = require("../../middlewares/password-reset-rate-limit.middleware");
 const {
@@ -24,8 +26,18 @@ router.post("/auth/refresh", refresh);
 router.post("/auth/logout", logout);
 router.post("/auth/ws-ticket", authenticateToken, wsTicket); // 실시간 대시보드 연결 전에 사용할 websocket 티켓 발급 API.
 router.get("/auth/me", authenticateToken, me);
-router.post("/auth/password-reset/send-code", passwordResetSendCodeRateLimit, requestPasswordResetCode);
-router.post("/auth/password-reset/verify-code", passwordResetVerifyCodeRateLimit, verifyPasswordResetCode);
+router.post(
+  "/auth/password-reset/send-code",
+  passwordResetSendCodeRateLimit,
+  passwordResetSendCodeByEmailRateLimit,
+  requestPasswordResetCode,
+);
+router.post(
+  "/auth/password-reset/verify-code",
+  passwordResetVerifyCodeRateLimit,
+  passwordResetVerifyCodeByEmailRateLimit,
+  verifyPasswordResetCode,
+);
 router.post("/auth/password-reset/confirm", passwordResetConfirmRateLimit, confirmPasswordReset);
 
 module.exports = router;

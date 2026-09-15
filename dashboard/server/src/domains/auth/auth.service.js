@@ -574,7 +574,9 @@ async function requestPasswordResetCode({ email }) {
 // "코드를 요청한 적 없음"과 "코드가 틀림"을 같은 오류로 응답해 계정 존재 여부가 새지 않게 한다.
 async function verifyPasswordResetCode({ email, code }) {
   const normalizedEmail = normalizeEmail(email);
-  const normalizedCode = String(code || "").trim();
+  // code ?? "" (|| 아님): 클라이언트가 "000000"처럼 0으로만 이뤄진 코드를 JSON 숫자로 보내면
+  // 값이 숫자 0이 되어 falsy라 code || ""가 빈 문자열로 지워버린다.
+  const normalizedCode = String(code ?? "").trim();
 
   if (!/^\d{6}$/.test(normalizedCode)) {
     throw createHttpError(400, "인증코드는 숫자 6자리로 입력해야 합니다.");
