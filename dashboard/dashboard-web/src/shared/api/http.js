@@ -353,6 +353,18 @@ export async function rejectSignupRequest(id, rejectReason) {
   return patchJson(`/api/signup-requests/${id}/reject`, { rejectReason });
 }
 
+export async function requestPasswordResetCode(email) {
+  return postJson("/api/auth/password-reset/send-code", { email });
+}
+
+export async function verifyPasswordResetCode(email, code) {
+  return postJson("/api/auth/password-reset/verify-code", { email, code });
+}
+
+export async function confirmPasswordReset(resetToken, newPassword) {
+  return postJson("/api/auth/password-reset/confirm", { resetToken, newPassword });
+}
+
 export async function initializeAccessToken() {
   // 새로고침 후 메모리 토큰이 비어 있으면 refresh cookie로 다시 복구한다.
   if (accessToken) {

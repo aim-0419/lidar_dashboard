@@ -2,9 +2,11 @@ const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const { Prisma } = require("@prisma/client");
 const { prisma } = require("../../prisma/client");
+const { config } = require("../../config");
+const { logger } = require("../../utils/logger");
 const { getUniqueConstraintTarget } = require("../../utils/prisma-error");
 const { sendEmail } = require("../../utils/mailer");
-const { renderLayout } = require("../../emails/renderLayout");
+const { renderLayout, escapeHtml } = require("../../emails/renderLayout");
 const {
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_BYTES,
@@ -704,9 +706,43 @@ async function approveSignupRequest({ id, reviewerId }) {
       });
     });
 
+    await sendApprovalNotificationEmail(approvedRequest);
+
     return serializeSignupRequest(approvedRequest);
   } catch (error) {
     handlePrismaError(error);
+  }
+}
+
+// 승인 완료 안내 메일. 발송 실패해도 승인 자체는 이미 끝난 뒤라 로그만 남기고 넘어간다.
+async function sendApprovalNotificationEmail(approvedRequest) {
+  if (!approvedRequest?.email) {
+    return;
+  }
+
+  const loginUrl = `${config.mail.appBaseUrl}/login`;
+  const html = renderLayout({
+    heading: "가입 승인 안내",
+    contentHtml:
+      `<p>안녕하세요, ${escapeHtml(approvedRequest.name)}님.</p>` +
+      `<p>가입 신청하신 계정(<strong>${escapeHtml(approvedRequest.userId)}</strong>)이 승인되어 이제 로그인할 수 있습니다.</p>` +
+      `<p><a href="${loginUrl}" style="color:#2563eb;">${loginUrl}</a></p>`,
+    footerNote: "본인이 신청하지 않았다면 관리자에게 문의해 주세요.",
+  });
+
+  const result = await sendEmail({
+    to: approvedRequest.email,
+    subject: "[라이다 관제] 가입 승인 안내",
+    html,
+    text: `${approvedRequest.userId}님의 가입 신청이 승인되었습니다. 로그인: ${loginUrl}`,
+  });
+
+  if (!result.delivered && !result.skipped) {
+    logger.warn("signup approval notification email failed", {
+      signupRequestId: approvedRequest.id,
+      email: approvedRequest.email,
+      error: result.error,
+    });
   }
 }
 

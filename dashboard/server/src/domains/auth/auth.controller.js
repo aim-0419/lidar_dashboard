@@ -172,4 +172,72 @@ async function wsTicket(req, res) {
   }
 }
 
-module.exports = { login, refresh, logout, me, wsTicket };
+async function requestPasswordResetCode(req, res) {
+  try {
+    const result = await authService.requestPasswordResetCode({ email: req.body?.email });
+    res.status(200).json(result);
+  } catch (error) {
+    logger.warn("password reset code request failed in controller", {
+      statusCode: error.statusCode,
+      message: error.message,
+    });
+
+    res.status(error.statusCode || 500).json({
+      ok: false,
+      message: getPublicMessage(error, "인증코드 발송 중 오류가 발생했습니다."),
+    });
+  }
+}
+
+async function verifyPasswordResetCode(req, res) {
+  try {
+    const result = await authService.verifyPasswordResetCode({
+      email: req.body?.email,
+      code: req.body?.code,
+    });
+
+    res.status(200).json(result);
+  } catch (error) {
+    logger.warn("password reset code verification failed in controller", {
+      statusCode: error.statusCode,
+      message: error.message,
+    });
+
+    res.status(error.statusCode || 500).json({
+      ok: false,
+      message: getPublicMessage(error, "인증코드 확인 중 오류가 발생했습니다."),
+    });
+  }
+}
+
+async function confirmPasswordReset(req, res) {
+  try {
+    const result = await authService.confirmPasswordReset({
+      resetToken: req.body?.resetToken,
+      newPassword: req.body?.newPassword,
+    });
+
+    res.status(200).json(result);
+  } catch (error) {
+    logger.warn("password reset confirmation failed in controller", {
+      statusCode: error.statusCode,
+      message: error.message,
+    });
+
+    res.status(error.statusCode || 500).json({
+      ok: false,
+      message: getPublicMessage(error, "비밀번호 재설정 중 오류가 발생했습니다."),
+    });
+  }
+}
+
+module.exports = {
+  login,
+  refresh,
+  logout,
+  me,
+  wsTicket,
+  requestPasswordResetCode,
+  verifyPasswordResetCode,
+  confirmPasswordReset,
+};

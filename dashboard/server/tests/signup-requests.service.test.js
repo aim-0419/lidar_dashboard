@@ -189,6 +189,12 @@ function loadSignupRequestsService(prisma, { sendEmailImpl, sendEmailCalls } = {
       }
       if (name === "@prisma/client") return { Prisma: { PrismaClientKnownRequestError } };
       if (name === "../../prisma/client") return { prisma };
+      if (name === "../../config") {
+        return { config: { mail: { appBaseUrl: "http://localhost:5173" } } };
+      }
+      if (name === "../../utils/logger") {
+        return { logger: { info() {}, warn() {}, error() {} } };
+      }
       if (name === "../../utils/prisma-error") {
         return require(path.resolve(__dirname, "../src/utils/prisma-error"));
       }
@@ -366,6 +372,34 @@ test("승인 시 사용자 계정을 만들고 가입 신청 비밀번호 해시
   assert.equal(state.users[0].isActive, true);
   assert.equal(state.requests[0].passwordHash, null);
   assert.equal(state.eventLogs[0].action, "SIGNUP_REQUEST_APPROVED");
+});
+
+test("승인하면 신청자에게 승인 안내 메일을 보낸다", async () => {
+  const { prisma } = createFakePrisma({ requests: [createPendingRequest()] });
+  const sendEmailCalls = [];
+  const service = loadSignupRequestsService(prisma, {
+    sendEmailCalls,
+    sendEmailImpl: async () => ({ delivered: true, id: "email-1" }),
+  });
+
+  await service.approveSignupRequest({ id: "request-1", reviewerId: "admin-1" });
+
+  assert.equal(sendEmailCalls.length, 1);
+  assert.equal(sendEmailCalls[0].to, "manager01@example.com");
+  assert.match(sendEmailCalls[0].subject, /승인/);
+  assert.match(sendEmailCalls[0].html, /manager01/);
+});
+
+test("승인 안내 메일 발송이 실패해도 승인 자체는 성공한다", async () => {
+  const { prisma, state } = createFakePrisma({ requests: [createPendingRequest()] });
+  const service = loadSignupRequestsService(prisma, {
+    sendEmailImpl: async () => ({ delivered: false, error: "타임아웃" }),
+  });
+
+  const request = await service.approveSignupRequest({ id: "request-1", reviewerId: "admin-1" });
+
+  assert.equal(request.status, "APPROVED");
+  assert.equal(state.users.length, 1);
 });
 
 test("반려와 보관 기간 만료 시 비밀번호 해시 및 개인정보를 정리한다", async () => {

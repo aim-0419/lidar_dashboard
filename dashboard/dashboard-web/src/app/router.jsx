@@ -3,6 +3,7 @@ import RequireAuth from "../features/auth/RequireAuth";
 import RequireRole from "../features/auth/RequireRole";
 
 import LoginPage from "../pages/Login/LoginPage";
+import ForgotPasswordPage from "../pages/ForgotPassword/ForgotPasswordPage";
 import SignupRequestPage from "../pages/SignupRequest/SignupRequestPage";
 import SignupRequestsPage from "../pages/SignupRequests/SignupRequestsPage";
 import DashboardPage from "../pages/Dashboard/DashboardPage";
@@ -22,6 +23,7 @@ export default function AppRouter() {
       <Routes>
         {/* 로그인 화면은 인증 없이 접근할 수 있다. */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/signup-request" element={<SignupRequestPage />} />
 
         {/* 아래 라우트들은 로그인한 사용자만 접근할 수 있다. */}

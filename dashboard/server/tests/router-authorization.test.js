@@ -60,6 +60,13 @@ function createTestApp() {
             signupEmailCodeVerifyRateLimit: (req, res, next) => next(),
           };
         }
+        if (name.endsWith("/password-reset-rate-limit.middleware")) {
+          return {
+            passwordResetSendCodeRateLimit: (req, res, next) => next(),
+            passwordResetVerifyCodeRateLimit: (req, res, next) => next(),
+            passwordResetConfirmRateLimit: (req, res, next) => next(),
+          };
+        }
         throw new Error(`Unexpected test dependency: ${name}`);
       },
     }, { filename });

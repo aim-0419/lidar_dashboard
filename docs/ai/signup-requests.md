@@ -18,6 +18,19 @@
 - 만료됐거나 인증 후 방치된 레코드는 기존 가입 신청 정리 작업(`runSignupRequestMaintenance`, 1시간마다)에서 함께 정리됩니다.
 - 전화번호 소유 확인 방식은 아직 미정입니다 (아래 후속 결정 항목).
 
+## 승인 완료 알림 메일
+
+- `PATCH /signup-requests/:id/approve`로 승인이 완료되면, 신청자 이메일로 승인 안내 메일(로그인 링크 포함)을 보냅니다.
+- 메일 발송은 fire-and-forget입니다: 발송에 실패해도 승인 자체(계정 생성)는 이미 끝난 뒤이므로 실패 로그만 남기고 넘어갑니다.
+
+## 비밀번호 찾기 (재설정)
+
+- 로그인 화면의 "비밀번호를 잊으셨나요?" → `/forgot-password`. 가입 신청과 동일한 6자리 인증코드 방식입니다.
+- `POST /auth/password-reset/send-code`, `/verify-code`, `/confirm` 3단계입니다. `EmailVerification` 테이블을 가입 인증과 공유하되 `purpose="PASSWORD_RESET"`으로 구분합니다.
+- **계정 존재 여부를 노출하지 않도록 설계**되어 있습니다: send-code는 계정 존재/쿨다운/메일 발송 성공 여부와 무관하게 항상 같은 응답을 주고, verify-code는 "코드를 요청한 적 없음"과 "코드가 틀림"을 같은 오류로 응답합니다.
+- verify-code 성공 시 15분 유효 `resetToken`(JWT)을 발급하고, 이 토큰으로만 confirm에서 새 비밀번호를 설정할 수 있습니다. confirm 성공 시 해당 계정의 기존 로그인 세션(refreshToken)을 모두 무효화합니다.
+- resetToken은 JWT라 자체적으로 1회용이 아니지만, verify-code에서 소비(consumedAt 기록)한 `EmailVerification` 레코드가 confirm 성공 시 삭제되므로 같은 resetToken을 재사용할 수 없습니다.
+
 ## 중복 방지와 보안
 
 - `users`에 이미 존재하는 `user_id`, `email`, `phone_number`는 가입 신청에 사용할 수 없습니다.
@@ -44,4 +57,4 @@
 
 - ~~이메일 소유 확인 방식~~ → 인증코드 방식으로 해결 (위 "이메일 소유 확인" 참고)
 - 전화번호 소유 확인 방식 (미정)
-- 승인 완료 알림 메일, 비밀번호 찾기(재설정) — 아직 미구현
+- ~~승인 완료 알림 메일, 비밀번호 찾기(재설정)~~ → 구현 완료 (위 각 섹션 참고)

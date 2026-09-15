@@ -165,6 +165,9 @@ export default function LoginPage() {
             <Link to="/signup-request" className="login-signup">
               관리자 계정 가입 신청
             </Link>
+            <Link to="/forgot-password" className="login-signup">
+              비밀번호를 잊으셨나요?
+            </Link>
           </div>
         </section>
       </div>
