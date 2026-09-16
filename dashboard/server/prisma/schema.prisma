@@ -74,6 +74,22 @@ model SignupRequest {
   @@map("signup_requests")
 }
 
+model EmailVerification {
+  id         String    @id @default(cuid())
+  email      String
+  // 현재는 "SIGNUP"만 사용. 비밀번호 재설정(후속 PR)에서 "PASSWORD_RESET"으로 재사용 예정.
+  purpose    String
+  codeHash   String    @map("code_hash")
+  expiresAt  DateTime  @map("expires_at")
+  attempts   Int       @default(0)
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([email, purpose])
+  @@index([expiresAt])
+  @@map("email_verifications")
+}
+
 model Site {
   id          String   @id @default(cuid())
   name        String

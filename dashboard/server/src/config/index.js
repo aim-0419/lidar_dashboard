@@ -51,6 +51,20 @@ if (!jwtRefreshSecret) {
   throw new Error("JWT_REFRESH_SECRET 환경변수가 필요합니다.");
 }
 
+// 이메일 발송(Resend) 설정입니다.
+// API 키가 없어도 서버는 정상 시작하며, 이 경우 실제 발송 대신 로그만 남깁니다.
+const mailApiKey = (process.env.RESEND_API_KEY || "").trim();
+const mailFrom = (process.env.MAIL_FROM || "Lidar Dashboard <onboarding@resend.dev>").trim();
+const appBaseUrl = (process.env.APP_BASE_URL || frontendBaseUrl).replace(/\/+$/, "");
+
+const mail = {
+  apiKey: mailApiKey,
+  from: mailFrom,
+  appBaseUrl,
+  // 키가 있을 때만 실제 발송을 시도하고, 없으면 로그 전용으로 동작합니다.
+  enabled: Boolean(mailApiKey),
+};
+
 // 프론트 빌드 결과물 경로를 서버 정적 파일 제공용으로 보관합니다.
 const distPath = path.join(serverRoot, "../dashboard-web/dist");
 
@@ -70,6 +84,7 @@ module.exports = {
     controlBoardTimeoutMs,
     jwtSecret,
     jwtRefreshSecret,
+    mail,
     distPath,
   },
 };

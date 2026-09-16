@@ -61,6 +61,7 @@
 - 백엔드는 이미 떠 있는 데모 서버에 HTTP 요청만 전달합니다.
 - 실제 운영 또는 현장 설정이 들어간 `config.json`은 Git에 올리지 않습니다.
 - `config.example.json`에는 예시값만 유지합니다.
+- 이메일 발송은 `RESEND_API_KEY`, `MAIL_FROM`, `APP_BASE_URL`을 사용합니다. `RESEND_API_KEY`는 실제 `.env`에만 입력하고, 비어 있으면 서버가 실제 발송 없이 로그만 남깁니다.
 
 ## 데모 서버
 

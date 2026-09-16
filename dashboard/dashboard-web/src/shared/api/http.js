@@ -324,6 +324,14 @@ export async function checkSignupRequestUserId(userId) {
   return getJson(`/api/signup-requests/availability?${query.toString()}`);
 }
 
+export async function sendSignupEmailCode(email) {
+  return postJson("/api/signup-requests/email/send-code", { email });
+}
+
+export async function verifySignupEmailCode(email, code) {
+  return postJson("/api/signup-requests/email/verify-code", { email, code });
+}
+
 export async function fetchSignupRequests(status, page = 1, limit = 20, options = {}) {
   const query = new URLSearchParams();
 
@@ -343,6 +351,18 @@ export async function approveSignupRequest(id) {
 
 export async function rejectSignupRequest(id, rejectReason) {
   return patchJson(`/api/signup-requests/${id}/reject`, { rejectReason });
+}
+
+export async function requestPasswordResetCode(email) {
+  return postJson("/api/auth/password-reset/send-code", { email });
+}
+
+export async function verifyPasswordResetCode(email, code) {
+  return postJson("/api/auth/password-reset/verify-code", { email, code });
+}
+
+export async function confirmPasswordReset(resetToken, newPassword) {
+  return postJson("/api/auth/password-reset/confirm", { resetToken, newPassword });
 }
 
 export async function initializeAccessToken() {

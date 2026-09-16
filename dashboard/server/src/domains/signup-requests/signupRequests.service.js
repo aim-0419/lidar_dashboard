@@ -1,7 +1,16 @@
+const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const { Prisma } = require("@prisma/client");
 const { prisma } = require("../../prisma/client");
+const { config } = require("../../config");
+const { logger } = require("../../utils/logger");
 const { getUniqueConstraintTarget } = require("../../utils/prisma-error");
+const { sendEmail } = require("../../utils/mailer");
+const { renderLayout, escapeHtml } = require("../../emails/renderLayout");
+const {
+  EMAIL_VERIFIED_WINDOW_MINUTES,
+  cleanupExpiredEmailVerifications,
+} = require("../../utils/email-verification-maintenance");
 const {
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_BYTES,
@@ -30,6 +39,14 @@ const SIGNUP_REQUEST_STATUS = {
   EXPIRED: "EXPIRED",
 };
 const SIGNUP_REQUEST_STATUS_VALUES = new Set(Object.values(SIGNUP_REQUEST_STATUS));
+
+const EMAIL_VERIFICATION_PURPOSE_SIGNUP = "SIGNUP";
+const EMAIL_CODE_LENGTH = 6;
+const EMAIL_CODE_TTL_MINUTES = 10;
+const EMAIL_CODE_MAX_ATTEMPTS = 5;
+const EMAIL_CODE_RESEND_COOLDOWN_SECONDS = 60;
+// 이메일 인증 완료 후 이 시간 안에 가입 신청까지 마쳐야 인증이 유효하다.
+// (EMAIL_VERIFIED_WINDOW_MINUTES 값 자체는 utils/email-verification-maintenance에서 가져온다.)
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -277,6 +294,144 @@ async function ensurePhoneNumberAvailable(phoneNumber) {
   return normalizedPhoneNumber;
 }
 
+function generateSignupEmailCode() {
+  const value = crypto.randomInt(0, 10 ** EMAIL_CODE_LENGTH);
+  return String(value).padStart(EMAIL_CODE_LENGTH, "0");
+}
+
+// 가입 신청 폼에 입력한 이메일로 6자리 인증코드를 발송한다.
+async function sendSignupEmailCode({ email }) {
+  const normalizedEmail = validateEmail(email);
+  const now = new Date();
+
+  // 이미 사용 중이거나 대기 중인 이메일이면 코드를 보낼 필요가 없다.
+  await ensureEmailAvailable(normalizedEmail);
+
+  const code = generateSignupEmailCode();
+  const codeHash = await bcrypt.hash(code, 10);
+  const expiresAt = new Date(now.getTime() + EMAIL_CODE_TTL_MINUTES * 60 * 1000);
+
+  // 쿨다운 확인과 레코드 생성을 이메일 단위 advisory lock으로 묶어 원자적으로 처리한다.
+  // (단순 조회 후 생성 방식은, 연속 클릭이나 여러 IP에서 거의 동시에 들어온 요청이 쿨다운
+  // 체크를 동시에 통과해 이메일이 중복 발송될 수 있다.)
+  const reserved = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`signup_email:${normalizedEmail}`}))`;
+
+    const latest = await tx.emailVerification.findFirst({
+      where: { email: normalizedEmail, purpose: EMAIL_VERIFICATION_PURPOSE_SIGNUP },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (latest && now.getTime() - latest.createdAt.getTime() < EMAIL_CODE_RESEND_COOLDOWN_SECONDS * 1000) {
+      return null;
+    }
+
+    return tx.emailVerification.create({
+      data: {
+        email: normalizedEmail,
+        purpose: EMAIL_VERIFICATION_PURPOSE_SIGNUP,
+        codeHash,
+        expiresAt,
+      },
+    });
+  });
+
+  if (!reserved) {
+    throw createHttpError(429, "인증코드는 60초마다 재요청할 수 있습니다. 잠시 후 다시 시도해 주세요.");
+  }
+
+  const html = renderLayout({
+    heading: "이메일 인증코드",
+    contentHtml:
+      `<p>가입 신청을 위한 인증코드입니다.</p>` +
+      `<p style="font-size:28px;font-weight:800;letter-spacing:6px;">${code}</p>` +
+      `<p>이 코드는 ${EMAIL_CODE_TTL_MINUTES}분간 유효합니다.</p>`,
+    footerNote: "본인이 요청하지 않았다면 이 메일을 무시하셔도 됩니다.",
+  });
+
+  const result = await sendEmail({
+    to: normalizedEmail,
+    subject: "[라이다 관제] 이메일 인증코드",
+    html,
+    text: `인증코드: ${code} (${EMAIL_CODE_TTL_MINUTES}분간 유효)`,
+  });
+
+  // 실제 발송에 실패하면(개발 환경 skip 모드는 예외) 코드 레코드를 남기지 않는다.
+  // "메일은 못 갔는데 DB엔 보낸 것처럼 남는" 상태를 피하기 위함이다.
+  if (!result.delivered && !result.skipped) {
+    await prisma.emailVerification.deleteMany({ where: { id: reserved.id } });
+    throw createHttpError(502, "인증코드 메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+  }
+
+  return { ok: true, cooldownSeconds: EMAIL_CODE_RESEND_COOLDOWN_SECONDS };
+}
+
+// 사용자가 입력한 인증코드가 방금 발송된 코드와 일치하는지 확인한다.
+async function verifySignupEmailCode({ email, code }) {
+  const normalizedEmail = validateEmail(email);
+  // code ?? "" (|| 아님): 클라이언트가 "000000"처럼 0으로만 이뤄진 코드를 JSON 숫자로 보내면
+  // 값이 숫자 0이 되어 falsy라 code || ""가 빈 문자열로 지워버린다.
+  const normalizedCode = String(code ?? "").trim();
+
+  if (!/^\d{6}$/.test(normalizedCode)) {
+    throw createHttpError(400, "인증코드는 숫자 6자리로 입력해야 합니다.");
+  }
+
+  const now = new Date();
+  // 이메일당 가장 최근에 발송된 코드만 유효하다 — 재발송하면 이전 코드는 자동으로 무효화된다.
+  const verification = await prisma.emailVerification.findFirst({
+    where: { email: normalizedEmail, purpose: EMAIL_VERIFICATION_PURPOSE_SIGNUP },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!verification) {
+    throw createHttpError(400, "인증코드를 먼저 요청해 주세요.");
+  }
+
+  if (verification.consumedAt) {
+    throw createHttpError(400, "이미 사용된 인증코드입니다. 다시 요청해 주세요.");
+  }
+
+  if (verification.expiresAt <= now) {
+    throw createHttpError(400, "인증코드가 만료되었습니다. 다시 요청해 주세요.");
+  }
+
+  if (verification.attempts >= EMAIL_CODE_MAX_ATTEMPTS) {
+    throw createHttpError(429, "시도 횟수를 초과했습니다. 인증코드를 다시 요청해 주세요.");
+  }
+
+  // 시도 슬롯을 원자적으로 먼저 선점한다(attempts < MAX을 DB에서 다시 확인). 위 확인은
+  // 동시 요청 사이의 시차 때문에 완전하지 않으므로, 실제 소비되는 시도 횟수가 MAX를 넘지
+  // 못하게 하는 건 이 원자적 업데이트다.
+  const claim = await prisma.emailVerification.updateMany({
+    where: { id: verification.id, consumedAt: null, attempts: { lte: EMAIL_CODE_MAX_ATTEMPTS - 1 } },
+    data: { attempts: { increment: 1 } },
+  });
+
+  if (claim.count !== 1) {
+    throw createHttpError(429, "시도 횟수를 초과했습니다. 인증코드를 다시 요청해 주세요.");
+  }
+
+  const isMatch = await bcrypt.compare(normalizedCode, verification.codeHash);
+
+  if (!isMatch) {
+    throw createHttpError(400, "인증코드가 올바르지 않습니다.");
+  }
+
+  // 일치할 때도 소비 처리를 원자적으로 한다 — 같은(올바른) 코드로 동시에 여러 요청이 와도
+  // 딱 하나만 성공하도록 한다.
+  const consumed = await prisma.emailVerification.updateMany({
+    where: { id: verification.id, consumedAt: null },
+    data: { consumedAt: now },
+  });
+
+  if (consumed.count !== 1) {
+    throw createHttpError(400, "이미 사용된 인증코드입니다. 다시 요청해 주세요.");
+  }
+
+  return { ok: true };
+}
+
 async function findSignupRequestById(id) {
   const request = await prisma.signupRequest.findUnique({
     where: { id },
@@ -354,10 +509,13 @@ async function runSignupRequestMaintenance(now = new Date()) {
         )
     `;
 
+    const expiredEmailVerificationResult = await cleanupExpiredEmailVerifications(tx, now);
+
     return {
       expiredCount: expiredResult.count,
       anonymizedCount: anonymizedResult.count,
       anonymizedAuditLogCount: Number(anonymizedAuditLogCount),
+      expiredEmailVerificationCount: expiredEmailVerificationResult.count,
     };
   });
 }
@@ -401,20 +559,54 @@ async function createSignupRequest({ userId, name, password, email, phoneNumber 
   const normalizedEmail = await ensureEmailAvailable(validateEmail(email));
   const normalizedPhoneNumber = await ensurePhoneNumberAvailable(validatePhoneNumber(phoneNumber));
   const passwordHash = await bcrypt.hash(password, 10);
+  const now = new Date();
 
   try {
-    const request = await prisma.signupRequest.create({
-      data: {
-        userId: trimmedUserId,
-        name: trimmedName,
-        passwordHash,
-        email: normalizedEmail,
-        phoneNumber: normalizedPhoneNumber,
-        requestedRole: REQUESTED_ROLE,
-        status: SIGNUP_REQUEST_STATUS.PENDING,
-        expiresAt: addDays(new Date(), SIGNUP_REQUEST_EXPIRATION_DAYS),
-      },
-      select: getSignupRequestSelect(),
+    const request = await prisma.$transaction(async (tx) => {
+      // 이메일 인증(send-code/verify-code)이 최근에 완료됐는지 신청 저장과 같은 트랜잭션에서 확인한다.
+      // 확인과 소비 사이에 다른 요청이 끼어들 수 없도록, 확인한 인증 레코드는 이 트랜잭션 안에서 바로 삭제(1회용 소비)한다.
+      const verification = await tx.emailVerification.findFirst({
+        where: {
+          email: normalizedEmail,
+          purpose: EMAIL_VERIFICATION_PURPOSE_SIGNUP,
+          consumedAt: { not: null },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      const verifiedRecently =
+        verification &&
+        now.getTime() - verification.consumedAt.getTime() < EMAIL_VERIFIED_WINDOW_MINUTES * 60 * 1000;
+
+      if (!verifiedRecently) {
+        throw createHttpError(400, "이메일 인증을 먼저 완료해 주세요.");
+      }
+
+      const created = await tx.signupRequest.create({
+        data: {
+          userId: trimmedUserId,
+          name: trimmedName,
+          passwordHash,
+          email: normalizedEmail,
+          phoneNumber: normalizedPhoneNumber,
+          requestedRole: REQUESTED_ROLE,
+          status: SIGNUP_REQUEST_STATUS.PENDING,
+          expiresAt: addDays(now, SIGNUP_REQUEST_EXPIRATION_DAYS),
+        },
+        select: getSignupRequestSelect(),
+      });
+
+      // delete()가 아니라 deleteMany()로 지운다: 같은 이메일로 동시에 두 번 제출되면(예: 이중
+      // 클릭, 두 탭) 둘 다 여기까지 도달할 수 있는데, delete()는 먼저 지워진 뒤엔 "레코드
+      // 없음" 에러(P2025)를 던져 그대로 500으로 샌다. deleteMany()는 에러 없이 0건을
+      // 돌려주므로, 그걸로 "이미 다른 요청이 이 인증을 써버렸다"를 깔끔하게 판별한다.
+      const consumed = await tx.emailVerification.deleteMany({ where: { id: verification.id } });
+
+      if (consumed.count !== 1) {
+        throw createHttpError(400, "이메일 인증이 이미 사용되었습니다. 인증을 다시 진행해 주세요.");
+      }
+
+      return created;
     });
 
     return serializeSignupRequest(request);
@@ -536,9 +728,43 @@ async function approveSignupRequest({ id, reviewerId }) {
       });
     });
 
+    await sendApprovalNotificationEmail(approvedRequest);
+
     return serializeSignupRequest(approvedRequest);
   } catch (error) {
     handlePrismaError(error);
+  }
+}
+
+// 승인 완료 안내 메일. 발송 실패해도 승인 자체는 이미 끝난 뒤라 로그만 남기고 넘어간다.
+async function sendApprovalNotificationEmail(approvedRequest) {
+  if (!approvedRequest?.email) {
+    return;
+  }
+
+  const loginUrl = `${config.mail.appBaseUrl}/login`;
+  const html = renderLayout({
+    heading: "가입 승인 안내",
+    contentHtml:
+      `<p>안녕하세요, ${escapeHtml(approvedRequest.name)}님.</p>` +
+      `<p>가입 신청하신 계정(<strong>${escapeHtml(approvedRequest.userId)}</strong>)이 승인되어 이제 로그인할 수 있습니다.</p>` +
+      `<p><a href="${loginUrl}" style="color:#2563eb;">${loginUrl}</a></p>`,
+    footerNote: "본인이 신청하지 않았다면 관리자에게 문의해 주세요.",
+  });
+
+  const result = await sendEmail({
+    to: approvedRequest.email,
+    subject: "[라이다 관제] 가입 승인 안내",
+    html,
+    text: `${approvedRequest.userId}님의 가입 신청이 승인되었습니다. 로그인: ${loginUrl}`,
+  });
+
+  if (!result.delivered && !result.skipped) {
+    logger.warn("signup approval notification email failed", {
+      signupRequestId: approvedRequest.id,
+      email: approvedRequest.email,
+      error: result.error,
+    });
   }
 }
 
@@ -606,6 +832,8 @@ async function rejectSignupRequest({ id, reviewerId, rejectReason }) {
 module.exports = {
   createSignupRequest,
   checkUserIdAvailability,
+  sendSignupEmailCode,
+  verifySignupEmailCode,
   listSignupRequests,
   approveSignupRequest,
   rejectSignupRequest,

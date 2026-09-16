@@ -67,6 +67,51 @@ async function checkSignupRequestUserId(req, res) {
   }
 }
 
+async function sendSignupEmailCode(req, res) {
+  try {
+    const result = await signupRequestsService.sendSignupEmailCode({
+      email: req.body?.email,
+    });
+
+    res.status(200).json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    logRequestFailure("send signup email code failed", {
+      email: req.body?.email,
+    }, error);
+
+    res.status(error.statusCode || 500).json({
+      ok: false,
+      message: getPublicMessage(error, "인증코드 발송 중 오류가 발생했습니다."),
+    });
+  }
+}
+
+async function verifySignupEmailCode(req, res) {
+  try {
+    const result = await signupRequestsService.verifySignupEmailCode({
+      email: req.body?.email,
+      code: req.body?.code,
+    });
+
+    res.status(200).json({
+      ok: true,
+      ...result,
+    });
+  } catch (error) {
+    logRequestFailure("verify signup email code failed", {
+      email: req.body?.email,
+    }, error);
+
+    res.status(error.statusCode || 500).json({
+      ok: false,
+      message: getPublicMessage(error, "인증코드 확인 중 오류가 발생했습니다."),
+    });
+  }
+}
+
 async function getSignupRequests(req, res) {
   try {
     const result = await signupRequestsService.listSignupRequests({
@@ -150,6 +195,8 @@ async function rejectSignupRequest(req, res) {
 module.exports = {
   createSignupRequest,
   checkSignupRequestUserId,
+  sendSignupEmailCode,
+  verifySignupEmailCode,
   getSignupRequests,
   approveSignupRequest,
   rejectSignupRequest,

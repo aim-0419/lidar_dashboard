@@ -1,7 +1,15 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { checkSignupRequestUserId, createSignupRequest } from "../../shared/api/http";
+import {
+  checkSignupRequestUserId,
+  createSignupRequest,
+  sendSignupEmailCode,
+  verifySignupEmailCode,
+} from "../../shared/api/http";
 import "./signupRequest.css";
+
+const EMAIL_CODE_LENGTH = 6;
+const DEFAULT_RESEND_COOLDOWN_SECONDS = 60;
 
 const initialForm = {
   userId: "",
@@ -32,8 +40,34 @@ export default function SignupRequestPage() {
   const [isCheckingUserId, setIsCheckingUserId] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({ email: "", phoneNumber: "" });
+  const [emailCode, setEmailCode] = useState("");
+  const [isEmailCodeSent, setIsEmailCodeSent] = useState(false);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [isSendingEmailCode, setIsSendingEmailCode] = useState(false);
+  const [isVerifyingEmailCode, setIsVerifyingEmailCode] = useState(false);
+  const [emailCodeMessage, setEmailCodeMessage] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
   const currentUserIdRef = useRef("");
+  const currentEmailRef = useRef("");
   const isFormComplete = Object.values(form).every((value) => value.trim() !== "");
+
+  // 재발송 대기 시간을 1초 단위로 줄여나간다. (컴포넌트가 떠 있는 동안 하나의 타이머만 유지)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setResendCooldown((previous) => (previous > 0 ? previous - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  function resetEmailVerification() {
+    setIsEmailCodeSent(false);
+    setIsEmailVerified(false);
+    setIsVerifyingEmailCode(false);
+    setEmailCode("");
+    setEmailCodeMessage("");
+    setResendCooldown(0);
+  }
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -43,6 +77,7 @@ export default function SignupRequestPage() {
       setIsUserIdAvailable(false);
       setUserIdMessage("");
       setForm({ ...initialForm, userId: value });
+      resetEmailVerification();
       return;
     }
 
@@ -54,6 +89,9 @@ export default function SignupRequestPage() {
 
     if (name === "email") {
       setFieldErrors((previous) => ({ ...previous, email: "" }));
+      currentEmailRef.current = value.trim();
+      // 인증코드를 받은 뒤 이메일을 다시 수정하면 인증 상태를 초기화해 재인증을 요구한다.
+      resetEmailVerification();
     }
 
     setForm((previous) => ({ ...previous, [name]: value }));
@@ -126,6 +164,73 @@ export default function SignupRequestPage() {
     }
   }
 
+  async function handleSendEmailCode() {
+    const email = form.email.trim();
+    const emailError = getFieldError("email", email);
+
+    setEmailCodeMessage("");
+
+    if (emailError) {
+      setFieldErrors((previous) => ({ ...previous, email: emailError }));
+      return;
+    }
+
+    setIsSendingEmailCode(true);
+
+    try {
+      const result = await sendSignupEmailCode(email);
+
+      // 발송 중 이메일이 바뀐 경우, 이전 요청의 응답은 반영하지 않는다.
+      if (currentEmailRef.current !== email) {
+        return;
+      }
+
+      setIsEmailCodeSent(true);
+      setEmailCodeMessage("인증코드를 발송했습니다. 메일함(스팸함 포함)을 확인해 주세요.");
+      setResendCooldown(result.cooldownSeconds || DEFAULT_RESEND_COOLDOWN_SECONDS);
+    } catch (error) {
+      if (currentEmailRef.current !== email) {
+        return;
+      }
+
+      setEmailCodeMessage(error.message || "인증코드 발송 중 오류가 발생했습니다.");
+    } finally {
+      setIsSendingEmailCode(false);
+    }
+  }
+
+  async function handleVerifyEmailCode() {
+    const email = form.email.trim();
+    const code = emailCode.trim();
+
+    if (!/^\d{6}$/.test(code)) {
+      setEmailCodeMessage("인증코드 6자리를 입력해 주세요.");
+      return;
+    }
+
+    setIsVerifyingEmailCode(true);
+    setEmailCodeMessage("");
+
+    try {
+      await verifySignupEmailCode(email, code);
+
+      if (currentEmailRef.current !== email) {
+        return;
+      }
+
+      setIsEmailVerified(true);
+      setEmailCodeMessage("이메일 인증이 완료되었습니다.");
+    } catch (error) {
+      if (currentEmailRef.current !== email) {
+        return;
+      }
+
+      setEmailCodeMessage(error.message || "인증코드 확인 중 오류가 발생했습니다.");
+    } finally {
+      setIsVerifyingEmailCode(false);
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setErrorMessage("");
@@ -133,6 +238,11 @@ export default function SignupRequestPage() {
 
     if (!isUserIdAvailable) {
       setErrorMessage("사용자 ID 중복 확인을 완료해 주세요.");
+      return;
+    }
+
+    if (!isEmailVerified) {
+      setErrorMessage("이메일 인증을 완료해 주세요.");
       return;
     }
 
@@ -158,6 +268,7 @@ export default function SignupRequestPage() {
       setForm(initialForm);
       setIsUserIdAvailable(false);
       setUserIdMessage("");
+      resetEmailVerification();
       setSuccessMessage("가입 신청이 완료되었습니다. 최고관리자 승인 후 로그인할 수 있습니다.");
     } catch (error) {
       setErrorMessage(error.message || "가입 신청 처리 중 오류가 발생했습니다.");
@@ -201,19 +312,63 @@ export default function SignupRequestPage() {
         </label>
         <label>
           이메일
-          <input
-            name="email"
-            type="email"
-            value={form.email}
-            onChange={handleChange}
-            onBlur={handleFieldBlur}
-            autoComplete="email"
-            aria-invalid={Boolean(fieldErrors.email)}
-            required
-            disabled={!isUserIdAvailable}
-          />
+          <span className="signup-user-id-row">
+            <input
+              name="email"
+              type="email"
+              value={form.email}
+              onChange={handleChange}
+              onBlur={handleFieldBlur}
+              autoComplete="email"
+              aria-invalid={Boolean(fieldErrors.email)}
+              required
+              disabled={!isUserIdAvailable || isEmailVerified}
+            />
+            <button
+              type="button"
+              className="signup-check-button"
+              onClick={handleSendEmailCode}
+              disabled={!isUserIdAvailable || isEmailVerified || isSendingEmailCode || resendCooldown > 0}
+            >
+              {isEmailVerified
+                ? "인증 완료"
+                : resendCooldown > 0
+                  ? `재전송 (${resendCooldown}초)`
+                  : isSendingEmailCode
+                    ? "발송 중..."
+                    : isEmailCodeSent
+                      ? "재전송"
+                      : "인증코드 받기"}
+            </button>
+          </span>
         </label>
         {fieldErrors.email ? <p className="signup-field-message error">{fieldErrors.email}</p> : null}
+        {isEmailCodeSent && !isEmailVerified ? (
+          <label>
+            이메일 인증코드
+            <span className="signup-user-id-row">
+              <input
+                name="emailCode"
+                value={emailCode}
+                onChange={(event) => setEmailCode(event.target.value.replace(/\D/g, "").slice(0, EMAIL_CODE_LENGTH))}
+                inputMode="numeric"
+                placeholder="6자리 숫자"
+                maxLength={EMAIL_CODE_LENGTH}
+              />
+              <button
+                type="button"
+                className="signup-check-button"
+                onClick={handleVerifyEmailCode}
+                disabled={isVerifyingEmailCode || emailCode.length !== EMAIL_CODE_LENGTH}
+              >
+                {isVerifyingEmailCode ? "확인 중..." : "인증 확인"}
+              </button>
+            </span>
+          </label>
+        ) : null}
+        {emailCodeMessage ? (
+          <p className={`signup-user-id-message ${isEmailVerified ? "success" : "error"}`}>{emailCodeMessage}</p>
+        ) : null}
         <label>
           전화번호
           <input
@@ -233,7 +388,7 @@ export default function SignupRequestPage() {
         {errorMessage ? <p className="signup-message error">{errorMessage}</p> : null}
         {successMessage ? <p className="signup-message success">{successMessage}</p> : null}
 
-        <button type="submit" disabled={isSubmitting || !isUserIdAvailable || !isFormComplete}>
+        <button type="submit" disabled={isSubmitting || !isUserIdAvailable || !isEmailVerified || !isFormComplete}>
           {isSubmitting ? "가입 신청 중..." : "가입 신청하기"}
         </button>
         <Link to="/login">로그인으로 돌아가기</Link>
