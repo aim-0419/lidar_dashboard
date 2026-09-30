@@ -60,7 +60,18 @@ tracking, wrongway, visualization 코드를 가져온 것이다. 패키지 impor
 SC10 ROI 좌표, YOLO11s + ByteTrack, 이동 궤적과 방향 비교, 표시 방식을 재사용한다.
 기존 데모 서버의 감지 코드나 합성 좌표를 사용하지 않는다.
 
-로컬 자산은 용량 때문에 Git에서 제외한다. 다른 PC에서는 빌드 전에 다음 파일을 준비해야 한다.
+아래 두 자산은 Git LFS로 관리한다. 다른 PC에서도 Git LFS를 설치하고 저장소 루트에서
+다음 명령을 실행한 뒤 Docker를 빌드한다. 실제 영상/모델 대신 작은 LFS 포인터 파일만
+받은 상태에서는 Docker 영상 분석이 실행되지 않는다.
+
+```sh
+git lfs install
+git lfs pull
+git lfs ls-files
+```
+
+Git LFS 저장소의 접근 권한과 저장·다운로드 할당량이 필요하다.
+추가 영상과 모델은 기본적으로 Git 제외 대상이며, 아래 두 파일만 추적한다.
 
 | 현재 저장 위치 | 원본 파일 |
 | --- | --- |

@@ -1,2 +1,4 @@
 assets/*.mp4
 assets/*.pt
+!assets/sc10.mp4
+!assets/yolo11s.pt

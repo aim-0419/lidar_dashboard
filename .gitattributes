@@ -1,0 +1,2 @@
+dashboard/vision-worker/assets/yolo11s.pt filter=lfs diff=lfs merge=lfs -text
+dashboard/vision-worker/assets/sc10.mp4 filter=lfs diff=lfs merge=lfs -text
