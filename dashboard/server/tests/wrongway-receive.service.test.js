@@ -15,6 +15,7 @@ function createFakePrisma({ transactionDelayMs = 0 } = {}) {
     incidents: [],
     trafficEvents: [],
     eventLogs: [],
+    deviceUpdates: [],
     activeTransactions: 0,
     maxActiveTransactions: 0,
   };
@@ -28,6 +29,10 @@ function createFakePrisma({ transactionDelayMs = 0 } = {}) {
         zoneId: "zone-1",
         zone: { id: "zone-1" },
       }),
+      update: async (args) => {
+        state.deviceUpdates.push(args);
+        return args;
+      },
     },
     safetyIncident: {
       findFirst: async () => null,
@@ -203,4 +208,37 @@ test("같은 source의 동시 snapshot은 순서대로 처리한다", async () =
 
   assert.equal(state.tracks.size, 2);
   assert.equal(state.maxActiveTransactions, 1);
+});
+
+test("객체가 없는 snapshot도 라이다 PC의 마지막 수신 시각을 기록한다", async () => {
+  const { prisma, state } = createFakePrisma();
+  const service = loadWrongwayService(prisma);
+  const snapshot = createNormalSnapshot("track-001");
+  snapshot.objects = [];
+  snapshot.total_objects = 0;
+
+  await service.receiveWrongWayPayload(snapshot);
+
+  assert.equal(state.deviceUpdates.length, 1);
+  assert.equal(state.deviceUpdates[0].where.id, "device-LIDAR-PC-01");
+  // vm 컨텍스트의 Date는 instanceof로 비교할 수 없어 실제 날짜 값인지로 확인한다.
+  assert.ok(!Number.isNaN(new Date(state.deviceUpdates[0].data.lastSeenAt).getTime()));
+});
+
+test("snapshot 저장 후 처리 완료 알림을 보내고, 알림 실패는 수신 응답에 영향을 주지 않는다", async () => {
+  const { prisma } = createFakePrisma();
+  const service = loadWrongwayService(prisma);
+  const notified = [];
+
+  service.setSnapshotProcessedListener((info) => notified.push(info));
+  await service.receiveWrongWayPayload(createNormalSnapshot("track-001"));
+  await wait(0);
+  assert.deepEqual(notified.map((item) => item.source), ["LIDAR-PC-01"]);
+
+  service.setSnapshotProcessedListener(() => {
+    throw new Error("listener failed");
+  });
+  const result = await service.receiveWrongWayPayload(createNormalSnapshot("track-002"));
+  await wait(0);
+  assert.equal(result.ok, true);
 });

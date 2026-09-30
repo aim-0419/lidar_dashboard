@@ -99,6 +99,7 @@ test("mounted routers preserve read access and restrict mutations/control comman
     ["GET", "/events/test-event", "getWrongWayEventDetail", false],
     ["GET", "/zones", "getZonesController", false],
     ["GET", "/statistics/summary", "getSummary", false],
+    ["GET", "/dashboard/overview", "getDashboardOverviewController", false],
     ["PATCH", "/events/test-event/status", "updateWrongWayEventStatus", true],
     ["POST", "/control-board/commands", "sendCommand", true],
     ["GET", "/control-board/commands", "getCommands", true],

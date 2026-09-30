@@ -291,13 +291,41 @@
   margin-left: 6px;
 }
 
-.ops-sample-row {
+/* 구역 카드 제목 옆에 상태 칩이 붙어 폭이 좁아져도 "화면" 같은 단어가 중간에서 끊기지 않게 한다. */
+.ops-zone-live-view .ops-card-head h2 {
+  word-break: keep-all;
+}
+
+.ops-lidar-lost-chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.ops-lidar-lost-state {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px 8px;
   align-items: center;
-  margin-bottom: 10px;
-  color: #92400e;
+  margin: 0;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.ops-lidar-lost-state span {
+  color: #7f1d1d;
   font-size: 12px;
 }
 
@@ -428,6 +456,7 @@
   box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.16);
 }
 
+.ops-map-object.wrong-way,
 .ops-map-object.wrong-way-level-1,
 .ops-map-object.wrong-way-level-2 {
   background: #dc2626;
@@ -647,6 +676,7 @@
   color: #15803d;
 }
 
+.ops-object-type.wrong-way,
 .ops-object-type.wrong-way-level-1,
 .ops-object-type.wrong-way-level-2 {
   background: #fee2e2;

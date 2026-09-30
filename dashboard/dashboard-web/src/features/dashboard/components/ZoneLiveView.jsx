@@ -1,10 +1,10 @@
-import { CircleDot } from "lucide-react";
 import { CctvFeed } from "./CctvFeed";
+import { LidarStatusChip } from "./LidarStatusChip";
 import { RoundaboutMap } from "./RoundaboutMap";
 import { SampleDataBadge } from "./SampleDataBadge";
 
 // 구역명, CCTV 목록, Lanelet 코드와 객체를 한 화면 단위로 묶어 표시한다.
-export function ZoneLiveView({ zone, objects, isOverview, onSelectZone }) {
+export function ZoneLiveView({ zone, objects, lidar, isOverview, onSelectZone }) {
   return (
     <article className="ops-card ops-zone-live-view">
       <div className="ops-card-head">
@@ -13,12 +13,9 @@ export function ZoneLiveView({ zone, objects, isOverview, onSelectZone }) {
           <p>{zone.name} CCTV와 라이다 객체 위치</p>
         </div>
         <div className="ops-zone-live-actions">
-          {/* 벡터맵 객체 위치는 라이다 좌표 규격이 정해지기 전까지 목업이다. */}
-          <SampleDataBadge />
-          <span className="ops-live-chip">
-            <CircleDot size={13} />
-            LIVE
-          </span>
+          {/* 객체 수·종류는 실데이터지만, 라이다 좌표 규격이 없어 맵 위 위치는 임의 배치다. */}
+          <SampleDataBadge label="위치 미연동" />
+          <LidarStatusChip lidar={lidar} />
           {isOverview && (
             <button type="button" onClick={() => onSelectZone(zone.id)}>
               구역 상세

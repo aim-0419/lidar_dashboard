@@ -36,6 +36,21 @@ const EVENT_HISTORY_SORT_ORDERS = new Set(["asc", "desc"]);
 // 같은 라이다 PC가 보낸 snapshot 두 건이 동시에 상태를 덮어쓰지 않도록 source별 처리 순서를 보장한다.
 const sourceQueues = new Map();
 
+// snapshot 저장이 끝난 뒤 대시보드 현황을 다시 보내기 위한 알림 대상이다.
+// 이 모듈이 WebSocket을 직접 알지 않도록 server.js에서 연결한다.
+let snapshotProcessedListener = () => {};
+
+function setSnapshotProcessedListener(listener) {
+  snapshotProcessedListener = typeof listener === "function" ? listener : () => {};
+}
+
+// 알림 대상의 실패가 라이다 PC 응답에 영향을 주지 않도록 오류는 로그만 남긴다.
+function notifySnapshotProcessed(snapshot) {
+  Promise.resolve()
+    .then(() => snapshotProcessedListener({ source: snapshot.sourceDeviceCode }))
+    .catch((error) => logger.warn("snapshot processed listener failed", { message: error.message }));
+}
+
 // Swagger와 로컬 테스트에서 사용하는 1초 주기 정주행 스트림의 실행 상태를 메모리에 보관한다.
 let normalStreamTimer = null;
 let normalStreamState = {
@@ -755,6 +770,13 @@ async function processSnapshot(snapshot) {
   }
   // 3. 트랙·사건·이벤트·통계를 하나의 트랜잭션으로 처리해 일부 데이터만 저장되는 상황을 막는다.
   const transactionResult = await prisma.$transaction(async (tx) => {
+    // 객체가 없는 빈 snapshot도 라이다가 살아 있다는 신호이므로 서버 수신 시각을 기록한다.
+    // 대시보드는 이 값으로 "도로에 차량 없음"과 "라이다 수신 끊김"을 구분한다.
+    await tx.device.update({
+      where: { id: device.id },
+      data: { lastSeenAt: new Date(snapshot.receivedAt) },
+    });
+
     let incident = await tx.safetyIncident.findFirst({
       where: {
         zoneId: device.zoneId,
@@ -788,8 +810,9 @@ async function processSnapshot(snapshot) {
     return { processed, resolvedIncident, deactivatedCount: deactivated.count };
   });
 
-  // 5. DB 저장이 확정된 뒤 프론트 실시간 이벤트를 발행한다.
+  // 5. DB 저장이 확정된 뒤 프론트 실시간 이벤트와 대시보드 현황 갱신을 발행한다.
   applyDashboardEffects(transactionResult.processed);
+  notifySnapshotProcessed(snapshot);
 
   const results = [...transactionResult.processed.map((item) => item.result), ...rejected]
     .sort((left, right) => left.index - right.index);
@@ -958,6 +981,7 @@ module.exports = {
   getTestPayloads,
   getNormalStreamStatus,
   receiveWrongWayPayload,
+  setSnapshotProcessedListener,
   sendNormalDrivingTestPayload,
   sendWrongWayTestPayload,
   startNormalDrivingStream,
