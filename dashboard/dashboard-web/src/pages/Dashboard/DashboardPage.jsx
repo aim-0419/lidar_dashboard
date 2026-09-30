@@ -15,11 +15,13 @@ import { fetchWebSocketTicket } from "../../shared/api/http";
 import { ZoneLiveView } from "../../features/dashboard/components/ZoneLiveView";
 import { FullscreenLiveView } from "../../features/dashboard/components/FullscreenLiveView";
 import { WrongwayAlertModal } from "../../features/dashboard/components/WrongwayAlertModal";
+import { SampleDataBadge } from "../../features/dashboard/components/SampleDataBadge";
+import { useRecentDashboardEvents } from "../../features/dashboard/useRecentDashboardEvents";
+import { eventTypeClass, eventTypeText } from "../../features/events/eventLabels";
 import {
   detectedObjects,
   liveSnapshot,
   monitoringZones,
-  realtimeEvents,
 } from "../../shared/constants/operationsDashboardData";
 import "./dashboard.css";
 
@@ -28,6 +30,16 @@ function objectClassName(objectClass) {
   if (objectClass === 3) return "버스";
   if (objectClass === 2) return "트럭";
   return "차량";
+}
+
+function formatEventTime(value) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
 }
 
 export default function DashboardPage() {
@@ -137,9 +149,11 @@ export default function DashboardPage() {
   const visibleObjects = selectedZone
     ? detectedObjects.filter((item) => item.monitoringZoneId === selectedZone.id)
     : detectedObjects;
+  // 실시간 이벤트는 DB 이력 API 기준이며, 역주행 경보가 새로 들어오면 즉시 다시 조회한다.
+  const { events: recentEvents, status: recentEventsStatus } = useRecentDashboardEvents(activeEvent?.id);
   const visibleEvents = selectedZone
-    ? realtimeEvents.filter((event) => event.monitoringZoneId === selectedZone.id)
-    : realtimeEvents;
+    ? recentEvents.filter((event) => event.zone?.code === selectedZone.zoneCode)
+    : recentEvents;
   const activeSnapshot = selectedZone?.snapshot || latestSnapshot;
 
   // 전체 탭은 실시간 합산값을, 구역 탭은 해당 구역의 mock 스냅샷을 사용한다.
@@ -235,6 +249,12 @@ export default function DashboardPage() {
         ))}
       </nav>
 
+      {/* KPI는 조회 API가 생기기 전까지 목업 값이므로 실데이터로 오해하지 않게 표시한다. */}
+      <div className="ops-sample-row">
+        <SampleDataBadge />
+        <span>KPI·감지 객체·벡터맵·장비 상태는 실데이터 연동 전 샘플 값입니다.</span>
+      </div>
+
       <section className="ops-kpi-grid dashboard-kpis">
         {kpis.map((item) => (
           <article className={`ops-kpi-card ${item.tone}`} key={item.label}>
@@ -263,7 +283,7 @@ export default function DashboardPage() {
           <article className="ops-card">
             <div className="ops-card-head">
               <div>
-                <h2>현재 감지 객체</h2>
+                <h2>현재 감지 객체 <SampleDataBadge /></h2>
                 <p>objects 배열에 포함된 객체별 최신 상태</p>
               </div>
               <button type="button" onClick={() => navigate("/statistics")}>
@@ -305,18 +325,24 @@ export default function DashboardPage() {
               <Clock3 size={19} />
             </div>
             <div className="ops-event-feed">
+              {recentEventsStatus === "error" && (
+                <p className="ops-empty-state">이벤트 이력을 불러오지 못했습니다.</p>
+              )}
+              {recentEventsStatus === "ready" && visibleEvents.length === 0 && (
+                <p className="ops-empty-state">수신된 이벤트가 없습니다.</p>
+              )}
               {visibleEvents.map((event) => (
                 <button
                   type="button"
-                  className={`ops-event-item ${event.type}`}
+                  className={`ops-event-item ${eventTypeClass(event.eventType)}`}
                   key={event.id}
                   onClick={() => navigate("/events")}
                 >
-                  <span>{event.time}</span>
-                  <strong>{event.title}</strong>
+                  <span>{formatEventTime(event.occurredAt || event.receivedAt)}</span>
+                  <strong>{eventTypeText(event.eventType)}</strong>
                   <small>
-                    {monitoringZones.find((zone) => zone.id === event.monitoringZoneId)?.name}
-                    {" · "}{event.message}
+                    {event.zone?.name || event.externalZoneId || "구역 미확인"}
+                    {event.message ? ` · ${event.message}` : ""}
                   </small>
                 </button>
               ))}
@@ -326,7 +352,7 @@ export default function DashboardPage() {
           <article className="ops-card">
             <div className="ops-card-head">
               <div>
-                <h2>연동 상태</h2>
+                <h2>연동 상태 <SampleDataBadge /></h2>
                 <p>현장 테스트 기준</p>
               </div>
               <Radio size={19} />

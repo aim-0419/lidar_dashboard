@@ -22,6 +22,7 @@ import {
   getEventZones,
   updateEventStatus,
 } from "../../features/events/eventsApi";
+import { eventTypeClass, eventTypeText } from "../../features/events/eventLabels";
 import "../Dashboard/dashboard.css";
 import "./eventLog.css";
 
@@ -38,18 +39,6 @@ function statusText(status) {
   if (status === "RESOLVED") return "처리 완료";
   if (status === "FALSE_ALARM") return "오탐";
   return status;
-}
-
-function eventTypeText(type) {
-  if (type === "wrong-way" || type === "wrong-way-level-1" || type === "wrong-way-level-2") return "역주행";
-  if (type === "situation-ended") return "상황 종료";
-  if (type === "pedestrian-entered") return "보행자 진입";
-  if (type === "pedestrian-exited") return "보행자 이탈";
-  return type;
-}
-
-function eventTypeClass(type) {
-  return type?.startsWith("wrong-way") ? "wrong-way" : type;
 }
 
 function formatDateTime(value) {

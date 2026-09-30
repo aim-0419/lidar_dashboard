@@ -1,6 +1,7 @@
 import { CircleDot } from "lucide-react";
 import { CctvFeed } from "./CctvFeed";
 import { RoundaboutMap } from "./RoundaboutMap";
+import { SampleDataBadge } from "./SampleDataBadge";
 
 // 구역명, CCTV 목록, Lanelet 코드와 객체를 한 화면 단위로 묶어 표시한다.
 export function ZoneLiveView({ zone, objects, isOverview, onSelectZone }) {
@@ -12,6 +13,8 @@ export function ZoneLiveView({ zone, objects, isOverview, onSelectZone }) {
           <p>{zone.name} CCTV와 라이다 객체 위치</p>
         </div>
         <div className="ops-zone-live-actions">
+          {/* 벡터맵 객체 위치는 라이다 좌표 규격이 정해지기 전까지 목업이다. */}
+          <SampleDataBadge />
           <span className="ops-live-chip">
             <CircleDot size={13} />
             LIVE

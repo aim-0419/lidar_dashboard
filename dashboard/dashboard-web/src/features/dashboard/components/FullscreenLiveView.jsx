@@ -83,7 +83,7 @@ export function FullscreenLiveView({ zones, getObjects, onClose }) {
       <div className="fs-live-grid">
         {zones.map((zone) => (
           <section className="fs-live-zone" key={zone.id}>
-            <span className="fs-live-zone-label">{zone.name}</span>
+            <span className="fs-live-zone-label">{zone.name} · 샘플 데이터</span>
             <div className="fs-live-cctv">
               {zone.cameras.map((camera) => (
                 <CctvFeed key={camera.id} camera={camera} expandable={false} />

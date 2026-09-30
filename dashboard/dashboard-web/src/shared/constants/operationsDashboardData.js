@@ -184,6 +184,8 @@ export const zoneStatistics = [
 export const monitoringZones = [
   {
     id: "roundabout-1",
+    // 서버 zones.zone_code와 연결하는 값이다. 실데이터 이벤트를 구역 탭별로 나눌 때 사용한다.
+    zoneCode: "ROUNDABOUT-01",
     name: "회전교차로 1",
     source: "lidar-pc-01",
     laneletZoneIds: ["Z469", "Z170", "Z274"],
@@ -274,6 +276,7 @@ export const monitoringZones = [
   },
   {
     id: "roundabout-2",
+    zoneCode: "ROUNDABOUT-02",
     name: "회전교차로 2",
     source: "lidar-pc-02",
     laneletZoneIds: ["Z455", "Z261", "Z327"],

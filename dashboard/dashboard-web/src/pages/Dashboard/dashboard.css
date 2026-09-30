@@ -273,6 +273,34 @@
   font-weight: 900;
 }
 
+.ops-sample-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px dashed #d97706;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #fffbeb;
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 800;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.ops-card-head h2 .ops-sample-badge {
+  margin-left: 6px;
+}
+
+.ops-sample-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+  color: #92400e;
+  font-size: 12px;
+}
+
 .ops-zone-live-actions {
   display: flex;
   flex-wrap: wrap;
@@ -686,6 +714,7 @@
   text-align: left;
 }
 
+.ops-event-item.wrong-way,
 .ops-event-item.wrong-way-level-1,
 .ops-event-item.wrong-way-level-2 {
   border-left-color: #dc2626;
