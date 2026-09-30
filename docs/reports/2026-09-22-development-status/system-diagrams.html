@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>라이다 역주행 방지 시스템 구성도</title>
+  <style>
+    @page { size: 16in 10in; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: #e8edf3; color: #172b40; font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+    .sheet { width: 1600px; height: 1000px; padding: 46px 56px; margin: 0 auto 24px; background: #f8fafc; overflow: hidden; break-after: page; }
+    .sheet:last-child { break-after: auto; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #cbd8e6; padding-bottom: 20px; }
+    .eyebrow { color: #145897; font-size: 16px; font-weight: 800; margin-bottom: 7px; }
+    h1 { font-size: 35px; line-height: 1.18; margin: 0; letter-spacing: 0; }
+    .subtitle { font-size: 16px; color: #506478; margin: 11px 0 0; }
+    .date { font-size: 15px; color: #65798b; padding-top: 6px; white-space: nowrap; }
+    .legend { display: flex; gap: 26px; align-items: center; height: 54px; font-size: 15px; color: #40566b; }
+    .key { display: flex; gap: 9px; align-items: center; }
+    .key i { display: inline-block; width: 38px; border-top: 4px solid #1971b8; }
+    .key.planned i { border-top: 4px dashed #c48035; }
+    .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 6px 0 12px; }
+    h2 { font-size: 22px; margin: 0; }
+    .section-head span { font-size: 15px; color: #627589; }
+    .current { padding: 19px 20px 21px; background: #eaf3fb; border: 1px solid #bed8ec; border-radius: 6px; }
+    .flow-row { display: flex; align-items: center; }
+    .node { flex: 1; min-width: 0; min-height: 157px; padding: 16px 15px; background: white; border: 1px solid #a8c7e1; border-top: 5px solid #1971b8; border-radius: 6px; }
+    .node .tag { color: #0b629d; font-size: 13px; font-weight: 800; margin-bottom: 12px; }
+    .node h3 { font-size: 20px; margin: 0 0 10px; line-height: 1.2; }
+    .node p { color: #3b5267; font-size: 15px; line-height: 1.48; margin: 0; }
+    .arrow { width: 43px; flex: none; text-align: center; color: #1971b8; font-size: 30px; font-weight: 800; }
+    .note-line { font-size: 15px; color: #405c73; margin: 14px 0 0; }
+    .planned-section { margin-top: 25px; }
+    .site-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .site { height: 167px; padding: 14px 16px; background: #fff; border: 1px dashed #ce9d64; border-top: 5px solid #c48035; border-radius: 6px; }
+    .site .tag { color: #a8641f; font-size: 13px; font-weight: 800; margin-bottom: 9px; }
+    .site h3 { font-size: 20px; margin: 0 0 9px; }
+    .site p { font-size: 15px; line-height: 1.46; color: #4c5d6b; margin: 0; }
+    .downline { text-align: center; height: 46px; color: #b77b3d; font-size: 28px; line-height: 38px; }
+    .planned-hub { display: grid; grid-template-columns: 1.1fr 1.5fr 1.1fr; align-items: stretch; gap: 12px; }
+    .planned-hub > div { min-height: 106px; border: 1px dashed #ce9d64; background: #fffaf4; padding: 15px 17px; border-radius: 6px; }
+    .planned-hub strong { display: block; font-size: 18px; margin-bottom: 7px; }
+    .planned-hub span { display: block; color: #5b6470; font-size: 15px; line-height: 1.35; }
+    .caution { margin-top: 19px; background: #fff1ed; border-left: 5px solid #ce6550; padding: 13px 16px; font-size: 16px; line-height: 1.4; }
+    .foot { display: flex; justify-content: space-between; gap: 25px; margin-top: 16px; color: #5c6f81; font-size: 14px; line-height: 1.35; }
+    .foot span:first-child { max-width: 82%; }
+    .architecture .node { min-height: 145px; }
+    .architecture .planned-section { margin-top: 18px; }
+    .architecture .site { height: 150px; }
+    .architecture .planned-hub > div { min-height: 94px; }
+    .architecture .caution { margin-top: 12px; }
+    .architecture .foot { margin-top: 10px; }
+
+    .flow-sheet .legend { height: 54px; }
+    .pipeline { display: flex; align-items: center; margin: 9px 0 20px; }
+    .pipeline .node { min-height: 131px; }
+    .decision { text-align: center; height: 47px; color: #1971b8; font-size: 17px; font-weight: 800; }
+    .decision b { display: inline-block; border: 1px solid #a8c7e1; background: #eaf3fb; padding: 7px 20px; border-radius: 6px; }
+    .branches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; }
+    .branch { min-height: 210px; border: 1px solid #bdcede; border-top: 5px solid #3d8e84; background: #fff; border-radius: 6px; padding: 15px 17px; }
+    .branch.warning { border-top-color: #cf5252; }
+    .branch.pedestrian { border-top-color: #8c76b5; }
+    .branch.ended { border-top-color: #7692a9; }
+    .branch .tag { font-size: 13px; font-weight: 800; color: #50677a; margin-bottom: 9px; }
+    .branch h3 { font-size: 20px; margin: 0 0 10px; }
+    .branch p { font-size: 15px; line-height: 1.48; color: #42586a; margin: 0; }
+    .branch .result { display: block; margin-top: 12px; padding-top: 10px; border-top: 1px solid #e2e9f0; color: #1d526f; font-size: 14px; font-weight: 800; line-height: 1.35; }
+    .merge { height: 41px; text-align: center; color: #1971b8; font-size: 29px; line-height: 40px; }
+    .result-row { display: grid; grid-template-columns: 1.15fr 44px 1fr 44px 1.13fr; align-items: stretch; }
+    .result-box { min-height: 126px; background: #eaf3fb; border: 1px solid #afcbe2; border-radius: 6px; padding: 15px 17px; }
+    .result-box h3 { font-size: 19px; margin: 0 0 8px; }
+    .result-box p { font-size: 15px; line-height: 1.4; margin: 0; color: #3d5368; }
+    .result-row .arrow { width: 44px; align-self: center; }
+    .flow-sheet .caution { margin-top: 16px; }
+    .flow-sheet .foot { margin-top: 14px; }
+    @media print { html, body { background: white; } .sheet { margin: 0; } }
+  </style>
+</head>
+<body>
+  <section class="sheet architecture" id="architecture">
+    <header>
+      <div>
+        <div class="eyebrow">SYSTEM ARCHITECTURE · 01</div>
+        <h1>라이다 역주행 방지 시스템 아키텍처</h1>
+        <p class="subtitle">현재 확인한 소프트웨어 경로와 4개 현장 연동 계획을 분리한 구성도</p>
+      </div>
+      <div class="date">기준일 2026.09.22</div>
+    </header>
+    <div class="legend">
+      <div class="key"><i></i> 현재 구현·로컬 검증 경로</div>
+      <div class="key planned"><i></i> 현장 연동·규격 협의 필요</div>
+    </div>
+    <div class="current">
+      <div class="section-head"><h2>현재 구현된 데이터 경로</h2><span>장비 실동작 검증은 포함하지 않음</span></div>
+      <div class="flow-row">
+        <div class="node"><div class="tag">01 · 감지 주체</div><h3>라이다 PC</h3><p>회전교차로의 객체 판단<br>1초 단위 다중 <b>objects</b> 스냅샷</p></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="tag">02 · HTTP 수신</div><h3>중앙 백엔드</h3><p><b>POST /api/wrongway</b><br>Adapter·객체별 상태 처리</p></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="tag">03 · 이력 / 집계</div><h3>PostgreSQL</h3><p>차량 최신 상태·사건·이벤트<br>일별 통계 저장</p></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="tag">04 · 알림 방송</div><h3>WebSocket</h3><p>역주행 이벤트 저장 후<br><b>dashboard-event</b> 전송</p></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="tag">05 · 관제 화면</div><h3>브라우저</h3><p>경고 모달·이벤트 이력<br>통계·관리 화면</p></div>
+      </div>
+      <p class="note-line">반복되는 1초 스냅샷 전체를 영구 보관하지 않음. 정상 객체는 최신 상태 중심, 역주행 등 상태 변화는 이벤트 이력 중심으로 저장.</p>
+    </div>
+    <div class="planned-section">
+      <div class="section-head"><h2>현장 확장 계획</h2><span>중앙 서버 1대 · 관제 장소 4곳</span></div>
+      <div class="site-grid">
+        <div class="site"><div class="tag">현장 01</div><h3>회전교차로 1</h3><p>라이다 PC·CCTV·통합제어보드<br>차단기·전광판·스피커 연동 검토</p></div>
+        <div class="site"><div class="tag">현장 02</div><h3>회전교차로 2</h3><p>라이다 PC·CCTV·통합제어보드<br>차단기·전광판·스피커 연동 검토</p></div>
+        <div class="site"><div class="tag">현장 03 · LTE</div><h3>나들목 1</h3><p>카메라·LTE 장비·통합제어보드<br>영상은 이벤트/요청 시 전송 검토</p></div>
+        <div class="site"><div class="tag">현장 04 · LTE</div><h3>나들목 2</h3><p>카메라·LTE 장비·통합제어보드<br>영상은 이벤트/요청 시 전송 검토</p></div>
+      </div>
+      <div class="downline">↓ &nbsp;&nbsp;&nbsp; 현장별 이벤트·영상·상태의 중앙 연동 방향 &nbsp;&nbsp;&nbsp; ↓</div>
+      <div class="planned-hub">
+        <div><strong>영상 수신·분석</strong><span>차단기 주변 카메라 중심. 나들목 LTE 영상은 상시 서버 저장 대상이 아님.</span></div>
+        <div><strong>중앙 서버 1대 · 통합 관제</strong><span>4곳 이벤트·영상·장비 상태를 한 화면과 이력으로 관리하는 방향.</span></div>
+        <div><strong>현장 장비 제어</strong><span>통합제어보드 4대 검토. 차단기 총 6대 기준, 전광판·스피커 수량 협의 중.</span></div>
+      </div>
+    </div>
+    <div class="caution"><b>미확정:</b> 제어 명령 주체와 PC–보드 통신 경로, 장비별 ID·프레임·ACK·안전 동작 기준. 현재 경고 모달은 물리 차단기의 자동 동작을 의미하지 않음.</div>
+    <div class="foot"><span>근거: 프로젝트 컨텍스트, 라이다 payload 규격, 통합제어보드 TODO, 시스템 인프라 구매 검토, 2026-09-22 개발 현황.</span><span>1 / 2</span></div>
+  </section>
+
+  <section class="sheet flow-sheet" id="flowchart">
+    <header>
+      <div>
+        <div class="eyebrow">PROCESS FLOW · 02</div>
+        <h1>다중 객체 수신·역주행 처리 플로우차트</h1>
+        <p class="subtitle">1초 스냅샷을 객체별 최신 상태와 사건·이벤트 이력으로 분리 처리</p>
+      </div>
+      <div class="date">기준일 2026.09.22</div>
+    </header>
+    <div class="legend">
+      <div class="key"><i></i> 현재 구현·로컬 검증 경로</div>
+      <div class="key planned"><i></i> 장비 제어는 별도 확정 필요</div>
+    </div>
+    <div class="pipeline">
+      <div class="node"><div class="tag">라이다 PC 판단</div><h3>객체 감지·유형 결정</h3><p>정주행 / 역주행 / 보행자 / 상황 종료</p></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="tag">1초 단위 HTTP</div><h3>다중 객체 스냅샷</h3><p>상위 timestamp·source + objects 배열</p></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="tag">백엔드 Adapter</div><h3>필드·구역·객체 검증</h3><p>source / zone_id / track_id / type 확인</p></div>
+    </div>
+    <div class="decision"><b>각 objects 항목의 type에 따라 분기 ↓</b></div>
+    <div class="branches">
+      <div class="branch"><div class="tag">정상 상태</div><h3>normal-driving</h3><p>차량 트랙 최신 상태 갱신. 신규 관측 차량은 일별 통행 집계에 반영.</p><span class="result">반복 전송마다 이벤트를 만들지 않음</span></div>
+      <div class="branch warning"><div class="tag">역주행 발생</div><h3>wrong-way</h3><p>새 역주행 또는 상태 변화 시 사건·이벤트 이력 생성. 지속 관측은 트랙 갱신.</p><span class="result">저장된 새 이벤트가 경고 알림 대상</span></div>
+      <div class="branch pedestrian"><div class="tag">보행자 출입</div><h3>pedestrian-*</h3><p>진입·이탈 신호를 이벤트 이력으로 저장. 차량 통행량과 별도 집계.</p><span class="result">출입 유형을 구분해 기록</span></div>
+      <div class="branch ended"><div class="tag">상황 종료</div><h3>situation-ended</h3><p>진행 중 역주행 사건을 종료하고 종료 이벤트를 기록.</p><span class="result">DB 상태 종료 ≠ 물리 장비 자동 복귀</span></div>
+    </div>
+    <div class="merge">↓ &nbsp; 객체별 결과 병합 &nbsp; ↓</div>
+    <div class="result-row">
+      <div class="result-box"><h3>PostgreSQL 기록</h3><p><b>vehicle_tracks</b> 최신 상태<br><b>safety_incidents / traffic_events</b> 상태 변화<br><b>daily_traffic_stats</b> 일별 집계</p></div>
+      <div class="arrow">→</div>
+      <div class="result-box"><h3>실시간 알림</h3><p>역주행 이벤트 저장 후<br>WebSocket <b>dashboard-event</b> 방송</p></div>
+      <div class="arrow">→</div>
+      <div class="result-box"><h3>관제 화면·관리자 조치</h3><p>역주행 경고 모달·이벤트 이력 표시<br>관리 상태 변경은 DB 기록이며 장비 제어와 분리</p></div>
+    </div>
+    <div class="caution"><b>현장 제어는 후속 단계:</b> 차단기·전광판·스피커 명령 경로, ACK, 실패 처리, 자동/수동 제어 우선권 및 안전 기준 합의 후 연동. 현 구현이 자동 차단을 보장하지 않음.</div>
+    <div class="foot"><span>지연·중복 스냅샷은 별도 처리. 객체 ID 소실·재진입, 네트워크 단절과 장비 무응답은 현장 통합 시험 필요.</span><span>2 / 2</span></div>
+  </section>
+</body>
+</html>

@@ -76,6 +76,7 @@ export default function MainLayout() {
           </div>
 
           <nav className="ml-nav">
+            {import.meta.env.DEV && <NavLink to="/vision-test"><MonitorCog size={17} /><span>비전 테스트</span></NavLink>}
             <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
               <LayoutDashboard size={17} />
               <span>{t("nav.overview")}</span>

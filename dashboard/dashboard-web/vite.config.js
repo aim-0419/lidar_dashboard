@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import process from "node:process";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
@@ -10,6 +11,12 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 5173,
     strictPort: true,
+    proxy: {
+      '/vision-test-api': {
+        target: process.env.VISION_TEST_URL || 'http://127.0.0.1:8890',
+        rewrite: path => path.replace(/^\/vision-test-api/, ''),
+      },
+    },
     watch: {
       // Docker Desktop의 bind mount 변경 이벤트 누락을 방지한다.
       usePolling: true,

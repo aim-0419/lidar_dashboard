@@ -12,6 +12,7 @@ import WrongwayLogPage from "../pages/Dashboard/WrongwayLogPage";
 import EventLogPage from "../pages/EventLog/EventLogPage";
 import DevicesPage from "../pages/Devices/DevicesPage";
 import SettingsPage from "../pages/Settings/SettingsPage";
+import VisionTestPage from "../pages/VisionTest/VisionTestPage";
 
 import MainLayout from "../layouts/MainLayout";
 
@@ -40,6 +41,7 @@ export default function AppRouter() {
           <Route path="/dashboard/wrongway" element={<WrongwayLogPage />} />
           <Route path="/events" element={<EventLogPage />} />
           <Route path="/devices" element={<DevicesPage />} />
+          {import.meta.env.DEV && <Route path="/vision-test" element={<VisionTestPage />} />}
           <Route path="/settings" element={<SettingsPage />} />
           <Route
             path="/signup-requests"
