@@ -11,7 +11,7 @@ const CONTROLS_IDLE_MS = 2500;
 // 브라우저 전체 화면 진입/해제는 부모(전체 화면 버튼과 onClose)가 담당한다.
 // 여기서는 Esc 키, 브라우저 UI로 전체 화면을 빠져나가는 경우, 뒤 배경 스크롤 잠금만 처리한다.
 // 마우스를 움직이지 않으면 X 버튼과 커서를 잠시 뒤 숨긴다.
-export function FullscreenLiveView({ zones, getObjects, onClose }) {
+export function FullscreenLiveView({ zones, getObjects, getLidar, onClose }) {
   const [controlsVisible, setControlsVisible] = useState(true);
 
   // onClose는 부모 리렌더마다 새 함수라서, effect 의존성에 넣으면 effect가 계속 재실행된다.
@@ -83,7 +83,10 @@ export function FullscreenLiveView({ zones, getObjects, onClose }) {
       <div className="fs-live-grid">
         {zones.map((zone) => (
           <section className="fs-live-zone" key={zone.id}>
-            <span className="fs-live-zone-label">{zone.name}</span>
+            <span className="fs-live-zone-label">
+              {zone.name} · 위치 미연동
+              {getLidar(zone.id)?.receiving === false && " · 라이다 수신 끊김"}
+            </span>
             <div className="fs-live-cctv">
               {zone.cameras.map((camera) => (
                 <CctvFeed key={camera.id} camera={camera} expandable={false} />

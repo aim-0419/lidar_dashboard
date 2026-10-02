@@ -2205,6 +2205,82 @@
         },
       },
     },
+    "/api/dashboard/overview": {
+      get: {
+        tags: ["Dashboard"],
+        summary: "메인 대시보드 현황 조회",
+        description: [
+          "메인 대시보드의 KPI, 현재 감지 객체, 라이다 수신 상태를 구역별로 반환합니다.",
+          "- KPI는 오늘(KST 0시부터) 누적값이며 daily_traffic_stats 기준입니다.",
+          "- 현재 감지 객체는 서버가 최근 staleAfterMs(5초) 안에 갱신한 활성 트랙만 포함합니다.",
+          "- lidar.receiving은 구역 라이다 PC의 마지막 수신 시각(devices.last_seen_at)이 staleAfterMs 이내인지 나타냅니다.",
+          "- 같은 형태의 데이터가 라이다 snapshot 수신 후 WebSocket `dashboard-overview` 메시지로도 전송됩니다.",
+        ].join("\n"),
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: {
+            description: "대시보드 현황 조회 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    message: { type: "string", example: "OK" },
+                    data: {
+                      type: "object",
+                      properties: {
+                        generatedAt: { type: "string", format: "date-time" },
+                        statDate: { type: "string", example: "2026-09-30" },
+                        staleAfterMs: { type: "integer", example: 5000 },
+                        totals: { $ref: "#/components/schemas/DashboardOverviewKpis" },
+                        zones: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              zoneCode: { type: "string", example: "ROUNDABOUT-01" },
+                              name: { type: "string", example: "회전교차로 1" },
+                              kpis: { $ref: "#/components/schemas/DashboardOverviewKpis" },
+                              lidar: {
+                                type: "object",
+                                properties: {
+                                  deviceCodes: { type: "array", items: { type: "string" }, example: ["LIDAR-PC-01"] },
+                                  lastReceivedAt: { type: "string", format: "date-time", nullable: true },
+                                  receiving: { type: "boolean", example: true },
+                                },
+                              },
+                              activeObjects: {
+                                type: "array",
+                                items: {
+                                  type: "object",
+                                  properties: {
+                                    trackId: { type: "string" },
+                                    type: { type: "string", example: "normal-driving" },
+                                    warningLevel: { type: "integer", nullable: true },
+                                    confidence: { type: "number", nullable: true },
+                                    externalZoneId: { type: "string", example: "Z469" },
+                                    speedKmh: { type: "number", nullable: true },
+                                    objectClass: { type: "integer", nullable: true },
+                                    lastSeenAt: { type: "string", format: "date-time" },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          401: { description: "인증 필요" },
+          503: { description: "대시보드 현황 조회 실패" },
+        },
+      },
+    },
     "/api/state": {
       get: {
         tags: ["Dashboard"],
@@ -3035,6 +3111,15 @@
       },
     },
     schemas: {
+      DashboardOverviewKpis: {
+        type: "object",
+        properties: {
+          todayVehicleCount: { type: "integer", description: "오늘 통과 차량 수", example: 128 },
+          todayWrongWayCount: { type: "integer", description: "오늘 역주행 이벤트 수", example: 2 },
+          todayPedestrianCount: { type: "integer", description: "오늘 보행자 진입 수", example: 5 },
+          activeObjectCount: { type: "integer", description: "현재 감지 객체 수", example: 3 },
+        },
+      },
       HealthResponse: {
         type: "object",
         properties: {

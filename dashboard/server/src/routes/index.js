@@ -1,6 +1,7 @@
 const express = require("express");
 const authRoutes = require("../domains/auth/auth.routes");
 const controlBoardRoutes = require("../domains/control-board/controlBoard.routes");
+const dashboardOverviewRoutes = require("../domains/dashboard-overview/dashboardOverview.routes");
 const databaseRoutes = require("../domains/database/database.routes");
 const demoRoutes = require("../domains/demo/demo.routes");
 const devicesRoutes = require("../domains/devices/devices.routes");
@@ -22,6 +23,7 @@ router.get("/health", (req, res) => {
 router.use(authRoutes);
 router.use(demoRoutes);
 router.use(controlBoardRoutes);
+router.use(dashboardOverviewRoutes);
 router.use(databaseRoutes);
 router.use(devicesRoutes);
 router.use(externalIngestRoutes);
