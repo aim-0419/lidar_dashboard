@@ -1,16 +1,6 @@
 const { logger } = require("../../utils/logger");
 const { createWrongwayErrorResponse } = require("./wrongway.dto");
 const wrongwayService = require("./wrongway.service");
-const liveSnapshotService = require("./liveSnapshot.service");
-
-async function getLiveObjects(req, res) {
-  try {
-    res.json(await liveSnapshotService.getLiveObjects());
-  } catch (error) {
-    logger.error("live objects query failed", { message: error.message });
-    res.status(500).json({ ok: false, message: "현재 객체 상태 조회에 실패했습니다." });
-  }
-}
 
 async function receiveWrongWay(req, res) {
   try {
@@ -139,7 +129,6 @@ async function sendWrongWayTest(req, res) {
 }
 
 module.exports = {
-  getLiveObjects,
   receiveWrongWay,
   getWrongWayHistory,
   getWrongWayEventDetail,

@@ -3,8 +3,10 @@ const http = require("http");
 const { app } = require("./src/app");
 const { config } = require("./src/config");
 const { initWebSocket } = require("./src/realtime/websocket");
+const { createDashboardOverviewPublisher } = require("./src/realtime/dashboardOverviewPublisher");
 const { setBroadcaster } = require("./src/domains/mock-lidar/mockLidar.service");
-const { setLiveSnapshotBroadcaster } = require("./src/domains/wrongway/liveSnapshot.service");
+const { getDashboardOverview } = require("./src/domains/dashboard-overview/dashboardOverview.service");
+const { setSnapshotProcessedListener } = require("./src/domains/wrongway/wrongway.service");
 const { startLidarSimulator } = require("./src/simulator/lidarSimulator");
 const {
   runSignupRequestMaintenance,
@@ -16,8 +18,15 @@ const server = http.createServer(app);
 const { broadcast } = initWebSocket(server);
 
 setBroadcaster(broadcast);
-setLiveSnapshotBroadcaster(broadcast);
 startLidarSimulator();
+
+// 라이다 snapshot 저장이 끝나면 메인 대시보드 현황(KPI, 현재 감지 객체, 수신 상태)을 실시간으로 보낸다.
+const dashboardOverviewPublisher = createDashboardOverviewPublisher({
+  getOverview: getDashboardOverview,
+  broadcast,
+  logger,
+});
+setSnapshotProcessedListener(() => dashboardOverviewPublisher.notify());
 
 async function maintainSignupRequests() {
   try {

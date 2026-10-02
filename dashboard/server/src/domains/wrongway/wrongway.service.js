@@ -1,7 +1,6 @@
 const { prisma } = require("../../prisma/client");
 const { logger } = require("../../utils/logger");
 const mockLidarService = require("../mock-lidar/mockLidar.service");
-const liveSnapshotService = require("./liveSnapshot.service");
 const { adaptLidarSnapshotPayload } = require("./adapters/lidarHttp.adapter");
 const {
   INCIDENT_STATUS,
@@ -36,6 +35,21 @@ const EVENT_HISTORY_SORT_ORDERS = new Set(["asc", "desc"]);
 
 // 같은 라이다 PC가 보낸 snapshot 두 건이 동시에 상태를 덮어쓰지 않도록 source별 처리 순서를 보장한다.
 const sourceQueues = new Map();
+
+// snapshot 저장이 끝난 뒤 대시보드 현황을 다시 보내기 위한 알림 대상이다.
+// 이 모듈이 WebSocket을 직접 알지 않도록 server.js에서 연결한다.
+let snapshotProcessedListener = () => {};
+
+function setSnapshotProcessedListener(listener) {
+  snapshotProcessedListener = typeof listener === "function" ? listener : () => {};
+}
+
+// 알림 대상의 실패가 라이다 PC 응답에 영향을 주지 않도록 오류는 로그만 남긴다.
+function notifySnapshotProcessed(snapshot) {
+  Promise.resolve()
+    .then(() => snapshotProcessedListener({ source: snapshot.sourceDeviceCode }))
+    .catch((error) => logger.warn("snapshot processed listener failed", { message: error.message }));
+}
 
 // Swagger와 로컬 테스트에서 사용하는 1초 주기 정주행 스트림의 실행 상태를 메모리에 보관한다.
 let normalStreamTimer = null;
@@ -742,11 +756,8 @@ function applyDashboardEffects(items) {
 
 // 다중 객체 snapshot 한 건을 처리하는 서비스의 중심 흐름이다.
 async function processSnapshot(snapshot) {
-  // 1. 상위 payload와 개별 객체를 검증하고, 처리 가능한 객체와 거절 객체를 나눈다.
+  // 1. 상위 payload를 검증하고, 외부 source를 내부 라이다 PC 및 담당 zone과 연결한다.
   validateSnapshot(snapshot);
-  const { accepted, rejected } = validateObjects(snapshot);
-
-  // 2. 외부 source를 내부 라이다 PC 및 담당 zone과 연결한다.
   const device = await findSourceDevice(snapshot.sourceDeviceCode);
   if (!device || device.deviceType !== "LIDAR_PC") {
     throw createHttpError(404, "등록된 라이다 PC source를 찾을 수 없습니다.", {
@@ -754,7 +765,19 @@ async function processSnapshot(snapshot) {
       normalizedSource: snapshot.sourceDeviceCode,
     });
   }
-  // 3. 트랙·사건·이벤트·통계를 하나의 트랜잭션으로 처리해 일부 데이터만 저장되는 상황을 막는다.
+
+  // 2. 객체 검증보다 먼저 서버 수신 시각을 기록한다.
+  // 빈 snapshot이나 객체가 전부 거절된 snapshot도 라이다가 살아 있다는 신호이므로,
+  // 대시보드가 "데이터 형식 오류"를 "라이다 수신 끊김"으로 잘못 표시하지 않게 한다.
+  await prisma.device.update({
+    where: { id: device.id },
+    data: { lastSeenAt: new Date(snapshot.receivedAt) },
+  });
+
+  // 3. 개별 객체를 검증하고, 처리 가능한 객체와 거절 객체를 나눈다.
+  const { accepted, rejected } = validateObjects(snapshot);
+
+  // 4. 트랙·사건·이벤트·통계를 하나의 트랜잭션으로 처리해 일부 데이터만 저장되는 상황을 막는다.
   const transactionResult = await prisma.$transaction(async (tx) => {
     let incident = await tx.safetyIncident.findFirst({
       where: {
@@ -777,7 +800,7 @@ async function processSnapshot(snapshot) {
       processed.push(item);
     }
 
-    // 4. 전체 객체 처리 후 역주행 존재 여부를 기준으로 사건 종료와 누락 트랙 비활성화를 판단한다.
+    // 5. 전체 객체 처리 후 역주행 존재 여부를 기준으로 사건 종료와 누락 트랙 비활성화를 판단한다.
     const hasWrongWay = processed.some((item) => item.isWrongWay);
     const resolvedIncident = await resolveIncidentIfNeeded(tx, {
       snapshot,
@@ -789,16 +812,9 @@ async function processSnapshot(snapshot) {
     return { processed, resolvedIncident, deactivatedCount: deactivated.count };
   });
 
-  // 5. DB 저장이 확정된 뒤 프론트 실시간 이벤트를 발행한다.
+  // 6. DB 저장이 확정된 뒤 프론트 실시간 이벤트와 대시보드 현황 갱신을 발행한다.
   applyDashboardEffects(transactionResult.processed);
-
-  // 이력·트랙 저장이 성공한 스냅샷만 현재 상태와 WebSocket에 반영한다.
-  liveSnapshotService.updateLiveSnapshot(
-    snapshot,
-    device,
-    accepted,
-    transactionResult.processed.map((item) => item.result),
-  );
+  notifySnapshotProcessed(snapshot);
 
   const results = [...transactionResult.processed.map((item) => item.result), ...rejected]
     .sort((left, right) => left.index - right.index);
@@ -807,7 +823,7 @@ async function processSnapshot(snapshot) {
     warnings.push(`total_objects(${snapshot.totalObjects})와 objects 길이(${snapshot.objects.length})가 다릅니다.`);
   }
 
-  // 6. 호출 측에서 부분 성공과 중복·오래된 데이터 처리 결과를 확인할 수 있도록 요약한다.
+  // 7. 호출 측에서 부분 성공과 중복·오래된 데이터 처리 결과를 확인할 수 있도록 요약한다.
   const summary = {
     received: snapshot.objects.length,
     accepted: accepted.length,
@@ -967,6 +983,7 @@ module.exports = {
   getTestPayloads,
   getNormalStreamStatus,
   receiveWrongWayPayload,
+  setSnapshotProcessedListener,
   sendNormalDrivingTestPayload,
   sendWrongWayTestPayload,
   startNormalDrivingStream,
