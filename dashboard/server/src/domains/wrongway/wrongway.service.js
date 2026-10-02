@@ -1,6 +1,7 @@
 const { prisma } = require("../../prisma/client");
 const { logger } = require("../../utils/logger");
 const mockLidarService = require("../mock-lidar/mockLidar.service");
+const liveSnapshotService = require("./liveSnapshot.service");
 const { adaptLidarSnapshotPayload } = require("./adapters/lidarHttp.adapter");
 const {
   INCIDENT_STATUS,
@@ -790,6 +791,14 @@ async function processSnapshot(snapshot) {
 
   // 5. DB 저장이 확정된 뒤 프론트 실시간 이벤트를 발행한다.
   applyDashboardEffects(transactionResult.processed);
+
+  // 이력·트랙 저장이 성공한 스냅샷만 현재 상태와 WebSocket에 반영한다.
+  liveSnapshotService.updateLiveSnapshot(
+    snapshot,
+    device,
+    accepted,
+    transactionResult.processed.map((item) => item.result),
+  );
 
   const results = [...transactionResult.processed.map((item) => item.result), ...rejected]
     .sort((left, right) => left.index - right.index);

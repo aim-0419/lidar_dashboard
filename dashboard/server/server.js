@@ -4,6 +4,7 @@ const { app } = require("./src/app");
 const { config } = require("./src/config");
 const { initWebSocket } = require("./src/realtime/websocket");
 const { setBroadcaster } = require("./src/domains/mock-lidar/mockLidar.service");
+const { setLiveSnapshotBroadcaster } = require("./src/domains/wrongway/liveSnapshot.service");
 const { startLidarSimulator } = require("./src/simulator/lidarSimulator");
 const {
   runSignupRequestMaintenance,
@@ -15,6 +16,7 @@ const server = http.createServer(app);
 const { broadcast } = initWebSocket(server);
 
 setBroadcaster(broadcast);
+setLiveSnapshotBroadcaster(broadcast);
 startLidarSimulator();
 
 async function maintainSignupRequests() {

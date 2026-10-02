@@ -5,6 +5,7 @@ const controller = require("./wrongway.controller");
 const router = express.Router();
 
 router.post("/wrongway", controller.receiveWrongWay);
+router.get("/live/objects", authenticateToken, controller.getLiveObjects);
 router.get("/wrongway/history", authenticateToken, controller.getWrongWayHistory);
 router.get("/events/:id", authenticateToken, controller.getWrongWayEventDetail);
 router.patch(

@@ -96,6 +96,7 @@ test("mounted routers preserve read access and restrict mutations/control comman
   const baseUrl = `http://127.0.0.1:${server.address().port}/api`;
   const routes = [
     ["GET", "/wrongway/history", "getWrongWayHistory", false],
+    ["GET", "/live/objects", "getLiveObjects", false],
     ["GET", "/events/test-event", "getWrongWayEventDetail", false],
     ["GET", "/zones", "getZonesController", false],
     ["GET", "/statistics/summary", "getSummary", false],

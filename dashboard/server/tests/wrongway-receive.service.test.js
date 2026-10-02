@@ -115,6 +115,9 @@ function loadWrongwayService(prisma) {
           pushLog() {},
         };
       }
+      if (name === "./liveSnapshot.service") {
+        return { updateLiveSnapshot() {} };
+      }
       if (name.startsWith("./")) {
         return require(path.resolve(path.dirname(filename), name));
       }

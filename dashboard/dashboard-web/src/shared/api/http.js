@@ -206,6 +206,10 @@ export async function fetchWebSocketTicket() {
   return postJson("/api/auth/ws-ticket", {});
 }
 
+export async function fetchLiveObjects() {
+  return getJson("/api/live/objects");
+}
+
 export async function fetchUsers(options = {}) {
   const searchParams = new URLSearchParams();
 

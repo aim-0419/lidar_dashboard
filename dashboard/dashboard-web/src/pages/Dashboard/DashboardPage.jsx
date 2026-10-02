@@ -11,13 +11,13 @@ import {
   Wifi,
 } from "lucide-react";
 import { apiUrl, WS_BASE } from "../../shared/api/config";
-import { fetchWebSocketTicket } from "../../shared/api/http";
+import { fetchLiveObjects, fetchWebSocketTicket } from "../../shared/api/http";
+import { getDashboardObjects, getDashboardSnapshot, LIVE_DATA_SOURCE } from "../../features/dashboard/liveData";
 import { ZoneLiveView } from "../../features/dashboard/components/ZoneLiveView";
 import { FullscreenLiveView } from "../../features/dashboard/components/FullscreenLiveView";
 import { WrongwayAlertModal } from "../../features/dashboard/components/WrongwayAlertModal";
 import {
   detectedObjects,
-  liveSnapshot,
   monitoringZones,
   realtimeEvents,
 } from "../../shared/constants/operationsDashboardData";
@@ -35,7 +35,7 @@ export default function DashboardPage() {
   const [serverAlive, setServerAlive] = useState(false);
   const [activeEvent, setActiveEvent] = useState(null);
   const [panelMinimized, setPanelMinimized] = useState(false);
-  const [latestSnapshot, setLatestSnapshot] = useState(liveSnapshot);
+  const [liveZones, setLiveZones] = useState([]);
   const [selectedZoneId, setSelectedZoneId] = useState("all");
   const [liveFullscreen, setLiveFullscreen] = useState(false);
 
@@ -74,6 +74,25 @@ export default function DashboardPage() {
   useEffect(() => {
     let ws = null;
     let isMounted = true;
+    let retryTimer = null;
+    let staleTimer = null;
+    let retryCount = 0;
+
+    async function syncLiveObjects() {
+      if (LIVE_DATA_SOURCE !== "api") return;
+      const response = await fetchLiveObjects();
+      if (isMounted) setLiveZones(response.zones || []);
+    }
+
+    function scheduleReconnect() {
+      if (!isMounted || retryTimer) return;
+      const delay = Math.min(1000 * 2 ** retryCount, 30000);
+      retryCount += 1;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        void connectWebSocket();
+      }, delay);
+    }
 
     // http로 받은 1회용 티켓을 query string에 담아 websocket 연결을 생성한다. 
     async function connectWebSocket() {
@@ -81,6 +100,7 @@ export default function DashboardPage() {
         const ticketResponse = await fetchWebSocketTicket();
 
         if (!isMounted || !ticketResponse?.ticket) {
+          if (isMounted) scheduleReconnect();
           return;
         }
 
@@ -88,12 +108,23 @@ export default function DashboardPage() {
         wsUrl.searchParams.set("ticket", ticketResponse.ticket);
 
         ws = new WebSocket(wsUrl.toString());
+        ws.onopen = () => {
+          retryCount = 0;
+          void syncLiveObjects().catch(() => {});
+        };
+        ws.onclose = (event) => {
+          if (event.code !== 1008) scheduleReconnect();
+        };
 
         ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data);
-            if (message.type === "state" && message.payload) {
-              setLatestSnapshot((prev) => ({ ...prev, ...message.payload }));
+            if (message.type === "live-snapshot" && message.payload && LIVE_DATA_SOURCE === "api") {
+              setLiveZones((previous) => {
+                const current = previous.find((zone) => zone.source === message.payload.source);
+                if (current && Date.parse(current.snapshotAt) > Date.parse(message.payload.snapshotAt)) return previous;
+                return [...previous.filter((zone) => zone.source !== message.payload.source), message.payload];
+              });
             }
             if (message.type === "dashboard-event") {
               const payload = message.payload || {};
@@ -118,14 +149,25 @@ export default function DashboardPage() {
           }
         };
       } catch {
-        // WebSocket ticket 발급에 실패해도 대시보드 기본 화면은 계속 사용할 수 있게 둡니다.
+        scheduleReconnect();
       }
     }
 
-    connectWebSocket();
+    void syncLiveObjects().catch(() => {});
+    staleTimer = setInterval(() => {
+      if (LIVE_DATA_SOURCE !== "api") return;
+      setLiveZones((previous) => previous.map((zone) =>
+        Date.now() - Date.parse(zone.lastReceivedAt) > 5000
+          ? { ...zone, connectionStatus: "stale", objects: [] }
+          : zone,
+      ));
+    }, 1000);
+    void connectWebSocket();
 
     return () => {
       isMounted = false;
+      clearTimeout(retryTimer);
+      clearInterval(staleTimer);
       if (ws) {
         ws.close();
       }
@@ -133,14 +175,15 @@ export default function DashboardPage() {
   }, []);
 
   const selectedZone = monitoringZones.find((zone) => zone.id === selectedZoneId) || null;
+  const currentObjects = getDashboardObjects(liveZones);
   const visibleZones = selectedZone ? [selectedZone] : monitoringZones;
   const visibleObjects = selectedZone
-    ? detectedObjects.filter((item) => item.monitoringZoneId === selectedZone.id)
-    : detectedObjects;
+    ? currentObjects.filter((item) => item.monitoringZoneId === selectedZone.id)
+    : currentObjects;
   const visibleEvents = selectedZone
     ? realtimeEvents.filter((event) => event.monitoringZoneId === selectedZone.id)
     : realtimeEvents;
-  const activeSnapshot = selectedZone?.snapshot || latestSnapshot;
+  const activeSnapshot = getDashboardSnapshot(liveZones, selectedZoneId);
 
   // 전체 탭은 실시간 합산값을, 구역 탭은 해당 구역의 mock 스냅샷을 사용한다.
   const kpis = [
