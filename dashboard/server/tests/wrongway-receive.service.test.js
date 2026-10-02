@@ -225,6 +225,20 @@ test("객체가 없는 snapshot도 라이다 PC의 마지막 수신 시각을 �
   assert.ok(!Number.isNaN(new Date(state.deviceUpdates[0].data.lastSeenAt).getTime()));
 });
 
+test("객체가 전부 거절된 snapshot도 400 응답 전에 마지막 수신 시각을 기록한다", async () => {
+  const { prisma, state } = createFakePrisma();
+  const service = loadWrongwayService(prisma);
+  const snapshot = createNormalSnapshot("track-001");
+  snapshot.objects[0].type = "wrong-way-level-1";
+
+  await assert.rejects(service.receiveWrongWayPayload(snapshot), (error) => error.statusCode === 400);
+
+  // 형식 오류는 거절하되, 대시보드가 "라이다 수신 끊김"으로 오해하지 않도록 수신 시각은 남긴다.
+  assert.equal(state.deviceUpdates.length, 1);
+  assert.equal(state.deviceUpdates[0].where.id, "device-LIDAR-PC-01");
+  assert.equal(state.tracks.size, 0);
+});
+
 test("snapshot 저장 후 처리 완료 알림을 보내고, 알림 실패는 수신 응답에 영향을 주지 않는다", async () => {
   const { prisma } = createFakePrisma();
   const service = loadWrongwayService(prisma);
