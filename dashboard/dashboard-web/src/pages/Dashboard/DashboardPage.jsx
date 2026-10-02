@@ -50,7 +50,7 @@ export default function DashboardPage() {
   const [serverAlive, setServerAlive] = useState(false);
   const [activeEvent, setActiveEvent] = useState(null);
   const [panelMinimized, setPanelMinimized] = useState(false);
-  const { overview, status: overviewStatus, applyOverview } = useDashboardOverview();
+  const { overview, status: overviewStatus, applyOverview, refreshOverview } = useDashboardOverview();
   const [selectedZoneId, setSelectedZoneId] = useState("all");
   const [liveFullscreen, setLiveFullscreen] = useState(false);
 
@@ -89,6 +89,18 @@ export default function DashboardPage() {
   useEffect(() => {
     let ws = null;
     let isMounted = true;
+    let retryTimer = null;
+    let retryCount = 0;
+
+    function scheduleReconnect() {
+      if (!isMounted || retryTimer) return;
+      const delay = Math.min(1000 * 2 ** retryCount, 30000);
+      retryCount += 1;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        void connectWebSocket();
+      }, delay);
+    }
 
     // http로 받은 1회용 티켓을 query string에 담아 websocket 연결을 생성한다. 
     async function connectWebSocket() {
@@ -96,6 +108,7 @@ export default function DashboardPage() {
         const ticketResponse = await fetchWebSocketTicket();
 
         if (!isMounted || !ticketResponse?.ticket) {
+          if (isMounted) scheduleReconnect();
           return;
         }
 
@@ -103,6 +116,14 @@ export default function DashboardPage() {
         wsUrl.searchParams.set("ticket", ticketResponse.ticket);
 
         ws = new WebSocket(wsUrl.toString());
+        ws.onopen = () => {
+          if (!isMounted) return;
+          retryCount = 0;
+          void refreshOverview();
+        };
+        ws.onclose = (event) => {
+          if (event.code !== 1008) scheduleReconnect();
+        };
 
         ws.onmessage = (event) => {
           try {
@@ -134,19 +155,20 @@ export default function DashboardPage() {
           }
         };
       } catch {
-        // WebSocket ticket 발급에 실패해도 대시보드 기본 화면은 계속 사용할 수 있게 둡니다.
+        scheduleReconnect();
       }
     }
 
-    connectWebSocket();
+    void connectWebSocket();
 
     return () => {
       isMounted = false;
+      clearTimeout(retryTimer);
       if (ws) {
         ws.close();
       }
     };
-  }, [applyOverview]);
+  }, [applyOverview, refreshOverview]);
 
   const selectedZone = monitoringZones.find((zone) => zone.id === selectedZoneId) || null;
   const visibleZones = selectedZone ? [selectedZone] : monitoringZones;

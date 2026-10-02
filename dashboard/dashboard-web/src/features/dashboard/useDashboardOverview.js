@@ -16,27 +16,31 @@ export function useDashboardOverview() {
     setStatus("ready");
   }, []);
 
+  const refreshOverview = useCallback(async (signal) => {
+    try {
+      applyOverview(await getDashboardOverview({ signal }));
+    } catch {
+      if (signal?.aborted) return;
+      // 일시적인 조회 실패 시 직전 현황은 유지하고 상태만 오류로 표시한다.
+      setStatus("error");
+    }
+  }, [applyOverview]);
+
   useEffect(() => {
     const controller = new AbortController();
 
     async function load() {
-      try {
-        applyOverview(await getDashboardOverview({ signal: controller.signal }));
-      } catch {
-        if (controller.signal.aborted) return;
-        // 일시적인 조회 실패 시 직전 현황은 유지하고 상태만 오류로 표시한다.
-        setStatus("error");
-      }
+      await refreshOverview(controller.signal);
     }
 
-    load();
-    const timer = setInterval(load, FALLBACK_REFRESH_MS);
+    void load();
+    const timer = setInterval(() => void load(), FALLBACK_REFRESH_MS);
 
     return () => {
       controller.abort();
       clearInterval(timer);
     };
-  }, [applyOverview]);
+  }, [refreshOverview]);
 
-  return { overview, status, applyOverview };
+  return { overview, status, applyOverview, refreshOverview };
 }
