@@ -48,7 +48,9 @@ function formatKpi(value) {
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [serverAlive, setServerAlive] = useState(false);
-  const [activeEvent, setActiveEvent] = useState(null);
+  // 역주행 경고는 여러 건이 동시에 진행될 수 있어 목록(최신이 앞)으로 관리한다.
+  const [activeEvents, setActiveEvents] = useState([]);
+  const [selectedEventId, setSelectedEventId] = useState(null);
   const [panelMinimized, setPanelMinimized] = useState(false);
   const { overview, status: overviewStatus, applyOverview, refreshOverview } = useDashboardOverview();
   const [selectedZoneId, setSelectedZoneId] = useState("all");
@@ -138,15 +140,22 @@ export default function DashboardPage() {
 
               // 역주행 감지 이벤트일 때만 경보 모달을 띄운다.
               if (eventType.startsWith("wrong-way")) {
-                setActiveEvent({
-                  id: payload.id || "LIVE-EVENT",
+                const nextEvent = {
+                  id: payload.id || `LIVE-EVENT-${Date.now()}`,
                   zoneId: payload.zone_id || "",
                   trackId: payload.track_id || "",
                   message: payload.message || payload.subMessage || "역주행이 감지되었습니다.",
                   time: payload.timestamp || "실시간",
                   confidence: payload.confidence,
                   source: payload.source,
-                });
+                };
+                // 같은 이벤트가 다시 오면 카드를 늘리지 않고 내용만 갱신하고, 새 이벤트는 맨 앞에 쌓는다.
+                setActiveEvents((current) =>
+                  current.some((item) => item.id === nextEvent.id)
+                    ? current.map((item) => (item.id === nextEvent.id ? nextEvent : item))
+                    : [nextEvent, ...current],
+                );
+                setSelectedEventId(nextEvent.id);
                 setPanelMinimized(false);
               }
             }
@@ -170,6 +179,13 @@ export default function DashboardPage() {
     };
   }, [applyOverview, refreshOverview]);
 
+  // 선택한 카드가 닫혀 목록에서 빠지면 가장 최신 경고를 대신 보여준다.
+  const selectedEvent = activeEvents.find((item) => item.id === selectedEventId) || activeEvents[0] || null;
+
+  function closeAlert(eventId) {
+    setActiveEvents((current) => current.filter((item) => item.id !== eventId));
+  }
+
   const selectedZone = monitoringZones.find((zone) => zone.id === selectedZoneId) || null;
   const visibleZones = selectedZone ? [selectedZone] : monitoringZones;
 
@@ -191,7 +207,7 @@ export default function DashboardPage() {
   // 수신이 끊긴 구역은 객체 목록이 비어도 "차량 없음"으로 오해하지 않도록 따로 경고한다.
   const lidarLostZones = visibleZones.filter((zone) => getZoneLidar(zone.id)?.receiving === false);
   // 실시간 이벤트는 DB 이력 API 기준이며, 역주행 경보가 새로 들어오면 즉시 다시 조회한다.
-  const { events: recentEvents, status: recentEventsStatus } = useRecentDashboardEvents(activeEvent?.id);
+  const { events: recentEvents, status: recentEventsStatus } = useRecentDashboardEvents(activeEvents[0]?.id);
   const visibleEvents = selectedZone
     ? recentEvents.filter((event) => event.zone?.code === selectedZone.zoneCode)
     : recentEvents;
@@ -222,18 +238,20 @@ export default function DashboardPage() {
 
   return (
     <div className="ops-page">
-      {activeEvent && !panelMinimized && (
+      {selectedEvent && !panelMinimized && (
         <WrongwayAlertModal
-          event={activeEvent}
-          onClose={() => setActiveEvent(null)}
+          events={activeEvents}
+          selectedId={selectedEvent.id}
+          onSelect={setSelectedEventId}
+          onClose={closeAlert}
           onMinimize={() => setPanelMinimized(true)}
         />
       )}
 
-      {activeEvent && panelMinimized && (
+      {selectedEvent && panelMinimized && (
         <button className="ops-alert-pill" type="button" onClick={() => setPanelMinimized(false)}>
           <Bell size={16} />
-          역주행 대응 중 · 클릭해서 열기
+          역주행 대응 중 {activeEvents.length}건 · 클릭해서 열기
         </button>
       )}
 

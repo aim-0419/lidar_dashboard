@@ -969,6 +969,26 @@
   border: 1px solid #fecaca;
   background: #ffffff;
   color: #b91c1c;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rw-alert-strip-tab:not(.active):hover {
+  background: #fff5f5;
+}
+
+.rw-alert-strip-more {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  flex-shrink: 0;
+  padding: 0 11px;
+  border-radius: 8px;
+  border: 1px dashed #fca5a5;
+  color: #b91c1c;
+  font-size: 11.5px;
+  font-weight: 800;
 }
 
 .rw-alert-strip-tab.active {

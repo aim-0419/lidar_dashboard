@@ -2,15 +2,28 @@ import { ArrowUpDown, Megaphone, Minus, Monitor, OctagonX, Siren, X } from "luci
 
 // 역주행 감지 시에만 표시하는 경보 대응 패널이다.
 // 통합제어보드/CCTV 연동은 규격 확정 전이라 화면만 구성하고 조작 버튼은 비활성으로 둔다.
-// event, onClose, onMinimize만 받는 표시 전용 컴포넌트다.
-export function WrongwayAlertModal({ event, onClose, onMinimize }) {
+// 경고 목록과 선택 상태는 부모가 관리하고, 이 컴포넌트는 표시와 클릭 전달만 한다.
+
+// 활성 역주행 줄에 카드로 보여줄 최대 건수. 넘치는 건은 "+N"으로만 표시한다.
+const MAX_VISIBLE_ALERTS = 5;
+
+function getEventLabels(event) {
+  return {
+    zoneLabel: event.zoneId || "구역 미상",
+    trackLabel: event.trackId ? `Track ${event.trackId}` : "Track -",
+    timeLabel: event.time || "실시간",
+  };
+}
+
+export function WrongwayAlertModal({ events = [], selectedId, onSelect, onClose, onMinimize }) {
+  const event = events.find((item) => item.id === selectedId) || events[0];
   if (!event) {
     return null;
   }
 
-  const zoneLabel = event.zoneId || "구역 미상";
-  const trackLabel = event.trackId ? `Track ${event.trackId}` : "Track -";
-  const timeLabel = event.time || "실시간";
+  const { zoneLabel, trackLabel, timeLabel } = getEventLabels(event);
+  const visibleEvents = events.slice(0, MAX_VISIBLE_ALERTS);
+  const hiddenCount = events.length - visibleEvents.length;
 
   return (
     <div className="ops-alert-overlay" role="dialog" aria-modal="true" aria-label="역주행 경고">
@@ -25,12 +38,12 @@ export function WrongwayAlertModal({ event, onClose, onMinimize }) {
           </div>
           <div className="rw-alert-head-actions">
             <span className="rw-alert-badge">
-              <span className="rw-dot" />진행 중
+              <span className="rw-dot" />진행 중 · {events.length}건
             </span>
             <button type="button" className="rw-alert-min" onClick={onMinimize}>
               <Minus size={13} />최소화
             </button>
-            <button type="button" className="rw-alert-close" onClick={onClose} aria-label="경고 닫기">
+            <button type="button" className="rw-alert-close" onClick={() => onClose(event.id)} aria-label="선택한 경고 닫기">
               <X size={16} />
             </button>
           </div>
@@ -39,14 +52,32 @@ export function WrongwayAlertModal({ event, onClose, onMinimize }) {
         <div className="rw-alert-strip">
           <span className="rw-alert-strip-label">활성 역주행</span>
           <div className="rw-alert-strip-tabs">
-            <div className="rw-alert-strip-tab active">
-              <span className="rw-dot" />
-              <div>
-                <strong>{zoneLabel} · {trackLabel}</strong>
-                <span>{timeLabel}</span>
-              </div>
-            </div>
+            {visibleEvents.map((item) => {
+              const labels = getEventLabels(item);
+              const isActive = item.id === event.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`rw-alert-strip-tab${isActive ? " active" : ""}`}
+                  aria-pressed={isActive}
+                  onClick={() => onSelect(item.id)}
+                >
+                  <span className="rw-dot" />
+                  <div>
+                    <strong>{labels.zoneLabel} · {labels.trackLabel}</strong>
+                    <span>{labels.timeLabel}</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
+          {/* 카드가 가로 스크롤되더라도 숨은 건수는 항상 보이도록 스크롤 영역 밖에 둔다. */}
+          {hiddenCount > 0 && (
+            <span className="rw-alert-strip-more" title={`표시되지 않은 경고 ${hiddenCount}건`}>
+              +{hiddenCount}
+            </span>
+          )}
         </div>
 
         <div className="rw-alert-body">
