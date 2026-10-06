@@ -16,6 +16,13 @@ function toNumberOrUndefined(value) {
   return Number.isNaN(number) ? undefined : number;
 }
 
+// 라이다 PC가 track_id를 숫자로 보내도 DB 문자열 컬럼에 맞게 문자열로 통일한다.
+function normalizeTrackId(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "string") return value.trim() || undefined;
+  return undefined;
+}
+
 function normalizeLidarType(type) {
   const normalized = String(type || "").trim().toLowerCase();
   return normalized;
@@ -86,7 +93,7 @@ function adaptLidarObjectPayload(object = {}, snapshot) {
       zoneId: externalZoneId,
       externalZoneId,
       deviceId: snapshot.sourceDeviceCode,
-      trackId: firstDefined(object.track_id, object.trackId, object.object_id),
+      trackId: normalizeTrackId(firstDefined(object.track_id, object.trackId, object.object_id)),
       message: object.message || "라이다 객체 상태 수신",
       occurredAt: snapshot.timestamp,
       confidence: toNumberOrUndefined(object.confidence),
@@ -151,4 +158,5 @@ module.exports = {
   mapLidarEventType,
   normalizeLidarType,
   normalizeSourceDeviceCode,
+  normalizeTrackId,
 };
