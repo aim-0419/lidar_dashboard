@@ -26,6 +26,8 @@ const PERIOD_QUERY_MAP = {
 };
 const STATE_REFRESH_INTERVAL_MS = 5000;
 const KST_TIME_ZONE = "Asia/Seoul";
+// 통계 조회는 DB 현장 ID 기준이다. /api/state(mock 상태)의 siteId("Site-01")를 쓰면 DB 통계와 맞지 않아 0으로 조회된다.
+const STATISTICS_SITE_ID = "site-wolchulsan-rest-area";
 
 const EMPTY_HOURLY_EVENTS = Array.from({ length: 24 }, (_, hour) => ({
   hour: String(hour),
@@ -485,7 +487,7 @@ export default function StatisticsPage() {
         }
 
         const options = {
-          siteId: dashboardState.siteId,
+          siteId: STATISTICS_SITE_ID,
         };
 
         if (selectedZoneId) {
@@ -524,7 +526,7 @@ export default function StatisticsPage() {
     return () => {
       isMounted = false;
     };
-  }, [period, dashboardState.siteId, selectedZoneId, customRange.startDate, customRange.endDate]);
+  }, [period, selectedZoneId, customRange.startDate, customRange.endDate]);
 
   const statisticsSeries = useMemo(() => {
     if (Array.isArray(seriesResponse.series) && seriesResponse.series.length > 0) {
@@ -534,8 +536,8 @@ export default function StatisticsPage() {
             ? formatKstDayLabel(item.startAt)
             : item.label,
         vehicles: Number(item.value || 0),
-        wrongWay: 0,
-        pedestrians: 0,
+        wrongWay: Number(item.wrongWay || 0),
+        pedestrians: Number(item.pedestrians || 0),
         startAt: item.startAt,
         endAt: item.endAt,
       }));
@@ -564,6 +566,20 @@ export default function StatisticsPage() {
     return Math.max(statisticsSeries.length - chartWindowSize, 0);
   }, [isPannablePeriod, chartWindowSize, statisticsSeries.length]);
 
+  // 일별 조회는 이번 달 말일까지 버킷이 있으므로, 기본 구간은 월말이 아니라 오늘이 끝인 최근 구간으로 잡는다.
+  const defaultChartWindowStart = useMemo(() => {
+    const now = Date.now();
+    const lastPastIndex = statisticsSeries.findLastIndex(
+      (item) => item.startAt && new Date(item.startAt).getTime() <= now,
+    );
+
+    if (lastPastIndex < 0) {
+      return maxChartWindowStart;
+    }
+
+    return Math.min(Math.max(lastPastIndex - chartWindowSize + 1, 0), maxChartWindowStart);
+  }, [statisticsSeries, chartWindowSize, maxChartWindowStart]);
+
   useEffect(() => {
     if (!isPannablePeriod) {
       setChartWindowStart(0);
@@ -571,11 +587,11 @@ export default function StatisticsPage() {
       return;
     }
 
-    setChartWindowStart(maxChartWindowStart);
+    setChartWindowStart(defaultChartWindowStart);
     setChartDragState(null);
   }, [
     isPannablePeriod,
-    maxChartWindowStart,
+    defaultChartWindowStart,
     customRange.startDate,
     customRange.endDate,
     seriesResponse.bucketUnit,

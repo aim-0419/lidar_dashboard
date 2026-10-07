@@ -1,4 +1,5 @@
 const { prisma } = require("../../prisma/client");
+const { WRONGWAY_EVENT_STATUS, WRONGWAY_EVENT_TYPE } = require("../wrongway/wrongway.constants");
 
 const PERIODS = new Set(["daily", "weekly", "monthly", "custom"]);
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -353,8 +354,55 @@ function getRowBucketStart(row, bucketUnit) {
   return startOfKstMonth(baseDate);
 }
 
-function mergeRowsIntoBuckets(buckets, rows, bucketUnit) {
-  const bucketMap = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+// 역주행/보행자 건수는 별도 통계 테이블 없이 traffic_events의 발생 시각 기준으로 센다.
+// 오탐 처리된 역주행은 실제 역주행이 아니므로 제외한다.
+async function findCountedEvents({ startAt, endAt, siteId, zoneId }) {
+  const where = {
+    eventType: { in: [WRONGWAY_EVENT_TYPE.WRONG_WAY, WRONGWAY_EVENT_TYPE.PEDESTRIAN_ENTERED] },
+    NOT: { eventType: WRONGWAY_EVENT_TYPE.WRONG_WAY, status: WRONGWAY_EVENT_STATUS.FALSE_ALARM },
+    // 라이다 timestamp가 잘못되어 occurredAt이 없으면 서버 수신 시각으로 대신 판단한다.
+    OR: [
+      { occurredAt: { gte: startAt, lt: endAt } },
+      { occurredAt: null, receivedAt: { gte: startAt, lt: endAt } },
+    ],
+  };
+
+  if (typeof siteId === "string" && siteId.trim()) {
+    where.zone = { siteId: siteId.trim() };
+  }
+
+  if (typeof zoneId === "string" && zoneId.trim()) {
+    where.zoneId = zoneId.trim();
+  }
+
+  const events = await prisma.trafficEvent.findMany({
+    where,
+    select: { eventType: true, occurredAt: true, receivedAt: true },
+  });
+
+  return events.map((event) => ({
+    eventType: event.eventType,
+    eventAt: event.occurredAt || event.receivedAt,
+  }));
+}
+
+function countEvents(events) {
+  return {
+    wrongWayEvents: events.filter((event) => event.eventType === WRONGWAY_EVENT_TYPE.WRONG_WAY).length,
+    pedestrianCount: events.filter((event) => event.eventType === WRONGWAY_EVENT_TYPE.PEDESTRIAN_ENTERED).length,
+  };
+}
+
+// 역주행 비율은 통과 차량 대비 역주행 건수(%)이며 소수점 둘째 자리까지 반환한다.
+function calculateWrongWayRate(wrongWayEvents, totalVehicles) {
+  if (!totalVehicles) return 0;
+  return Math.round((wrongWayEvents / totalVehicles) * 10000) / 100;
+}
+
+function mergeRowsIntoBuckets(buckets, rows, events, bucketUnit) {
+  const bucketMap = new Map(
+    buckets.map((bucket) => [bucket.key, { ...bucket, wrongWay: 0, pedestrians: 0 }]),
+  );
 
   for (const row of rows) {
     const bucketStart = getRowBucketStart(row, bucketUnit);
@@ -368,9 +416,25 @@ function mergeRowsIntoBuckets(buckets, rows, bucketUnit) {
     bucket.value += Number(row.totalVehicles || 0);
   }
 
-  return buckets.map((bucket) => ({
+  for (const event of events) {
+    const bucket = bucketMap.get(createBucketKey(event.eventAt, bucketUnit));
+
+    if (!bucket) {
+      continue;
+    }
+
+    if (event.eventType === WRONGWAY_EVENT_TYPE.WRONG_WAY) {
+      bucket.wrongWay += 1;
+    } else {
+      bucket.pedestrians += 1;
+    }
+  }
+
+  return [...bucketMap.values()].map((bucket) => ({
     label: bucket.label,
     value: bucket.value,
+    wrongWay: bucket.wrongWay,
+    pedestrians: bucket.pedestrians,
     startAt: bucket.startAt,
     endAt: new Date(bucket.endAt.getTime() - 1000),
   }));
@@ -395,14 +459,17 @@ async function getStatisticsSummary({ period, siteId, zoneId, startDate, endDate
   });
   const filteredRows = rows.filter((row) => shouldIncludeRowInRange(row, startAt, endAt));
   const totalVehicles = filteredRows.reduce((sum, row) => sum + Number(row.totalVehicles || 0), 0);
+  const { wrongWayEvents, pedestrianCount } = countEvents(
+    await findCountedEvents({ startAt, endAt, siteId, zoneId }),
+  );
 
   return {
     ...getRangeDescriptor(normalizedPeriod, startAt, endAt, bucketUnit),
     summary: {
       totalVehicles,
-      wrongWayEvents: 0,
-      wrongWayRate: 0,
-      pedestrianCount: 0,
+      wrongWayEvents,
+      wrongWayRate: calculateWrongWayRate(wrongWayEvents, totalVehicles),
+      pedestrianCount,
     },
   };
 }
@@ -427,14 +494,21 @@ async function getTrafficSeries({ period, siteId, zoneId, startDate, endDate }) 
   });
   const filteredRows = rows.filter((row) => shouldIncludeRowInRange(row, startAt, endAt));
 
+  const events = await findCountedEvents({ startAt, endAt, siteId, zoneId });
+
   const buckets = buildBuckets(startAt, endAt, bucketUnit);
-  const series = mergeRowsIntoBuckets(buckets, filteredRows, bucketUnit);
+  const series = mergeRowsIntoBuckets(buckets, filteredRows, events, bucketUnit);
+  const totalVehicles = series.reduce((sum, item) => sum + Number(item.value || 0), 0);
+  const { wrongWayEvents, pedestrianCount } = countEvents(events);
 
   return {
     ...getRangeDescriptor(normalizedPeriod, startAt, endAt, bucketUnit),
     series,
     summary: {
-      totalVehicles: series.reduce((sum, item) => sum + Number(item.value || 0), 0),
+      totalVehicles,
+      wrongWayEvents,
+      wrongWayRate: calculateWrongWayRate(wrongWayEvents, totalVehicles),
+      pedestrianCount,
     },
   };
 }
