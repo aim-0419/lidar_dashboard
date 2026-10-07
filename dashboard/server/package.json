@@ -10,6 +10,8 @@
     "db:seed": "prisma db seed",
     "db:status": "prisma migrate status",
     "db:studio": "prisma studio",
+    "seed:demo": "node prisma/seed-demo.js",
+    "demo:live": "node scripts/demo-live.js",
     "test": "node --test",
     "start": "node server.js"
   },

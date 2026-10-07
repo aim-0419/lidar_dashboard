@@ -347,6 +347,34 @@ SELECT * FROM safety_incidents;
 SELECT * FROM daily_traffic_stats;
 ```
 
+## 데모 예시 데이터
+
+시연이나 화면 확인용으로 예시 데이터를 넣을 수 있습니다. 개발/시연용 DB에서만 사용하고, 운영 환경(`NODE_ENV=production`)에서는 실행되지 않습니다.
+코드가 이미지에 포함되므로 `git pull` 후에는 backend를 다시 빌드합니다.
+
+```powershell
+docker compose up -d --build backend
+
+# 1) 예시 데이터 넣기: 실행한 날 기준 최근 30일 이벤트/통계 생성 (다시 실행하면 지우고 새로 생성)
+docker compose exec backend npm run seed:demo
+
+# 2) 실시간 화면: 켜 두는 동안 현재 감지 객체, 라이다 수신 상태가 표시됨 (Ctrl+C로 종료)
+docker compose exec backend npm run demo:live
+
+# 3) 되돌리기: 예시 데이터 삭제
+docker compose exec backend npm run seed:demo -- --reset
+```
+
+| 화면 | 표시되는 예시 데이터 |
+| --- | --- |
+| 전체 현황 | 오늘 통과 차량·역주행·보행자 KPI, 실시간 이벤트 목록, (`demo:live` 실행 중) 현재 감지 객체·라이다 수신 상태 |
+| 이벤트 로그 | 최근 30일 역주행/상황 종료/보행자 진입·이탈 이벤트 |
+| 통계 | 최근 30일 시간대별 통과 차량 |
+
+- 예시 이벤트와 차량 track_id는 `DEMO-`로 시작합니다.
+- `--reset`은 `DEMO-` 이벤트/사건/트랙과 함께 최근 31일 구역 통계(`daily_traffic_stats`, `traffic_statistics` hourly)를 삭제합니다. 이 기간에 실제로 쌓인 통계도 함께 지워집니다.
+- 장비 상태 화면은 현재 프론트엔드 고정 예시 데이터를 사용하므로 이 스크립트와 무관합니다.
+
 ## 컨테이너 관리
 
 백그라운드 실행:
